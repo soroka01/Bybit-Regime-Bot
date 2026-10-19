@@ -7,7 +7,8 @@ import { createLab } from "./tabs/lab";
 import { createLive } from "./tabs/live";
 import { createStats } from "./tabs/stats";
 import { createPortfolio } from "./tabs/portfolio";
-import type { Tab, TabFactory } from "./tabs/tab";
+import type { TabFactory } from "./tabs/tab";
+import { createTabHost } from "./tabHost";
 import { createWalkForward } from "./tabs/walkforward";
 import { currentRoute, ROUTES, setRoute, type Route } from "./state";
 import type { Meta } from "./types";
@@ -111,42 +112,11 @@ async function boot() {
   initMeta(meta);
   setPaletteContext(meta, TITLES);
 
-  const tabs = new Map<Route, Tab>();
-  let active: Route | null = null;
-
-  const show = () => {
-    const r = currentRoute();
-    if (r === active) return;
-    if (active) {
-      tabs.get(active)!.el.hidden = true;
-      tabs.get(active)!.hide();
-    }
-    let t = tabs.get(r);
-    if (!t) {
-      t = FACTORIES[r](meta);
-      t.el.setAttribute("role", "tabpanel");
-      t.el.setAttribute("aria-labelledby", `tab-${r}`);
-      tabs.set(r, t);
-      content.append(t.el);
-    }
-    t.el.hidden = false;
-    t.el.classList.remove("enter");
-    void t.el.offsetWidth;                 // перезапуск анимации появления
-    t.el.classList.add("enter");
-    active = r;
-    links.forEach((a, k) => {
-      a.setAttribute("aria-selected", String(k === r));
-      a.tabIndex = k === r ? 0 : -1;
-    });
-    document.title = `${TITLES[r]} — Tradebot`;
-    layoutTabs(true);
-    t.show();
-  };
-  const bar = createFreshness(fresh, () => (active ? tabs.get(active)?.dataContext?.() ?? null : null), () => {
-    if (active) tabs.get(active)?.refresh?.();   // метаданные уже обновлены хуком api.afterDataChange
-  });
-  window.addEventListener("hashchange", () => { show(); bar.refresh(); });
-  show();
+  // создание/показ вкладок под «предохранителем»: упавшая вкладка заменяется баннером со сбросом её настроек, остальные работают (tabHost.ts)
+  const host = createTabHost({ meta, factories: FACTORIES, titles: TITLES, content, links, layoutTabs });
+  const bar = createFreshness(fresh, () => host.dataContext(), () => host.refresh());   // метаданные уже обновлены хуком api.afterDataChange
+  window.addEventListener("hashchange", () => { host.show(); bar.refresh(); });
+  host.show();
   bar.refresh();
 }
 

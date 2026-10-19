@@ -42,6 +42,20 @@ export function errorBanner(err: ApiError, onRetry: () => void): HTMLElement {
 }
 
 /**
+ * Баннер вместо вкладки, которая упала при создании или показе. reset очищает только сохранённые настройки этой вкладки
+ * (частая причина падения — повреждённый localStorage), retry пробует собрать вкладку заново.
+ */
+export function crashBanner(title: string, message: string, a: { retry(): void; reset(): void }): HTMLElement {
+  return h("div", { class: "banner error tab-crash-banner", role: "alert", "data-code": "tab_crash" },
+    h("strong", { text: `Вкладка «${title}» не открылась. ` }),
+    h("span", { text: message }),
+    h("p", { class: "muted small", text: "Чаще всего причина — повреждённые сохранённые настройки этой вкладки. Остальные вкладки работают." }),
+    h("div", { class: "banner-actions" },
+      h("button", { class: "btn", type: "button", text: "Повторить", onClick: a.retry }),
+      h("button", { class: "btn primary", type: "button", "data-action": "reset", text: "Сбросить сохранённые настройки вкладки", onClick: a.reset })));
+}
+
+/**
  * Показывает ошибку в слоте баннера. Пока идёт загрузка данных (fetch/update) и в слоте уже стоит баннер data_missing
  * с кнопкой скачивания, «сервер занят»/«вытеснен» его не заменяют — иначе пропадает кнопка идущей загрузки.
  */

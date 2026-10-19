@@ -16,7 +16,7 @@ import { panelSection } from "../ui/panelSection";
 import { changedParams } from "../ui/paramLogic";
 import { createRunner } from "../ui/runner";
 import { toast } from "../ui/toast";
-import { importLiveLegs, LIVE_WEIGHT_CAP, MAX_LEGS, weightReport, type WeightReport } from "./portfolioLogic";
+import { importLiveLegs, isLegCfg, LIVE_WEIGHT_CAP, MAX_LEGS, sanitizeLegs, weightReport, type WeightReport } from "./portfolioLogic";
 import { createResultView } from "./resultview";
 import { DAY_OPTIONS, DAY_VALUES, notifyContext, panelLayout, type Tab } from "./tab";
 
@@ -42,11 +42,11 @@ export function createPortfolio(meta: Meta): Tab {
     days: (v) => DAY_VALUES.includes(v),
     fee: (v) => v >= 0 && v <= 0.3, slip: (v) => v >= 0 && v <= 0.3,
     leverage: (v) => v >= 1 && v <= MAX_LEVERAGE, market: isMarket,
-    legs: (v) => v.length <= MAX_LEGS && v.every((l) => l && typeof l.strategy === "string" && typeof l.tf === "string" && typeof l.weight === "number" && Number.isFinite(l.weight) && typeof l.long_only === "boolean" && l.params && typeof l.params === "object"),
+    legs: (v) => v.length <= MAX_LEGS && v.every(isLegCfg),
   });
   const S = P.state;
   const strategies = new Map(meta.strategies.map((s) => [s.name, s]));
-  S.legs = S.legs.filter((l) => strategies.has(l.strategy) && meta.portfolio_tfs.includes(l.tf));
+  S.legs = sanitizeLegs(S.legs, strategies, meta.portfolio_tfs);        // неизвестное отбрасывается, вес и параметры зажимаются в допустимые пределы
   if (!S.legs.length) S.legs = structuredClone(meta.legs);
 
   const result = createResultView({ fileHint: () => ["portfolio", S.symbol, `${S.legs.length}legs`] });

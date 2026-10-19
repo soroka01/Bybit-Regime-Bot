@@ -31,6 +31,16 @@ export function validate<T extends object>(defaults: T, raw: unknown, checks: Ch
   return out;
 }
 
+/** Отложенные записи по ключам: clearPersisted гасит их, чтобы упавшая вкладка не воскресила сброшенное состояние. */
+const pendingSaves = new Map<string, number>();
+
+/** Стереть сохранённое состояние вкладки (только её ключ tb.<key>; остальные настройки не трогаются). */
+export function clearPersisted(key: string): void {
+  clearTimeout(pendingSaves.get(key));
+  pendingSaves.delete(key);
+  try { localStorage.removeItem("tb." + key); } catch { /* приватный режим */ }
+}
+
 /** Объект состояния, сохраняемый в localStorage под ключом tb.<key>. Недостающие/некорректные поля берутся из defaults. */
 export function persisted<T extends object>(
   key: string, defaults: T, checks: Checks<T> = {},
@@ -47,8 +57,10 @@ export function persisted<T extends object>(
     save() {
       clearTimeout(timer);
       timer = window.setTimeout(() => {
+        pendingSaves.delete(key);
         try { localStorage.setItem(k, JSON.stringify(state)); } catch { /* ignore */ }
       }, 200);
+      pendingSaves.set(key, timer);
     },
     reset() {
       clearTimeout(timer);   // отложенная запись не должна воскресить сброшенное состояние

@@ -1,7 +1,7 @@
 // Чистая логика фазы 2b: фильтр/CSV сделок, сравнение с B&H, «изменено», поиск стратегий, веса портфеля и импорт ног бота, сводки панели, оценка walk-forward.
 import { describe, expect, it } from "vitest";
 import { daysLabel, leverageSummary, marketSummary, overlaysSummary, strategySummary } from "../src/tabs/labLogic";
-import { importLiveLegs, weightReport, weightSum } from "../src/tabs/portfolioLogic";
+import { clampWeight, importLiveLegs, isLegCfg, LEG_WEIGHT_MAX, normalizeParams, sanitizeLegs, weightReport, weightSum } from "../src/tabs/portfolioLogic";
 import { ddVersus, isShortPeriod, periodDays, vsBenchmark } from "../src/tabs/resultLogic";
 import { csvCell, csvFileName, csvText, filterTrades, tradeCounts, tradesToCsv } from "../src/tabs/tradesLogic";
 import { windowMatrix, windowSpan, wfVerdict } from "../src/tabs/wfLogic";
@@ -28,6 +28,35 @@ describe("сделки: фильтр", () => {
   it("фильтр возвращает копию", () => {
     const all = filterTrades(rows, "all");
     expect(all).not.toBe(rows);
+  });
+});
+
+describe("портфель: проверка и очистка ног из localStorage", () => {
+  const leg = (over: Record<string, unknown> = {}) => ({ strategy: "EMA cross", tf: "1h", weight: 0.5, long_only: false, params: { fast: 12 }, ...over });
+  const st = { name: "EMA cross", desc: "", derivative: false, params: { fast: { min: 2, max: 50, step: 1, default: 12, kind: "int", grid: [] } } } as unknown as StrategyMeta;
+  const strategies = new Map([["EMA cross", st]]);
+
+  it("isLegCfg: форма ноги и params — словарь конечных чисел", () => {
+    expect(isLegCfg(leg())).toBe(true);
+    expect(isLegCfg(leg({ params: {} }))).toBe(true);
+    for (const bad of [null, 1, "x", [], leg({ params: [1] }), leg({ params: null }), leg({ params: { fast: "12" } }), leg({ params: { fast: null } }),
+      leg({ weight: "1" }), leg({ weight: null }), leg({ long_only: 1 }), leg({ strategy: 1 }), leg({ tf: undefined })]) expect(isLegCfg(bad), JSON.stringify(bad)).toBe(false);
+  });
+  it("clampWeight / LEG_WEIGHT_MAX", () => {
+    expect(LEG_WEIGHT_MAX).toBe(1.5);
+    expect([clampWeight(-1), clampWeight(0.3), clampWeight(99)]).toEqual([0, 0.3, 1.5]);
+  });
+  it("normalizeParams: лишнее отбрасывается, нечисловое — по умолчанию, значения зажимаются", () => {
+    expect(normalizeParams(st, { fast: 1000, other: 1 })).toEqual({ fast: 50 });
+    expect(normalizeParams(st, { fast: -5 })).toEqual({ fast: 2 });
+    expect(normalizeParams(st, { fast: "7" })).toEqual({ fast: 12 });
+    expect(normalizeParams(st, null)).toEqual({ fast: 12 });
+  });
+  it("sanitizeLegs: неизвестные стратегия/таймфрейм отбрасываются, вес зажимается, число ног ограничено", () => {
+    const out = sanitizeLegs([leg({ weight: 9 }), leg({ strategy: "?" }), leg({ tf: "15m" }), leg({ weight: -1 })] as never, strategies, ["1h", "4h"]);
+    expect(out.map((l) => l.weight)).toEqual([1.5, 0]);
+    const many = sanitizeLegs(Array.from({ length: 20 }, () => leg()) as never, strategies, ["1h"]);
+    expect(many).toHaveLength(8);
   });
 });
 

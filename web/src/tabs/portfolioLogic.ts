@@ -5,7 +5,34 @@ import { num, pct } from "../ui/fmt";
 /** Живой бот ограничивает суммарный вес ног до 100 %. */
 export const LIVE_WEIGHT_CAP = 1;
 export const MAX_LEGS = 8;
+/** Верхняя граница веса одной ноги (как у слайдера «Вес»). */
+export const LEG_WEIGHT_MAX = 1.5;
 const EPS = 1e-9;
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+const isFiniteNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+
+/** Нога из localStorage годится по форме: строки strategy/tf, конечный вес, boolean long_only, params — объект «имя → конечное число» (не массив, не null). */
+export function isLegCfg(l: unknown): l is LegCfg {
+  if (!l || typeof l !== "object" || Array.isArray(l)) return false;
+  const o = l as Record<string, unknown>;
+  if (typeof o.strategy !== "string" || typeof o.tf !== "string" || !isFiniteNum(o.weight) || typeof o.long_only !== "boolean") return false;
+  const p = o.params;
+  return !!p && typeof p === "object" && !Array.isArray(p) && Object.values(p).every(isFiniteNum);
+}
+
+/** Вес ноги в допустимых пределах [0, LEG_WEIGHT_MAX]. */
+export const clampWeight = (w: number): number => Math.min(LEG_WEIGHT_MAX, Math.max(0, w));
+
+/** Параметры ноги по спецификации стратегии: лишние отбрасываются, недостающие/нечисловые — по умолчанию, значения зажимаются в [min, max]. */
+export function normalizeParams(st: StrategyMeta, raw: Record<string, unknown> | null | undefined): Record<string, number> {
+  const params: Record<string, number> = {};
+  for (const [k, sp] of Object.entries(st.params)) {
+    const v = raw?.[k];
+    params[k] = isFiniteNum(v) ? clamp(v, sp.min, sp.max) : sp.default;
+  }
+  return params;
+}
 
 export const weightSum = (legs: readonly { weight: number }[]): number => legs.reduce((a, l) => a + (Number.isFinite(l.weight) ? l.weight : 0), 0);
 
@@ -43,6 +70,20 @@ export function weightReport(legs: readonly { weight: number }[], leverage: numb
   return { sum, tone, over, zero, headline: `Σ весов ${pct(sum, 0)}`, lines };
 }
 
+/**
+ * Ноги, прочитанные из localStorage, -> безопасные: неизвестные стратегия/таймфрейм отбрасываются, вес зажимается в [0, LEG_WEIGHT_MAX],
+ * параметры приводятся к спецификации стратегии. Остаться может пустой список — вызывающий подставляет ноги по умолчанию.
+ */
+export function sanitizeLegs(legs: readonly LegCfg[], strategies: ReadonlyMap<string, StrategyMeta>, tfs: readonly string[]): LegCfg[] {
+  const out: LegCfg[] = [];
+  for (const l of legs) {
+    const st = strategies.get(l.strategy);
+    if (!st || !tfs.includes(l.tf) || out.length >= MAX_LEGS) continue;
+    out.push({ strategy: l.strategy, tf: l.tf, params: normalizeParams(st, l.params), weight: clampWeight(l.weight), long_only: l.long_only });
+  }
+  return out;
+}
+
 export interface ImportResult {
   ok: boolean;
   legs: LegCfg[];
@@ -54,8 +95,6 @@ export interface ImportResult {
   legacyLongOnly?: boolean;
   reason?: string;
 }
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /**
  * Ноги живого бота -> ноги портфеля. Берутся только включённые; параметры — по спецификации стратегии (лишние отбрасываются, недостающие — по умолчанию,
@@ -79,14 +118,10 @@ export function importLiveLegs(
     if (!tfs.includes(l.tf)) { skipped.push(`${label}: таймфрейм не поддерживается портфелем`); continue; }
     if (!Number.isFinite(l.weight) || l.weight < 0) { skipped.push(`${label}: некорректный вес`); continue; }
     if (legs.length >= MAX_LEGS) { skipped.push(`${label}: не больше ${MAX_LEGS} ног`); continue; }
-    const params: Record<string, number> = {};
-    for (const [k, sp] of Object.entries(st.params)) {
-      const v = l.params?.[k];
-      params[k] = typeof v === "number" && Number.isFinite(v) ? clamp(v, sp.min, sp.max) : sp.default;
-    }
+    const params = normalizeParams(st, l.params);
     const twin = defaults.find((d) => d.strategy === l.strategy && d.tf === l.tf);
     if (typeof l.long_only !== "boolean") legacyLongOnly = true;
-    legs.push({ strategy: l.strategy, tf: l.tf, params, weight: Math.min(1.5, +l.weight.toFixed(4)), long_only: typeof l.long_only === "boolean" ? l.long_only : (twin?.long_only ?? false) });
+    legs.push({ strategy: l.strategy, tf: l.tf, params, weight: Math.min(LEG_WEIGHT_MAX, +l.weight.toFixed(4)), long_only: typeof l.long_only === "boolean" ? l.long_only : (twin?.long_only ?? false) });
   }
   if (!legs.length) return { ok: false, legs, skipped, disabled, reason: "Нет включённых ног, которые можно перенести." };
   return { ok: true, legs, skipped, disabled, legacyLongOnly };

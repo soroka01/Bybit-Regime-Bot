@@ -90,6 +90,36 @@ describe("Портфель: ноги карточками и сумма весо
   });
 });
 
+describe("Портфель: ноги из localStorage приводятся к допустимым (F1)", () => {
+  const stored = (legs: unknown) => localStorage.setItem("tb.portfolio", JSON.stringify({ legs }));
+  it("вес зажимается в [0; 1,5], параметры — в диапазон стратегии, неизвестные стратегии и таймфреймы отбрасываются", async () => {
+    const calls = stub({});
+    stored([
+      { strategy: "EMA cross", tf: "1h", weight: 1e9, long_only: false, params: { fast: 1e9, лишний: 5 } },
+      { strategy: "OI flush", tf: "4h", weight: -3, long_only: true, params: {} },
+      { strategy: "Нет такой", tf: "1h", weight: 0.5, long_only: false, params: {} },
+      { strategy: "EMA cross", tf: "15m", weight: 0.5, long_only: false, params: {} },
+    ]);
+    const tab = createPortfolio(meta);
+    tab.show();
+    await vi.advanceTimersByTimeAsync(400); await flush();
+    const legs = lastBody(calls).legs;
+    expect(legs.map((l) => [l.strategy, l.tf, l.weight])).toEqual([["EMA cross", "1h", 1.5], ["OI flush", "4h", 0]]);
+    expect(legs[0]!.params).toEqual({ fast: 50 });          // 1e9 -> max спецификации, лишний параметр отброшен
+    expect(legs[1]!.params).toEqual({ n: 10 });             // отсутствует -> по умолчанию
+  });
+
+  it("params не словарь чисел (массив / строка вместо числа) — сохранённые ноги отвергаются целиком и берутся ноги по умолчанию", async () => {
+    for (const bad of [[1, 2], { fast: "12" }, { fast: null }]) {
+      localStorage.clear();
+      stored([{ strategy: "EMA cross", tf: "1h", weight: 0.9, long_only: false, params: bad }]);
+      const tab = createPortfolio(meta);
+      expect(tab.el.querySelectorAll(".leg-card"), JSON.stringify(bad)).toHaveLength(2);        // умолчание из meta.legs
+      expect(tab.el.querySelector(".wsum-val")!.textContent).toBe("Σ весов 100%");
+    }
+  });
+});
+
 describe("Портфель: «Взять ноги живого бота»", () => {
   const snap = {
     available: true,
