@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Вкладка «Портфель» (jsdom + подменённый fetch): шкала суммарного веса и предупреждения, импорт ног живого бота, карточки ног.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Meta } from "../src/types";

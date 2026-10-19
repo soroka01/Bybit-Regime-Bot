@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // «В бота»: исходы sendToBotWithToast (тосты), блокировка кнопки, одинаковый текст у «Копировать» и «В бота» во вкладках,
 // а также карточка «Цель и сигналы» (активные ноги в таблице, неактивные — в свёрнутом списке).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

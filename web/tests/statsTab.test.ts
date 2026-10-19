@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Вкладка «Статистика» (jsdom, графики подменены): состояния, диапазоны, автообновление, карточки, таблица сделок, CSV, выбор сделки.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Meta, StatsResponse } from "../src/types";

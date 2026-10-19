@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { contrast, inkOn, luminance, mix, parseColor, withAlpha } from "../src/charts/colors";
 import { niceScale } from "../src/charts/scale";

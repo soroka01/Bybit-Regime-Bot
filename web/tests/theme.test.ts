@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyTheme, currentMode, resolve, storedMode, themeSwitch, THEME_COLORS } from "../src/ui/theme";
 

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Рынок (перп/спот): чистая логика, сохранённое состояние, «Копировать для бота» и поведение вкладок при смене рынка.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Сводка по вердиктам на вкладке «Лучшие стратегии»: клик по плашке фильтрует список, «скрыть слабые» и сброс работают, выбор запоминается.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createLeaderboard } from "../src/tabs/leaderboard";

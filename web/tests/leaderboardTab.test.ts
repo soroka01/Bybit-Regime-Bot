@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Интеграционные тесты вкладки «Лучшие стратегии» (jsdom + подменённый fetch): нет «зависания» в running, busy-повторы, сброс при смене настроек.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createLeaderboard } from "../src/tabs/leaderboard";

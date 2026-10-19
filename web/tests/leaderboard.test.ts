@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import fixture from "./fixtures/rank.json";
 import { isRank, rankKey, rankValue, RANKS, splitRanked } from "../src/tabs/lbRank";

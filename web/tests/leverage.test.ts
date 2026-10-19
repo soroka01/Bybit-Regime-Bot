@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Плечо 1×…100×: нелинейная шкала слайдера, пресеты, подсказка о ликвидации и сам элемент управления (jsdom).
 import { describe, expect, it, vi } from "vitest";
 import {

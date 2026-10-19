@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, ApiError, asApiError, dataJobsActive, onDataJobs } from "../src/api";
 import { createRunner } from "../src/ui/runner";

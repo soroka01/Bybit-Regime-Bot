@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // «Статистика»: подключение — маршрут после «Бот (live)», клавиша 6, команда в палитре, справка по клавишам.
 import { beforeEach, describe, expect, it } from "vitest";
 import { currentRoute, ROUTES } from "../src/state";

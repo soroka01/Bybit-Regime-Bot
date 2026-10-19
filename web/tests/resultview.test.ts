@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Вид результата (jsdom, графики подменены): герой с дельтами к B&H, «Все метрики», фильтр сделок, выгрузка CSV, короткий период, состояния.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BacktestResult, TradeRow } from "../src/types";

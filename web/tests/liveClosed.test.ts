@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Вкладка «Бот (live)»: блок «Закрытые сделки» (round trips из /api/stats?range=30d) — деньги в долларах и % счёта, открытая позиция сверху,
 // шапка «За 30 дн.: закрыто N · плюс · минус · итого», откат к списку ордеров при 404/ошибке, подсветка новой сделки, нейтральные бейджи сторон.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

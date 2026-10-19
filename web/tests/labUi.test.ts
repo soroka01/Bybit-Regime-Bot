@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Компоненты фазы 2b (jsdom): поиск стратегии (combobox), строка параметра (изменено / по умолчанию), секции панели с однострочной сводкой.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { combobox } from "../src/ui/combobox";

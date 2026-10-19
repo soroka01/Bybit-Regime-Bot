@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Вкладка «Бот (live)» (jsdom, график подменён): герой (чип результата за окно графика), карточка лимитов риска, предупреждение «стоп × плечо × веса».
 // Бот торгует на весь баланс счёта: поле settings.allocated_capital старого сервера игнорируется, его отсутствие ничего не ломает.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
