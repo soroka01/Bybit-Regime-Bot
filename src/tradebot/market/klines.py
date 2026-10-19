@@ -1,13 +1,22 @@
 """Загрузка свечей с публичного API Bybit v5 (ключи не нужны) + кэш в parquet."""
 from __future__ import annotations
 
+import contextlib
+import logging
+import os
+import re
 import time
+import uuid
+from pathlib import Path
 
 import pandas as pd
 import requests
 
 URL = "https://api.bybit.com/v5/market/kline"
+from tradebot.market import guard
 from tradebot.paths import MARKET as DATA_DIR
+
+log = logging.getLogger("tradebot.market")
 
 # ключ -> (интервал Bybit, минут в свече) — ЕДИНСТВЕННЫЙ источник списка таймфреймов (веб, тесты, селекторы).
 # Порядок по возрастанию длины. Месячный интервал «M» намеренно НЕ добавлен: свечи переменной длины ломают
@@ -65,16 +74,124 @@ def last_closed_start(now: pd.Timestamp, tf: str, last: pd.Timestamp | None = No
     return bar_floor(now, tf) - step
 
 
+class NoDataError(RuntimeError):
+    """Биржа не вернула ни одной свечи (и в локальном кэше их нет): считать нечего."""
+
+
+TMP_MAX_AGE_S = 3600          # осиротевшие временные файлы старше часа (обрыв процесса посреди записи) удаляются при следующей записи
+
+
+def _replace(tmp: Path, path: Path) -> None:
+    """os.replace с повтором: на Windows замена не удаётся, пока читатель держит файл открытым (PermissionError)."""
+    for attempt in range(8):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if attempt == 7:
+                raise
+            time.sleep(0.05 * (attempt + 1))
+
+
+def _sweep_tmp(path: Path) -> None:
+    now = time.time()
+    for pat in (path.name + ".*.tmp", path.name + ".tmp"):
+        for t in path.parent.glob(pat):
+            with contextlib.suppress(OSError):
+                if now - t.stat().st_mtime > TMP_MAX_AGE_S:
+                    t.unlink()
+
+
 def _atomic_parquet(df, path) -> None:
-    """Запись через временный файл в той же папке + os.replace: обрыв не оставит битый кэш."""
-    import os
-    tmp = path.with_name(path.name + ".tmp")
-    df.to_parquet(tmp)
-    os.replace(tmp, path)
+    """Запись через временный файл в той же папке + os.replace: обрыв не оставит битый кэш. Имя временного файла уникально
+    (pid + uuid): два параллельных писателя (бот и веб-докачка) не затирают друг другу временный файл."""
+    path = Path(path)
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
+    try:
+        df.to_parquet(tmp)
+        _replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        raise
+    _sweep_tmp(path)
+
+
+def _read_parquet(path) -> pd.DataFrame:
+    """pd.read_parquet с коротким повтором: во время os.replace чужим писателем файл на Windows может на миг не открываться."""
+    for attempt in range(5):
+        try:
+            return pd.read_parquet(path)
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(0.05 * (attempt + 1))
+
+
+_SYMBOL_RE = re.compile(r"[A-Z0-9]{2,20}")
+
+
+def check_symbol(symbol: str) -> str:
+    """Символ обязан быть тикером (A-Z, 0-9): имя попадает в путь файла, обратный слэш/«..»/UNC-путь сюда пройти не должны."""
+    if not isinstance(symbol, str) or not _SYMBOL_RE.fullmatch(symbol):
+        raise ValueError("неизвестный символ или таймфрейм")
+    return symbol
 
 
 def _path(symbol: str, tf: str) -> Path:
-    return DATA_DIR / f"{symbol}_{tf}.parquet"
+    if tf not in TIMEFRAMES:
+        raise ValueError("неизвестный символ или таймфрейм")
+    return DATA_DIR / f"{check_symbol(symbol)}_{tf}.parquet"
+
+
+# ---------------------------------------------------------------- пропуски в данных (только журнал: числа не меняются)
+_gap_seen: dict[str, tuple] = {}
+
+
+def find_gaps(index: pd.DatetimeIndex, minutes: float) -> list[tuple[pd.Timestamp, pd.Timestamp, int]]:
+    """Пропуски сетки: [(последняя метка ДО пропуска, первая метка ПОСЛЕ, сколько баров отсутствует)]. Индекс отсортирован."""
+    if len(index) < 2:
+        return []
+    step = pd.Timedelta(minutes=minutes)
+    d = index[1:] - index[:-1]
+    pos = (d > step).nonzero()[0]
+    return [(index[i], index[i + 1], int(d[i] // step) - 1) for i in pos]
+
+
+def warn_gaps(label: str, gaps: list) -> None:
+    """Одно предупреждение на каждое новое состояние пропусков (бот зовёт load раз в час — не спамим одним и тем же)."""
+    if not gaps:
+        _gap_seen.pop(label, None)
+        return
+    sig = (len(gaps), gaps[0][0], gaps[-1][1], sum(g[2] for g in gaps))
+    if _gap_seen.get(label) == sig:
+        return
+    _gap_seen[label] = sig
+    log.warning("%s: пропуски в данных: %d шт., не хватает %d баров; первый после %s, последний до %s",
+                label, len(gaps), sig[3], gaps[0][0].isoformat(), gaps[-1][1].isoformat())
+
+
+def repair_gaps(symbol: str, tf: str) -> int:
+    """ЯВНАЯ починка: докачивает недостающие бары внутри файла (сеть!). Возвращает число добавленных баров. Бот и веб сами
+    её не вызывают — только ручной/диагностический запуск."""
+    p = _path(symbol, tf)
+    minutes = TIMEFRAMES[tf][1]
+    with guard.locked(p) as got:
+        if not got:
+            raise guard.LockTimeout(f"{p.name} занят другим обновлением")
+        if not p.exists():
+            return 0
+        df = _read_parquet(p).sort_index()
+        parts = [df]
+        step = pd.Timedelta(minutes=minutes)
+        for a, b, _ in find_gaps(df.index, minutes):
+            parts.append(_fetch_range(symbol, tf, a.value // 1_000_000 + 1, (b - step).value // 1_000_000))
+        new = pd.concat([x for x in parts if len(x)]).sort_index()
+        new = new[~new.index.duplicated(keep="last")]
+        added = len(new) - len(df)
+        if added > 0:
+            _atomic_parquet(new, p)
+        return added
 
 
 def _fetch_range(symbol: str, tf: str, start_ms: int, end_ms: int, category: str = "linear") -> pd.DataFrame:
@@ -82,7 +199,9 @@ def _fetch_range(symbol: str, tf: str, start_ms: int, end_ms: int, category: str
     rows: list[list[str]] = []
     end = end_ms
     while end > start_ms:
+        guard.check_cancel()
         for attempt in range(5):
+            guard.check_cancel()
             try:
                 r = requests.get(
                     URL,
@@ -98,7 +217,7 @@ def _fetch_range(symbol: str, tf: str, start_ms: int, end_ms: int, category: str
             except Exception:
                 if attempt == 4:
                     raise
-                time.sleep(1.5 * (attempt + 1))
+                guard.sleep(1.5 * (attempt + 1))
         chunk = js["result"]["list"]  # новые -> старые
         if not chunk:
             break
@@ -107,7 +226,7 @@ def _fetch_range(symbol: str, tf: str, start_ms: int, end_ms: int, category: str
         if oldest <= start_ms:
             break
         end = oldest - 1
-        time.sleep(0.05)
+        guard.sleep(0.05)
     if not rows:
         return pd.DataFrame()
     df = pd.DataFrame(rows, columns=["ts", "open", "high", "low", "close", "volume", "turnover"])
@@ -117,31 +236,45 @@ def _fetch_range(symbol: str, tf: str, start_ms: int, end_ms: int, category: str
 
 
 def load(symbol: str = "BTCUSDT", tf: str = "1h", days: int = 1095, refresh: bool = True) -> pd.DataFrame:
-    """Возвращает OHLCV за последние `days` дней (не больше HISTORY_DAYS[tf]); докачивает недостающее и кэширует."""
+    """Возвращает OHLCV за последние `days` дней (не больше HISTORY_DAYS[tf]); докачивает недостающее и кэширует.
+    Файл защищён блокировкой по пути: если его дольше guard.LOCK_TIMEOUT_S занимает другое обновление (например, долгая
+    веб-докачка), вызов не ждёт, а отдаёт то, что уже лежит на диске (без докачки)."""
     days = effective_days(tf, days)
     DATA_DIR.mkdir(exist_ok=True)
     p = _path(symbol, tf)
     minutes = TIMEFRAMES[tf][1]
-    now_ms = int(time.time() * 1000)
-    want_start = now_ms - days * 86_400_000
+    with guard.locked(p) as got:
+        now_ms = int(time.time() * 1000)
+        want_start = now_ms - days * 86_400_000
+        cutoff = pd.Timestamp(want_start, unit="ms", tz="UTC")
+        if not got:
+            if not p.exists():
+                raise guard.LockTimeout(f"{p.name} занят другим обновлением, локальной копии нет")
+            log.warning("klines %s %s: файл занят другим обновлением — использую имеющиеся данные без докачки", symbol, tf)
+            old = _read_parquet(p)
+            return old[old.index >= cutoff]
 
-    cached = pd.read_parquet(p) if p.exists() else pd.DataFrame()
-    parts = [cached] if len(cached) else []
+        cached = _read_parquet(p) if p.exists() else pd.DataFrame()
+        parts = [cached] if len(cached) else []
 
-    if len(cached) == 0 or cached.index[0].value // 1_000_000 > want_start + minutes * 60_000 * 2:
-        parts.append(_fetch_range(symbol, tf, want_start,
-                                  (cached.index[0].value // 1_000_000 - 1) if len(cached) else now_ms))
-    if refresh and len(cached):
-        parts.append(_fetch_range(symbol, tf, cached.index[-1].value // 1_000_000, now_ms))
+        if len(cached) == 0 or cached.index[0].value // 1_000_000 > want_start + minutes * 60_000 * 2:
+            parts.append(_fetch_range(symbol, tf, want_start,
+                                      (cached.index[0].value // 1_000_000 - 1) if len(cached) else now_ms))
+        if refresh and len(cached):
+            parts.append(_fetch_range(symbol, tf, cached.index[-1].value // 1_000_000, now_ms))
 
-    df = pd.concat([x for x in parts if len(x)]).sort_index()
-    df = df[~df.index.duplicated(keep="last")]
-    # последняя свеча может быть незакрытой -> отбрасываем
-    if len(df) and df.index[-1].value // 1_000_000 + minutes * 60_000 > now_ms:
-        df = df.iloc[:-1]
-    _atomic_parquet(df, p)
-    cutoff = pd.Timestamp(want_start, unit="ms", tz="UTC")
-    return df[df.index >= cutoff]
+        parts = [x for x in parts if len(x)]
+        if not parts:
+            raise NoDataError(f"Bybit не вернул свечи {symbol} {tf}, локального кэша нет")
+        df = pd.concat(parts).sort_index()
+        df = df[~df.index.duplicated(keep="last")]
+        # последняя свеча может быть незакрытой -> отбрасываем
+        if len(df) and df.index[-1].value // 1_000_000 + minutes * 60_000 > now_ms:
+            df = df.iloc[:-1]
+        win = df[df.index >= cutoff]
+        warn_gaps(f"klines {symbol} {tf}", find_gaps(win.index, minutes))
+        _atomic_parquet(df, p)
+        return win
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ from collections import OrderedDict
 
 import pandas as pd
 
-from tradebot.market import derivs, klines
+from tradebot.market import derivs, guard, klines
 from tradebot.web import cache
 from tradebot.web._facade import F
 from tradebot.web.meta import DERIV_STRATEGIES, TIMEFRAMES
@@ -42,7 +42,14 @@ class DataEmpty(ValueError):
 
 
 # ---------------------------------------------------------------- данные
+def check_sym_tf(symbol: str, tf: str) -> None:
+    """Единая проверка символа/таймфрейма перед построением ЛЮБОГО пути файла данных (защита от «..», обратных слэшей, UNC-путей)."""
+    if symbol not in SYMBOLS or tf not in klines.TIMEFRAMES:
+        raise ValueError("неизвестный символ или таймфрейм")
+
+
 def _files(symbol: str, tf: str) -> list:
+    check_sym_tf(symbol, tf)
     gran = derivs.granularity_for(klines.TIMEFRAMES[tf][1])
     return [klines._path(symbol, tf), F.MARKET / f"{symbol}_funding.parquet",
             F.MARKET / f"{symbol}_oi_{gran}.parquet", F.MARKET / f"{symbol}_lsr_{gran}.parquet"]
@@ -97,7 +104,7 @@ def get_df(symbol: str, tf: str) -> pd.DataFrame:
         if hit and hit[0] == sig:
             _df_cache.move_to_end((symbol, tf))
             return hit[1]
-        raw = pd.read_parquet(files[0]).sort_index()   # напрямую, без klines.load (тот может пойти в сеть)
+        raw = klines._read_parquet(files[0]).sort_index()   # напрямую, без klines.load (тот может пойти в сеть)
         if len(raw) < 2:
             raise DataEmpty(files[0].name)
         df = derivs.enrich(raw, symbol, refresh=False)
@@ -125,7 +132,7 @@ def get_df_lite(symbol: str, tf: str) -> pd.DataFrame:
         if hit and hit[0] == sig:
             _df_cache.move_to_end(key)
             return hit[1]
-        df = pd.read_parquet(p).sort_index()
+        df = klines._read_parquet(p).sort_index()
         if len(df) < 2:
             raise DataEmpty(p.name)
         _df_put(key, sig, df)
@@ -230,12 +237,15 @@ def update_data(symbol: str, tf: str) -> dict:
         raise ValueError("неизвестный символ или таймфрейм")
     before = F.data_status(symbol, tf)
     eff = klines.effective_days(tf, 1095)
-    df = klines.load(symbol, tf, eff, refresh=True)
-    warning = None
-    try:
-        derivs.enrich(df, symbol, refresh=True, days=eff)
-    except Exception as e:  # noqa: BLE001  свечи уже сохранены; деривативы можно докачать повторно
-        warning = f"свечи обновлены, но деривативы не загрузились: {type(e).__name__}: {e}"
+    with guard.patient():       # веб-докачка ждёт занятый файл терпеливо (бот в это время ждёт не дольше нескольких секунд)
+        df = klines.load(symbol, tf, eff, refresh=True)
+        warning = None
+        try:
+            derivs.enrich(df, symbol, refresh=True, days=eff)
+        except guard.Cancelled:
+            raise
+        except Exception as e:  # noqa: BLE001  свечи уже сохранены; деривативы можно докачать повторно
+            warning = f"свечи обновлены, но деривативы не загрузились: {type(e).__name__}: {e}"
     F.invalidate_data(symbol)
     purged = F.purge_cache(symbol)
     after = F.data_status(symbol, tf)
@@ -248,8 +258,9 @@ def fetch_data(symbol: str, tf: str) -> dict:
     if symbol not in SYMBOLS or tf not in klines.TIMEFRAMES:
         raise ValueError("неизвестный символ или таймфрейм")
     eff = klines.effective_days(tf, 1095)
-    df = klines.load(symbol, tf, eff, refresh=True)
-    derivs.enrich(df, symbol, refresh=True, days=eff)
+    with guard.patient():
+        df = klines.load(symbol, tf, eff, refresh=True)
+        derivs.enrich(df, symbol, refresh=True, days=eff)
     F.invalidate_data(symbol)
     F.purge_cache(symbol)
     return {"symbol": symbol, "tf": tf, "bars": int(len(df)), "start": df.index[0].isoformat(),
