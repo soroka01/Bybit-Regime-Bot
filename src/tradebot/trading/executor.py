@@ -174,6 +174,32 @@ class Executor:
         async with self.lock:
             return await self.setup()
 
+    async def set_leverage(self, n: float) -> bool:
+        """Смена плеча ОДНОЙ операцией под торговым lock: старое значение -> новое -> clear_acted -> setup().
+        Инвариант: сверка (reconcile) держит тот же lock, поэтому её запись acted_* не может «перебить» сброс, сделанный сменой
+        плеча (раньше сброс шёл без lock и гонялся с идущей сверкой). Не удалось применить на бирже (setup не подтвердил
+        плечо/режимы) -> ОТКАТ: сохранённое плечо и acted_* возвращаются, прежнее плечо best-effort переустанавливается на
+        бирже, владелец получает сообщение. Уменьшение плеча не запрещаем — при неудаче откат. True — плечо применено."""
+        st = self.store
+        if self.paper:  # режим без ордеров: настройка сохраняется, биржа не трогается
+            st.set_setting("leverage", n)
+            st.clear_acted()
+            return False
+        async with self.lock:
+            old = st.settings()["leverage"]
+            old_acted = (st.get("acted_exposure"), st.get("acted_qty"))
+            st.set_setting("leverage", n)          # ValueError (вне диапазона) -> ничего не изменено
+            st.clear_acted()                       # размер заново от свежего баланса при ближайшей сверке
+            ok = await self.setup()
+            if ok:
+                return True
+            st.set_setting("leverage", old)
+            st.set_acted(*old_acted)
+            back = await self.setup()              # best-effort: вернуть на бирже прежнее плечо
+            self.notify("error", f"Плечо {float(n):g}x не применилось на бирже — оставлено прежнее {float(old):g}x"
+                                 + ("." if back else ", но биржа его тоже не подтвердила: торговля заблокирована, проверьте настройки."))
+            return False
+
     # ---------- чтение ----------
     async def refresh_cache(self) -> Position | None:
         """Обновляет кэш позиции/эквити для снимка (без блокировки: только чтение и локальные записи в kv)."""
@@ -265,6 +291,9 @@ class Executor:
 
     async def _send(self, side: str, qty: float, reduce_only: bool, bar: datetime, reason: str, before: float,
                     eq_hint: float | None = None) -> None:
+        """Отправляет один рыночный ордер и подтверждает исполнение. Инвариант: возвращается либо с УЧТЁННЫМ исполнением, либо
+        бросает ExchangeError — тогда остаток плана (например, открывающая нога переворота) отменяется, а acted_* не пишутся.
+        Неподтверждённый ордер раньше молча считался выполненным, и сверка записывала acted_* по несуществующей позиции."""
         link = make_link_id(bar, self.store.next_seq(), side, qty)
         t0_ms = int(time.time() * 1000)
         try:
@@ -277,10 +306,8 @@ class Executor:
                     break
                 await asyncio.sleep(self.retry_wait)
             if o is None:
-                pos = await self.ex.position()
-                if abs((pos.signed if pos else 0.0) - before) > 1e-12:  # позиция уже изменилась — ордер дошёл
+                if await self._book_by_delta(side, link, reason, before, eq_hint, t0_ms):  # позиция изменилась — ордер дошёл
                     log.warning("ордер %s неоднозначен, но позиция изменилась", link)
-                    self.sent += 1                   # ордер дошёл: раннер не должен слать отдельное сообщение о сигнале
                     self.notify("warn", M.w_order_ambiguous())
                     return
                 try:
@@ -302,7 +329,28 @@ class Executor:
             await asyncio.sleep(self.poll_delay)
         if filled <= 0:
             self.notify("warn", M.w_order_unconfirmed())
-            return
+            if await self._book_by_delta(side, link, reason, before, eq_hint, t0_ms):
+                return                              # исполнился с опозданием: учтено по изменению позиции
+            raise ExchangeError(f"ордер {link} не подтверждён и позиция не изменилась — остаток плана отменён")
+        self._record_fill(side, filled, price, oid, reason, before, eq_hint, t0_ms)
+
+    async def _book_by_delta(self, side: str, link: str, reason: str, before: float, eq_hint: float | None,
+                             t0_ms: int) -> bool:
+        """Ордер не подтверждён по orderLinkId — перечитать позицию. Изменилась в сторону ордера -> исполнение учитывается по
+        разнице позиций (цена — mark, приближённо) и True. Не изменилась -> False. Изменилась в ДРУГУЮ сторону (внешняя правка,
+        стоп-аут) -> ExchangeError: это не наш ордер, продолжать план нельзя."""
+        pos = await self.ex.position()
+        delta = (pos.signed if pos else 0.0) - before
+        if abs(delta) <= 1e-12:
+            return False
+        if delta * (1 if side == "buy" else -1) < 0:
+            raise ExchangeError(f"ордер {link} не подтверждён, а позиция изменилась в другую сторону ({delta:+g}) — остаток плана отменён")
+        price = (pos.mark if pos and pos.mark else 0.0) or await self.ex.mark_price()
+        self._record_fill(side, round(abs(delta), 9), price, link, reason, before, eq_hint, t0_ms)
+        return True
+
+    def _record_fill(self, side: str, filled: float, price: float, oid: str, reason: str, before: float,
+                     eq_hint: float | None, t0_ms: int) -> None:
         self.store.add_trade(side, filled, price, reason, oid)
         self.sent += 1
         try:
@@ -326,7 +374,11 @@ class Executor:
             if after == 0 or (after > 0) != (before > 0):
                 legs.append({**base, "kind": "close", "pos_side": ps, "qty": abs(before), "trip": self._snapshot()})
                 self._clear_trip()
+                # Инвариант: закрытие, начатое самим ботом, не должно выглядеть как «позиция исчезла». stop_armed гасим здесь же,
+                # а не позже в rearm_quietly: сбой между закрытием и перевзводом иначе оставил бы stop_armed=True без позиции, и
+                # после рестарта монитор объявил бы ложный стоп-аут.
                 st.set("pos_last", None)
+                st.set("stop_armed", False)
             elif abs(after) < abs(before):
                 legs.append({**base, "kind": "reduce", "pos_side": ps, "qty": round(abs(before) - abs(after), 9),
                              "total": abs(after), "trip": self._snapshot()})
@@ -620,8 +672,7 @@ class Executor:
         acted = st.get("acted_exposure")
         latched = abs(target) > EPS and acted is not None and abs(target - acted) < EPS
         if latched:
-            st.set("latch", True)
-            st.set("latch_exposure", target)
+            st.set_latch(target)
         # монитор уже обнулил position/pos_stop (позиции нет): берём последний снимок открытой позиции
         last = st.get("pos_last") or st.get("position") or {}
         self._stopouts.append({"last": dict(last), "latched": latched, "side": last.get("side"), "qty": last.get("qty"), "entry": last.get("entry"),
@@ -709,7 +760,8 @@ class Executor:
         self._emit("error", data)
 
     async def check_stopout(self) -> None:
-        """Быстрая проверка из мониторинга (пропускается, если идёт торговая операция)."""
+        """Быстрая проверка из мониторинга (пропускается, если идёт торговая операция). Инвариант: НЕ зависит от enabled —
+        стоп-аут при выключенной торговле тоже должен быть обнаружен и объявлен (иначе позиция «исчезла» молча)."""
         if self.paper or self.lock.locked():
             return
         async with self.lock:
@@ -735,12 +787,15 @@ class Executor:
             return "kill-switch"
         if not s["enabled"]:
             return "торговля выключена"
-        if not self.trade_ok and not await self.setup():
-            return "аккаунт не настроен"
+        # Инвариант (T1): неудачный setup блокирует ОТКРЫТИЕ/увеличение позиции, но не уменьшение. Позицию, которую надо закрыть
+        # или сократить, держать нельзя только потому, что настройки аккаунта (плечо/режим) не подтвердились: reduce-only ордер
+        # риск не растит. Открывающая нога (в том числе второй ордер переворота) в gated-режиме не уходит никогда.
+        gated = not self.trade_ok and not await self.setup()
         try:
-            n_cancel = await self.cleanup_orders()
-            if n_cancel:
-                self.notify("warn", M.w_orders_cancelled(n_cancel))
+            if not gated:
+                n_cancel = await self.cleanup_orders()
+                if n_cancel:
+                    self.notify("warn", M.w_orders_cancelled(n_cancel))
             pos = await self.ex.position()
             self.detect_stopout(pos, target)
             if st.get("latch", False):
@@ -756,6 +811,8 @@ class Executor:
                 if held is None:
                     held = self._held_qty(target, cur)
                 if held is not None and not needs_trade(acted, target, cur, held):
+                    if gated:
+                        return "аккаунт не настроен"
                     await self._ensure_stop(pos)
                     return "без изменений"
             # пересчёт размера: цель сменилась / плечо / включение / внешняя правка позиции
@@ -778,12 +835,21 @@ class Executor:
                 if tgt == 0:  # ниже minOrderQty -> считаем целью 0 (закрыть/не открывать)
                     log.info("целевой размер ниже minOrderQty — цель 0")
                 orders = plan_orders(cur, tgt, inst)
+            skipped = False
+            if gated:
+                kept = [o for o in orders if o[2]]          # только reduce-only ноги
+                skipped = flip or len(kept) != len(orders)  # открывающая нога осталась невыполненной
+                orders = kept
+                if not orders:
+                    return "аккаунт не настроен"
+            sent_n = 0
             try:
                 for side, qty, ro in orders:
                     await self._send(side, qty, ro, bar, reason, cur, balance)
+                    sent_n += 1
                     p = await self.ex.position()
                     cur = p.signed if p else 0.0
-                if flip:
+                if flip and not gated:
                     # не получилось взять баланс -> ExchangeError: позиции нет, acted_* не трогаем, ниже одна тревога
                     balance, price = await self._sizing_base(), await self.ex.mark_price()
                     tgt = target_qty(target, balance, lev, price, inst)
@@ -793,8 +859,11 @@ class Executor:
                 await self.rearm_quietly()  # после любого исхода — позиция должна быть под стопом
             pos = await self.ex.position()
             await self._ensure_stop(pos)
-            st.set("acted_exposure", target)
-            st.set("acted_qty", tgt)
+            if gated and skipped:
+                # acted_* НЕ пишем: цель не достигнута (открывающая нога не ушла); после починки настроек сверка увидит
+                # acted != target и откроет позицию штатно
+                return "аккаунт не настроен"
+            st.set_acted(target, tgt)                 # парой и одной транзакцией
             pos = await self.ex.position()
             st.set("position", pos.as_dict() if pos else None)
             self._remember_pos(pos)
@@ -819,10 +888,10 @@ class Executor:
                 if err is None:
                     # состояние фиксируем ДО оповещения (оно может идти ~14 с): сбой в этом окне не должен оставить acted_* без защёлки
                     tgt = self.store.get("target_exposure", 0.0) or 0.0
-                    self.store.clear_acted()
                     if latch and abs(tgt) > EPS:  # не входим повторно, пока сигнал не изменится
-                        self.store.set("latch", True)
-                        self.store.set("latch_exposure", tgt)
+                        self.store.set_acted(None, None, latch=tgt)      # сброс acted_* и защёлка одной транзакцией
+                    else:
+                        self.store.clear_acted()
             finally:
                 await self._announce(quiet)
             return "закрыто" if err is None else f"ошибка: {err}"
@@ -848,9 +917,7 @@ class Executor:
         if self.paper:
             return
         st = self.store
-        st.set_setting("enabled", False)
-        st.set("killed", True)
-        st.set("kill_reason", reason)
+        st.mark_killed(reason)                       # enabled=False + killed + причина одной транзакцией
         failed = False
         async with self.lock:
             try:
@@ -864,3 +931,37 @@ class Executor:
         data = {"kind": "kill", "reason": reason, **self._close_summary(results), "failed": failed,
                 "equity": await self._equity_now({})}
         self._emit("error", data)
+
+    async def retry_kill_close(self) -> str:
+        """kill-switch сработал, но позиция осталась (закрытие тогда не удалось). Монитор зовёт это не чаще раза в 5 минут:
+        пока бот в состоянии killed, позиция не должна висеть без попыток закрытия. Тихо по ошибкам (повторять тревогу каждый
+        раз незачем — дедуплицированное предупреждение шлёт раннер); успешное закрытие объявляется обычным сообщением.
+        Возвращает "закрыто" | "позиции нет" | "не закрыто"."""
+        if self.paper or not self.store.get("killed", False):
+            return "позиции нет"
+        async with self.lock:
+            res = "не закрыто"
+            try:
+                pos = await self.ex.position()
+                if pos is None:
+                    self.store.set("stop_armed", False)
+                    return "позиции нет"
+                await self._send("sell" if pos.side == "long" else "buy", pos.qty, True, datetime.now(timezone.utc),
+                                 "kill-switch (повтор)", pos.signed)
+                pos = await self.ex.position()
+                if pos is None:
+                    self.store.set("stop_armed", False)
+                    self.store.set("position", None)
+                    self.store.clear_acted()
+                    try:
+                        await self.cleanup_orders()
+                    except ExchangeError as e:
+                        log.warning("kill-switch: отмена ордеров после повторного закрытия: %s", e)
+                    res = "закрыто"
+            except ExchangeError as e:
+                log.warning("kill-switch: повторное закрытие не удалось: %s", e)
+            finally:
+                await self._announce()
+            if res != "закрыто":
+                await self.rearm_quietly()           # пока позиция жива — она под биржевым стопом
+            return res

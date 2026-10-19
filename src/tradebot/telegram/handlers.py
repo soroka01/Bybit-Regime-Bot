@@ -736,11 +736,10 @@ class Controller(LegFlow):
             n = int(p[2])
             if not 1 <= n <= MAX_LEVERAGE:
                 raise ValueError("плечо вне диапазона")
-            st.set_setting("leverage", n)
-            st.clear_acted()                      # смена плеча = пересчёт размера при ближайшей сверке
-            ok = await self.ex.apply_leverage()
+            # одна операция под торговым lock: сохранить -> сбросить acted_* -> применить на бирже; не вышло — откат к прежнему плечу
+            ok = await self.ex.set_leverage(n)
             self.runner.trigger()
-            return self.leverage_screen("Плечо изменено" if ok else "Сохранено, но биржа не подтвердила — торговля заблокирована")
+            return self.leverage_screen("Плечо изменено" if ok else "Биржа не подтвердила новое плечо — оставлено прежнее")
         if a == "sl":
             if len(p) == 1:
                 return self.stop_screen()

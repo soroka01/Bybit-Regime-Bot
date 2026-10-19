@@ -188,12 +188,18 @@ class BybitClient:
         return float(r["list"][0]["markPrice"])
 
     async def equity(self) -> float:
+        """totalEquity единого аккаунта (UTA). Инвариант: БЕЗ запасного CONTRACT-аккаунта (как sizing_balance) — иначе
+        сбой UTA-запроса подставил бы equity другого, почти пустого аккаунта, и kill-switch/пик считались бы от мусора.
+        Нет числового totalEquity (пустой список, пустая строка, NaN) -> ExchangeError, а не 0."""
+        r = await self._ok("GET", "/v5/account/wallet-balance", {"accountType": "UNIFIED"})
+        acc = (r.get("list") or [None])[0] or {}
         try:
-            r = await self._ok("GET", "/v5/account/wallet-balance", {"accountType": "UNIFIED"})
-            return float(r["list"][0]["totalEquity"])
-        except ExchangeError:
-            r = await self._ok("GET", "/v5/account/wallet-balance", {"accountType": "CONTRACT", "coin": "USDT"})
-            return float(r["list"][0]["coin"][0]["equity"])
+            v = float(acc["totalEquity"])
+        except (KeyError, TypeError, ValueError):
+            raise ExchangeError("wallet-balance: нет числового totalEquity (нужен единый аккаунт UTA)") from None
+        if v != v:
+            raise ExchangeError("wallet-balance: totalEquity не число")
+        return v
 
     async def sizing_balance(self) -> float:
         """База для размера позиции: min(walletBalance, equity) по монете USDT единого аккаунта (UTA).
