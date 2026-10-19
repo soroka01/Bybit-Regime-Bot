@@ -9,14 +9,18 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import time
 
 import pandas as pd
 
+from tradebot.market import derivs
 from tradebot.market import klines as data
 from tradebot.core.engine import backtest
 from tradebot.core.strategies import STRATEGIES
 from tradebot.paths import RESULTS
+
+log = logging.getLogger("tradebot.research")
 
 IS_FRAC = 0.67
 MIN_TRADES = 30  # меньше — статистически бессмысленно
@@ -34,12 +38,29 @@ def score(m: dict) -> float:
     return m["calmar"]
 
 
-def run(symbol, tfs, lev, long_only, fee, slip, days):
+def runnable(st, df: pd.DataFrame) -> str | None:
+    """None, если стратегию можно считать на этих данных; иначе причина пропуска. Деривативной стратегии нужны колонки
+    funding/OI/LSR (derivs.enrich) — без них она падала с KeyError и обрывала весь перебор."""
+    try:
+        st.fn(df, **next(iter(st.combos())))
+    except KeyError as e:
+        return f"в данных нет колонки {e}"
+    except Exception as e:  # noqa: BLE001  стратегия не отработала даже на первой комбинации
+        return f"{type(e).__name__}: {e}"
+    return None
+
+
+def run(symbol, tfs, lev, long_only, fee, slip, days, refresh=True):
     rows, grid_rows = [], []
     for tf in tfs:
-        df = data.load(symbol, tf, days=days)
+        df = derivs.enrich(data.load(symbol, tf, days=days, refresh=refresh), symbol, refresh=refresh, days=days)
         is_df, oos_df = split(df)
         for st in STRATEGIES.values():
+            why = runnable(st, df)
+            if why:
+                log.warning("sweep %s %s: стратегия «%s» пропущена — %s", symbol, tf, st.name, why)
+                print(f"{tf:>4} {st.name:<22} пропущена: {why}", flush=True)
+                continue
             t0 = time.time()
             best, best_s = None, -1e18
             for p in st.combos():

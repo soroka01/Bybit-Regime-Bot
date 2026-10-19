@@ -1,6 +1,10 @@
 """Индикаторы на pandas/numpy (без TA-Lib)."""
 from __future__ import annotations
 
+import hashlib
+import threading
+from collections import OrderedDict
+
 import numpy as np
 import pandas as pd
 
@@ -162,8 +166,8 @@ def parabolic_sar(df: pd.DataFrame, af_start: float, af_step: float, af_max: flo
     return pd.Series(sar_o, index=df.index), pd.Series(tr_o, index=df.index)
 
 
-def donchian_trail_state(close: pd.Series, n: int) -> np.ndarray:
-    """Лонг-состояние (0/1) «Donchian с трейлинг-стопом» для окна n.
+def _donchian_trail_state(close: pd.Series, n: int) -> np.ndarray:
+    """Лонг-состояние (0/1) «Donchian с трейлинг-стопом» для окна n (вычисление без кэша).
     Вход: close_t > max(close за предыдущие n свечей). Стоп = max(прошлый стоп, (max+min closes за n свечей вкл. t)/2),
     выход при close_t < стоп."""
     c = close.to_numpy(dtype=float)
@@ -185,6 +189,30 @@ def donchian_trail_state(close: pd.Series, n: int) -> np.ndarray:
         if inpos:
             out[i] = 1.0
     return np.array(out)
+
+
+_TRAIL_CACHE: "OrderedDict[tuple, np.ndarray]" = OrderedDict()
+_TRAIL_CACHE_SIZE = 96          # ансамбль считает 6 окон, перебор параметров повторяет одни и те же (close, n) десятки раз
+_trail_lock = threading.Lock()
+
+
+def donchian_trail_state(close: pd.Series, n: int) -> np.ndarray:
+    """Лонг-состояние (0/1) «Donchian с трейлинг-стопом» для окна n (см. _donchian_trail_state) с мемоизацией по СОДЕРЖИМОМУ
+    (хэш значений close + n): перебор параметров ансамбля пересчитывает одно и то же состояние для одних и тех же окон.
+    Результат побитово тот же, что у прямого расчёта; вызывающему отдаётся новый массив, кэш изменить нельзя."""
+    c = np.ascontiguousarray(close.to_numpy(dtype=float))
+    key = (hashlib.blake2b(c.tobytes(), digest_size=16).digest(), len(c), int(n))
+    with _trail_lock:
+        hit = _TRAIL_CACHE.get(key)
+        if hit is not None:
+            _TRAIL_CACHE.move_to_end(key)
+            return hit.astype(float)
+    out = _donchian_trail_state(close, n)
+    with _trail_lock:
+        _TRAIL_CACHE[key] = out.astype(np.int8)       # значения только 0/1: int8 в 8 раз компактнее
+        while len(_TRAIL_CACHE) > _TRAIL_CACHE_SIZE:
+            _TRAIL_CACHE.popitem(last=False)
+    return out
 
 
 def timed_hold(event: pd.Series, hold_bars: int, close: pd.Series | None = None, atr_: pd.Series | None = None,
