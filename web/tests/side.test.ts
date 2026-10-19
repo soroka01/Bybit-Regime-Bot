@@ -68,7 +68,10 @@ describe("CSS: --pos/--neg/--long/--short не красят сторону", () 
 });
 
 describe("исходники: сторона не красится цветами P/L", () => {
-  const files = ["tabs/liveView.ts", "tabs/statsView.ts", "tabs/statsTrades.ts", "ui/botStatus.ts", "ui/side.ts"];
+  const files = [
+    "tabs/liveHero.ts", "tabs/livePosition.ts", "tabs/liveSignals.ts", "tabs/liveRisk.ts", "tabs/liveTrades.ts", "tabs/liveEvents.ts",
+    "tabs/statsView.ts", "tabs/statsTrades.ts", "ui/botStatus.ts", "ui/side.ts",
+  ];
   const raw = { ...readTree("src/tabs", ".ts", "tabs/"), ...readTree("src/ui", ".ts", "ui/") };
   it("нет «LONG/SHORT» латиницей в тексте интерфейса", () => {
     for (const f of files) {

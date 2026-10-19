@@ -4,11 +4,12 @@ import { stepValueAt } from "../charts/align";
 import { MMR } from "../leverage";
 import type { LiveSnapshot, Num } from "../types";
 import { parseTime } from "../ui/fmt";
+import { isLongSide } from "../ui/heartbeat";
+
+// Свежесть сигнала жизни и сторона позиции живут в ui/heartbeat.ts (их же использует плашка в шапке); здесь — прежние имена.
+export { DEAD_S, STALE_S, heartbeatState, isLongSide, type HbTone, type Heartbeat } from "../ui/heartbeat";
 
 export const DAY_MS = 86_400_000;
-/** Сигнал жизни старше этого — «нет ответа» (янтарный), старше DEAD_S — красный. */
-export const STALE_S = 180;
-export const DEAD_S = 600;
 /** Порог цвета индикатора лимита: с 60 % — предупреждение, с 85 % — опасно. */
 export const RISK_WARN = 0.6;
 export const RISK_BAD = 0.85;
@@ -89,18 +90,6 @@ export function sliceSeries(pts: readonly Pt[], start: number): Pt[] {
 /** Значение ряда на момент t (шагом вперёд: последняя точка не позже t; до первой — первая). */
 export const valueAt = (pts: readonly Pt[], t: number): number | null => stepValueAt(pts.length, (i) => pts[i]!.t, (i) => pts[i]!.v, t);
 
-// ---------- сигнал жизни
-export type HbTone = "ok" | "warn" | "bad";
-export interface Heartbeat { ageS: number | null; tone: HbTone }
-
-/** Свежесть heartbeat: < 3 мин — зелёный, 3–10 мин — янтарный, дольше (или нет данных) — красный. */
-export function heartbeatState(hb: string | null | undefined, nowMs: number): Heartbeat {
-  const d = parseTime(hb ?? null);
-  if (!d) return { ageS: null, tone: "bad" };
-  const ageS = Math.max(0, (nowMs - +d) / 1000);
-  return { ageS, tone: ageS < STALE_S ? "ok" : ageS < DEAD_S ? "warn" : "bad" };
-}
-
 // ---------- таймфреймы и отсчёт до закрытия свечи
 const UNIT_MS: Record<string, number> = { m: 60_000, h: 3_600_000, d: DAY_MS, w: 7 * DAY_MS };
 
@@ -131,11 +120,6 @@ export function fmtCountdown(ms: number): string {
 }
 
 // ---------- позиция
-/** Сторона в любом написании сервера/биржи (long/short, Buy/Sell). */
-export function isLongSide(side: string | null | undefined): boolean {
-  return /^\s*(b|l)/i.test(side ?? "");
-}
-
 export interface PosView {
   long: boolean;
   qty: number;

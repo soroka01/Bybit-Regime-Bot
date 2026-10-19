@@ -22,10 +22,42 @@ export const REQUEST_TIMEOUT_MS = 120_000;
 
 interface ReqOpts { timeout?: boolean }
 
+/** Сигнал-таймаут: AbortSignal.timeout есть не во всех браузерах — запасной вариант на setTimeout. clear() снимает таймер (у запасного варианта). */
+export function timeoutSignal(ms: number): { signal: AbortSignal; clear(): void } {
+  if (typeof AbortSignal.timeout === "function") return { signal: AbortSignal.timeout(ms), clear() {} };
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  return { signal: c.signal, clear: () => clearTimeout(t) };
+}
+
+/** Объединение сигналов: AbortSignal.any есть не везде — запасной вариант на слушателях. clear() снимает слушатели. */
+export function anySignal(signals: AbortSignal[]): { signal: AbortSignal; clear(): void } {
+  if (typeof AbortSignal.any === "function") return { signal: AbortSignal.any(signals), clear() {} };
+  const c = new AbortController();
+  const off: (() => void)[] = [];
+  const fire = (s: AbortSignal) => c.abort(s.reason);
+  for (const s of signals) {
+    if (s.aborted) { fire(s); break; }
+    const f = () => fire(s);
+    s.addEventListener("abort", f, { once: true });
+    off.push(() => s.removeEventListener("abort", f));
+  }
+  return { signal: c.signal, clear: () => off.forEach((f) => f()) };
+}
+
 async function request<T>(path: string, init: RequestInit = {}, signal?: AbortSignal, opts: ReqOpts = {}): Promise<T> {
+  const guard = opts.timeout === false ? null : timeoutSignal(REQUEST_TIMEOUT_MS);
+  const merged = signal && guard ? anySignal([signal, guard.signal]) : null;
+  try {
+    return await send<T>(path, init, signal, guard?.signal ?? null, merged?.signal ?? signal ?? guard?.signal);
+  } finally {
+    guard?.clear();
+    merged?.clear();
+  }
+}
+
+async function send<T>(path: string, init: RequestInit, signal: AbortSignal | undefined, guard: AbortSignal | null, sig: AbortSignal | undefined): Promise<T> {
   let res: Response;
-  const guard = opts.timeout === false ? null : AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-  const sig = signal && guard ? AbortSignal.any([signal, guard]) : (signal ?? guard ?? undefined);
   try {
     res = await fetch(path, {
       ...init,

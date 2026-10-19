@@ -1,5 +1,6 @@
-// Дебаунс + отмена устаревших запросов («последний побеждает») + повтор при «сервер занят» с ограничением по времени.
+// Дебаунс + отмена устаревших запросов («последний побеждает») + повтор при «сервер занят / запрос вытеснен» с ограничением по времени.
 import { asApiError, type ApiError } from "../api";
+import { isBusyCode } from "./retry";
 
 export interface RunnerOpts<B, R> {
   delay: number;
@@ -7,7 +8,7 @@ export interface RunnerOpts<B, R> {
   onStart(): void;
   onData(r: R, body: B): void;
   onError(e: ApiError, body: B): void;
-  /** Сервер занят: ожидаем и повторим (попытка k из max). */
+  /** Сервер занят или вытеснил запрос другим: ожидаем и повторим (попытка k из max). */
   onRetry?(k: number, max: number, body: B): void;
   /** Максимум повторов при busy (по умолчанию 3). */
   maxRetries?: number;
@@ -40,7 +41,7 @@ export function createRunner<B, R>(o: RunnerOpts<B, R>) {
     } catch (e) {
       if (my !== seq) return;
       const err = asApiError(e);
-      if (err.code === "busy" && retries < maxRetries) {   // сервер занят предыдущим расчётом — повторим чуть позже
+      if (isBusyCode(err.code) && retries < maxRetries) {   // сервер занят / вытеснил запрос (superseded — наш запрос последний, значит, вытеснил чужой) — повторим чуть позже
         const wait = backoff(retries + 1);
         if (Date.now() - t0 + wait < capMs) {
           retries++;
@@ -49,7 +50,8 @@ export function createRunner<B, R>(o: RunnerOpts<B, R>) {
           return;
         }
       }
-      if (err.silent) return;
+      // superseded относится к «тихим» кодам, но здесь наш запрос — актуальный (иначе сработал бы my !== seq): тихо молчать нельзя, «Считаю…» зависло бы
+      if (err.silent && err.code !== "superseded") return;
       o.onError(err, body);
     }
   }

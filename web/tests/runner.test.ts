@@ -184,10 +184,36 @@ describe("createRunner", () => {
     expect(log.err.map((e) => e.code)).toEqual(["bad_request"]);
     expect(log.retry).toEqual([]);
 
-    mockFetch(() => json(429, { detail: { code: "superseded", message: "вытеснен" } }));
+    mockFetch(() => new Promise<Response>(() => {}));     // отмена вызывающим (cancel) — silent, onError не вызывается
     const b = mk();
-    await b.runner.now(1);
+    void b.runner.now(1);
+    await flush();
+    b.runner.cancel();
     await flush();
     expect(b.log.err).toEqual([]);
+  });
+
+  it("superseded от сервера ведёт себя как busy: повтор, затем результат", async () => {
+    const f = mockFetch((n) => (n < 3 ? json(429, { detail: { code: "superseded", message: "вытеснен" } }) : ok({ v: n })));
+    const { runner, log } = mk();
+    void runner.now(1);
+    await flush();
+    await vi.advanceTimersByTimeAsync(800); await flush();        // пауза 1
+    await vi.advanceTimersByTimeAsync(1600); await flush();       // пауза 2
+    expect(f).toHaveBeenCalledTimes(3);
+    expect(log.retry).toEqual([[1, 3], [2, 3]]);
+    expect(log.data).toEqual([{ v: 3 }]);
+    expect(log.err).toEqual([]);
+  });
+
+  it("superseded после всех повторов доходит до onError: «Считаю…» не зависает", async () => {
+    const f = mockFetch(() => json(429, { detail: { code: "superseded", message: "вытеснен" } }));
+    const { runner, log } = mk();
+    void runner.now(1);
+    await flush();
+    for (const ms of [800, 1600, 2400]) { await vi.advanceTimersByTimeAsync(ms); await flush(); }
+    expect(f).toHaveBeenCalledTimes(4);                            // 1 + maxRetries (3)
+    expect(log.err.map((e) => e.code)).toEqual(["superseded"]);
+    expect(log.data).toEqual([]);
   });
 });
