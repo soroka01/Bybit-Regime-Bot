@@ -31,6 +31,11 @@ export interface TableOpts<T> {
   expand?: { open(row: T): boolean; render(row: T): Node };
 }
 
+const FOCUSABLE = "a[href], button, input, select, textarea, [tabindex]";
+
+/** Что было в фокусе внутри tbody: строка (по ключу data-key или позиции), индекс элемента внутри строки (0 — сама строка), раскрытая ли часть. */
+interface FocusMark { rowKey: string | null; pos: number; inner: number; expansion: boolean }
+
 export function dataTable<T>(o: TableOpts<T>) {
   let rows: T[] = [];
   let sort = o.sort ?? { key: o.columns[0]!.key, dir: 1 as 1 | -1 };
@@ -51,19 +56,48 @@ export function dataTable<T>(o: TableOpts<T>) {
         class: c.align === "left" ? "left" : "", title: c.title ?? "", scope: "col",
         "aria-sort": active ? (sort.dir === 1 ? "ascending" : "descending") : "none",
       }, h("button", {
-        type: "button", class: "th-btn", onClick: () => {
+        type: "button", class: "th-btn", "data-col": c.key, onClick: () => {
+          const hadFocus = thead.contains(document.activeElement);
           sort = { key: c.key, dir: active ? (sort.dir === 1 ? -1 : 1) : -1 };
           if (c.key === o.columns[0]!.key && !active) sort.dir = 1;
           shown = limit;
           sorted = null;
           head();
           body();
+          // шапка пересобрана — клавиатурный фокус не должен падать на body (иначе Tab начинается с начала страницы)
+          if (hadFocus) Array.from(thead.querySelectorAll<HTMLElement>("button.th-btn")).find((b) => b.dataset.col === c.key)?.focus({ preventScroll: true });
         },
       }, c.label, h("span", { class: "arrow", "aria-hidden": "true", text: active ? (sort.dir === 1 ? "▲" : "▼") : "" })));
     })));
   };
 
+  const dataRows = (): HTMLElement[] => Array.from(tbody.children).filter((r) => !r.classList.contains("row-expansion")) as HTMLElement[];
+
+  /** Запоминает позицию фокуса внутри tbody (null — фокус вне тела таблицы). */
+  const markFocus = (): FocusMark | null => {
+    const ae = document.activeElement as HTMLElement | null;
+    if (!ae || !tbody.contains(ae)) return null;
+    const row = ae.closest("tr");
+    if (!row || row.parentElement !== tbody) return null;
+    const expansion = row.classList.contains("row-expansion");
+    const tr = (expansion ? row.previousElementSibling : row) as HTMLElement | null;
+    if (!tr) return null;
+    const list = [row, ...Array.from(row.querySelectorAll<HTMLElement>(FOCUSABLE))];
+    return { rowKey: tr.dataset.key ?? null, pos: dataRows().indexOf(tr), inner: Math.max(0, list.indexOf(ae)), expansion };
+  };
+  /** Возвращает фокус на ту же строку (по ключу, иначе по позиции) и тот же элемент в ней; строка исчезла — на саму таблицу. */
+  const restoreFocus = (m: FocusMark) => {
+    const rows = dataRows();
+    const tr = m.rowKey != null ? rows.find((r) => r.dataset.key === m.rowKey) : rows[m.pos];
+    const next = tr && m.expansion ? tr.nextElementSibling : null;
+    const scope = (next && next.classList.contains("row-expansion") ? next : tr) as HTMLElement | undefined;
+    const list = scope ? [scope, ...Array.from(scope.querySelectorAll<HTMLElement>(FOCUSABLE))] : [];
+    const target = list[Math.min(m.inner, list.length - 1)];
+    (target && target.tabIndex >= 0 ? target : wrap).focus({ preventScroll: true });
+  };
+
   const body = () => {
+    const mark = markFocus();
     const col = o.columns.find((c) => c.key === sort.key) ?? o.columns[0]!;
     const all = sorted ??= [...rows].sort((a, b) => {
       const x = col.value(a), y = col.value(b);
@@ -97,7 +131,18 @@ export function dataTable<T>(o: TableOpts<T>) {
     const left = Math.max(0, all.length - shown);
     more.hidden = left === 0;
     more.textContent = `Показать ещё ${Math.min(limit, left)} (осталось ${left})`;
-    more.onclick = () => { shown += limit; body(); };
+    more.onclick = () => {
+      const had = document.activeElement === more;
+      const first = shown;
+      shown += limit;
+      body();
+      // кнопка могла исчезнуть (всё показано) — фокус на первую добавленную строку, а не на body
+      if (had && more.hidden) {
+        const added = dataRows()[first];
+        (added && added.tabIndex >= 0 ? added : wrap).focus({ preventScroll: true });
+      }
+    };
+    if (mark) restoreFocus(mark);
   };
 
   head();
