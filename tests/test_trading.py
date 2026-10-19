@@ -290,7 +290,7 @@ def test_single_instance_lock(tmp_path):
 
 def test_mainnet_requires_confirmation():
     from tradebot.trading.config import ConfigError, load_env
-    base = {"TELEGRAM_BOT_TOKEN": "t", "TELEGRAM_OWNER_ID": "1", "BYBIT_ENV": "mainnet"}
+    base = {"TELEGRAM_BOT_TOKEN": "123456789:AAFakeTokenForTestsOnly_0123456789abc", "TELEGRAM_OWNER_ID": "1", "BYBIT_ENV": "mainnet"}
     with pytest.raises(ConfigError):
         load_env(base)
     assert load_env({**base, "I_UNDERSTAND_MAINNET": "1"}).bybit_env == "mainnet"
@@ -675,9 +675,9 @@ def test_paper_executor_never_orders_and_plans(tmp_path):
 
 def test_paper_env_default():
     from tradebot.trading.config import load_env
-    base = {"TELEGRAM_BOT_TOKEN": "t", "TELEGRAM_OWNER_ID": "1"}
+    base = {"TELEGRAM_BOT_TOKEN": "123456789:AAFakeTokenForTestsOnly_0123456789abc", "TELEGRAM_OWNER_ID": "1"}
     assert load_env(base).paper is True
-    assert load_env({**base, "PAPER": "0"}).paper is False
+    assert load_env({**base, "PAPER": "0", "BYBIT_API_KEY": "k", "BYBIT_API_SECRET": "s"}).paper is False   # PAPER=0 требует ключи
     assert load_env({**base, "PAPER": "1"}).paper is True
     from tradebot.trading.config import ConfigError
     with pytest.raises(ConfigError):                         # mainnet-гейт не изменился

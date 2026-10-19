@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
@@ -13,6 +14,8 @@ MAX_LEVERAGE = 3  # жёсткий потолок; менять только п�
 MAINNET_URL = "https://api.bybit.com"
 TESTNET_URL = "https://api-testnet.bybit.com"
 DASHBOARD_URL = "http://127.0.0.1:8000"
+# формат токена Telegram-бота от @BotFather: <числовой id>:<секрет>; проверяется только вид, значение нигде не выводится
+TOKEN_RE = re.compile(r"[0-9]{5,}:[A-Za-z0-9_-]{20,}")
 
 
 class ConfigError(Exception):
@@ -49,9 +52,16 @@ def load_env(environ: dict | None = None) -> Env:
     token, owner = g("TELEGRAM_BOT_TOKEN"), g("TELEGRAM_OWNER_ID")
     if not token or not owner.lstrip("-").isdigit():
         raise ConfigError("Укажите TELEGRAM_BOT_TOKEN и числовой TELEGRAM_OWNER_ID в .env")
+    if not TOKEN_RE.fullmatch(token):
+        # опечатка в токене иначе всплыла бы только как бесконечные сбои polling после старта (и перезапуски run.bat)
+        raise ConfigError("TELEGRAM_BOT_TOKEN имеет неверный формат (ожидается <число>:<строка>, как выдаёт @BotFather)")
     env = (g("BYBIT_ENV") or "testnet").lower()
     if env not in ("testnet", "mainnet"):
         raise ConfigError("BYBIT_ENV должен быть testnet или mainnet")
     if env == "mainnet" and g("I_UNDERSTAND_MAINNET") != "1":
         raise ConfigError("Для mainnet нужно ещё и I_UNDERSTAND_MAINNET=1 в .env")
-    return Env(token, int(owner), env, g("BYBIT_API_KEY"), g("BYBIT_API_SECRET"), g("PAPER") != "0", g("TZ_NAME") or "Europe/Moscow")
+    paper = g("PAPER") != "0"
+    if not paper and not (g("BYBIT_API_KEY") and g("BYBIT_API_SECRET")):
+        # PAPER=0 без ключей раньше запускался «тихо»: торговля включалась кнопкой, а каждый ордер падал на «нет API-ключей»
+        raise ConfigError("PAPER=0: укажите BYBIT_API_KEY и BYBIT_API_SECRET в .env (права: Contract Orders + Positions, без Withdraw)")
+    return Env(token, int(owner), env, g("BYBIT_API_KEY"), g("BYBIT_API_SECRET"), paper, g("TZ_NAME") or "Europe/Moscow")

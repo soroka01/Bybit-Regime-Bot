@@ -112,6 +112,27 @@ async def startup_data(env, store, client) -> dict:
     return d
 
 
+def finished_task_error(done) -> BaseException | None:
+    """Исключение, с которым надо упасть, когда одна из задач amain завершилась. Инвариант: любая рабочая задача (раннер,
+    монитор, polling, ...) живёт до остановки. Завершилась сама — с ошибкой, без неё или будучи отменённой — процесс НЕ должен
+    тихо продолжать без неё (торговля/мониторинг мертвы): падаем (код 1), и run.bat перезапускает бота. None — штатная остановка
+    (завершилась только задача "stop")."""
+    stopping = any(t.get_name() == "stop" for t in done)
+    for t in done:
+        if t.get_name() == "stop":
+            continue
+        if t.cancelled():
+            exc: BaseException | None = RuntimeError(f"задача {t.get_name()} была отменена")
+        else:
+            exc = t.exception()
+        if exc is None and not stopping:
+            exc = RuntimeError(f"задача {t.get_name()} завершилась без ошибки, хотя остановки никто не просил")
+        if exc is not None:
+            log.error("задача %s упала: %r", t.get_name(), exc)
+            return exc
+    return None
+
+
 async def amain(env) -> None:
     from tradebot.telegram.bot import build
     from tradebot.telegram.handlers import Controller
@@ -124,6 +145,8 @@ async def amain(env) -> None:
     from tradebot.trading.state import Store
 
     store = Store(paper=env.paper)
+    # номер в orderLinkId не должен повториться даже на старой/восстановленной из копии БД (дубль принялся бы за «ордер уже есть»)
+    store.seed_order_seq()
     store.set("env", env.bybit_env)           # служебные ключи для веба; в сообщениях Telegram не показываются
     store.set("paper", env.paper)
     if env.paper:
@@ -165,10 +188,9 @@ async def amain(env) -> None:
         ("stop", stop.wait()))]
     try:
         done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        for t in done:
-            if t.get_name() != "stop" and t.exception():
-                log.error("задача %s упала: %r", t.get_name(), t.exception())
-                raise t.exception()
+        exc = finished_task_error(done)
+        if exc is not None:
+            raise exc
     finally:
         log.info("останавливаюсь...")
         runner.stop.set()
@@ -198,17 +220,20 @@ async def amain(env) -> None:
 
 def main() -> int:
     disable_quickedit()
-    setup_logging()
     from tradebot.trading.config import ConfigError, load_env
+    # Блокировка — ДО открытия лога: второй экземпляр не должен открывать/ротировать bot.log работающего бота (на Windows
+    # ротация файла, открытого другим процессом, ломает запись у обоих).
     try:
         lock = acquire_lock()
     except AlreadyRunning:
         print("Бот уже запущен (занят storage/state/bot.lock). Закройте другой экземпляр.")
         return EXIT_LOCKED
+    setup_logging()
     try:
         env = load_env()
     except ConfigError as e:
         print(f"Ошибка конфигурации: {e}")
+        lock.close()
         return EXIT_CONFIG
     log.info("старт, среда ордеров %s, paper=%s", env.bybit_env, env.paper)
     try:
