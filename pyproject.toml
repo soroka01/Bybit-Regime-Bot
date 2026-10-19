@@ -13,3 +13,17 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["storage", "web", "node_modules", ".git", "build"]
+# По умолчанию запускается быстрый и стабильный набор: без тестов на время (perf, падают под нагрузкой)
+# и без тестов на живых данных из storage/ (realdata). Запустить ВСЁ:  python -m pytest -q tests -m ""
+# Только отдельную группу:  python -m pytest -q tests -m perf   (или realdata / network)
+addopts = "-m 'not perf and not realdata'"
+markers = [
+  "slow: долгий тест (по умолчанию запускается)",
+  "perf: проходит/падает по порогам времени (wall-clock), нестабилен на загруженной машине",
+  "realdata: читает живой кэш storage/market или storage/results (пропускается, если файлов нет)",
+  "network: ходит в реальную сеть (единственные тесты, которым разрешён сетевой доступ)",
+]

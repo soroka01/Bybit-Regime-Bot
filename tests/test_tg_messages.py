@@ -327,7 +327,8 @@ def test_pnl_lookup_budget_is_bounded(tmp_path):
     import time
     t0 = time.monotonic()
     run(exe.reconcile(0.0, BAR))
-    assert time.monotonic() - t0 < 1.0 and ex.closed_pnl_calls == 1
+    # поведение — ровно один запрос без ожиданий; время лишь грубо отсекает ожидание пауз (сумма пауз 4.5 с), порог с запасом на нагрузку
+    assert time.monotonic() - t0 < 3.0 and ex.closed_pnl_calls == 1
 
 
 # ---------- эквити на входе: хранение и запасные варианты ----------

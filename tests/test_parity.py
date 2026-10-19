@@ -8,6 +8,7 @@ import pytest
 
 from tradebot.core.portfolio import DEFAULT_LEGS, Leg, align, exposure, leg_signal
 from tradebot.market import derivs, klines
+from tradebot.paths import MARKET
 from tradebot.trading.market_feed import TF_DELTA, closed_only, compute_target, expected_last_bar, window_for
 
 TFS = ("1h", "4h", "6h")
@@ -20,9 +21,35 @@ def _load():
     return {tf: derivs.enrich(klines.load("BTCUSDT", tf, 1095, refresh=False), "BTCUSDT", refresh=False) for tf in TFS}
 
 
+def _cache_problem() -> str | None:
+    """Причина, по которой живой кэш storage/market непригоден (None — всё есть). klines.load(refresh=False) и derivs.enrich
+    ДОКАЧИВАЮТ данные из сети, если файла нет или он короче окна, поэтому сначала проверяем кэш сами и тест пропускаем."""
+    need = [f"BTCUSDT_{x}.parquet" for x in ("1h", "4h", "6h", "funding", "oi_1h", "oi_4h", "lsr_1h", "lsr_4h")]
+    missing = [n for n in need if not (MARKET / n).exists()]
+    if missing:
+        return "нет локального кэша: " + ", ".join(missing)
+    now_ms = pd.Timestamp.now(tz="UTC").value // 1_000_000
+    for tf in TFS:                                       # то же условие «кэш короче окна», что в klines.load
+        first = pd.read_parquet(MARKET / f"BTCUSDT_{tf}.parquet").index[0].value // 1_000_000
+        want = now_ms - klines.effective_days(tf, 1095) * 86_400_000
+        if first > want + klines.TIMEFRAMES[tf][1] * 60_000 * 2:
+            return f"кэш BTCUSDT_{tf} короче окна (потребовалась бы докачка из сети)"
+    return None
+
+
 @pytest.fixture(scope="module")
 def dfs():
-    return _load()
+    why = _cache_problem()
+    if why:
+        pytest.skip(why)
+    mp = pytest.MonkeyPatch()
+    # тест только читает кэш: запись обратно в живой storage/market (атомарная перезапись parquet) отключаем
+    mp.setattr(klines, "_atomic_parquet", lambda df, path: None)
+    mp.setattr(derivs, "_atomic_parquet", lambda df, path: None)
+    try:
+        yield _load()
+    finally:
+        mp.undo()
 
 
 def _live_cut(dfs, t_close, legs):
@@ -55,6 +82,7 @@ def test_default_legs_include_regime_6h():
     assert r.params == {"n": 28, "chop_lo": 45.0, "chop_hi": 55.0, "fast": 12, "slow": 100}
 
 
+@pytest.mark.realdata
 def test_live_matches_backtest(dfs):
     """exposure() на усечённых данных == exposure() на полной истории (3 ноги с ненулевыми весами 1/3: проверяем и
     ногу OI flush, чей дефолтный вес 0), >= 200 точек."""
@@ -73,6 +101,7 @@ def test_live_matches_backtest(dfs):
     assert worst < 1e-12
 
 
+@pytest.mark.realdata
 def test_live_compute_target_matches_backtest_capped(dfs):
     """Тот же паритет через живую функцию compute_target (с ограничением суммы весов <= 1): веса 1/3 -> без масштабирования."""
     legs = _equal_weight_legs()
@@ -89,6 +118,7 @@ def test_live_compute_target_matches_backtest_capped(dfs):
     assert seen_nonzero_6h > 20                                        # ветка 6h реально участвовала
 
 
+@pytest.mark.realdata
 def test_default_live_exposure_equals_web_default(dfs):
     """Живой дефолт (compute_target на DEFAULT_LEGS, сумма весов 1.0) == exposure() дефолтных ног веба: без масштабирования,
     |цель| <= 1; а без нулевых ног (как делает бот: effective_legs) результат тот же."""
@@ -112,6 +142,7 @@ def test_live_windows_per_tf():
     assert window_for("6h", DEFAULT_LEGS) == 480                       # >= прогрев EMA(100) + CHOP(28)
 
 
+@pytest.mark.realdata
 def test_window_480_is_enough_for_regime_everywhere(dfs):
     """Окно живого бота даёт ТОТ ЖЕ сигнал 6h-ноги, что и вся история, на каждой 6h свече (а не только в случайных точках)."""
     leg = DEFAULT_LEGS[2]
@@ -122,6 +153,7 @@ def test_window_480_is_enough_for_regime_everywhere(dfs):
     assert not bad, bad[:5]
 
 
+@pytest.mark.realdata
 def test_6h_signal_never_uses_bar_closing_after_decision_point(dfs):
     """На точке решения t сигнал 6h-ноги не зависит от свечей, закрывающихся ПОЗЖЕ t (портим их — сигнал тот же),
     и равен сигналу последней 6h свечи, закрывшейся <= t."""
@@ -152,6 +184,7 @@ def test_6h_signal_never_uses_bar_closing_after_decision_point(dfs):
     assert checked >= 100
 
 
+@pytest.mark.realdata
 def test_6h_signal_changes_only_on_6h_close(dfs):
     """Раннер просыпается каждый час, но сигнал 6h-ноги меняется только в часы 00/06/12/18 UTC (закрытие свечи)."""
     leg = DEFAULT_LEGS[2]

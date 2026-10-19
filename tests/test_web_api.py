@@ -6,8 +6,17 @@ from tradebot.paths import MARKET, RESULTS
 from tradebot.web.api import app
 
 client = TestClient(app)
-needs_data = pytest.mark.skipif(not (MARKET / "BTCUSDT_1h.parquet").exists(), reason="нет локального кэша BTCUSDT")
-needs_wf = pytest.mark.skipif(not (RESULTS / "wf_BTCUSDT.csv").exists(), reason="нет результатов walk-forward")
+
+
+def _needs(cond: bool, reason: str):
+    """Тест на живых данных из storage/: пропускается без кэша и помечен realdata (по умолчанию не запускается)."""
+    def deco(fn):
+        return pytest.mark.realdata(pytest.mark.skipif(not cond, reason=reason)(fn))
+    return deco
+
+
+needs_data = _needs((MARKET / "BTCUSDT_1h.parquet").exists(), "нет локального кэша BTCUSDT")
+needs_wf = _needs((RESULTS / "wf_BTCUSDT.csv").exists(), "нет результатов walk-forward")
 
 
 def test_meta():

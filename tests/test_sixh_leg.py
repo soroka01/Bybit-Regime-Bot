@@ -64,7 +64,9 @@ def feed(data, calls=None):
         if calls is not None:
             calls.append(dict(specs))
         return {tf: data[tf] for tf in specs}
-    f.now, f._load_sync = _now, load
+    async def _oi_ready(close_ts):                      # без сети: _wait_oi иначе опрашивает реальную биржу и пишет в storage/market
+        return True
+    f.now, f._load_sync, f._wait_oi = _now, load, _oi_ready
     return f
 
 

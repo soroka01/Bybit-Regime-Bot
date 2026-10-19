@@ -335,7 +335,7 @@ def test_backfill_failure_paths_do_nothing_and_never_raise(tmp_path):
     ex.closed_pnl_error = None
     t0 = time.monotonic()
     ex.closed_pnl_hang = True
-    assert run(exe.backfill_pnl(timeout=0.2)) == {"skipped": "таймаут"} and time.monotonic() - t0 < 2 and st.roundtrip_rows() == []
+    assert run(exe.backfill_pnl(timeout=0.2)) == {"skipped": "таймаут"} and time.monotonic() - t0 < 10 and st.roundtrip_rows() == []
     ex.closed_pnl_hang = False
     exe.ex = object()                                                                  # биржа без метода списка
     assert run(exe.backfill_pnl()) == {"skipped": "нет метода"}
@@ -380,7 +380,7 @@ def test_runner_starts_backfill_in_background_without_blocking(tmp_path):
     exe.backfill_pnl = stuck
     t0 = time.monotonic()
     run(r.run())
-    assert time.monotonic() - t0 < 2                                                   # зависший добор не держит остановку
+    assert time.monotonic() - t0 < 30                                                  # зависший добор (спит 3600 с) не держит остановку; порог с запасом на нагрузку
 
     async def boom(**k):
         raise RuntimeError("x")

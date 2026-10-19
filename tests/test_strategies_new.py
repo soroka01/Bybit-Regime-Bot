@@ -155,6 +155,7 @@ needs_real = pytest.mark.skipif(not all(p.exists() for p in _need), reason="не
 
 
 @needs_real
+@pytest.mark.realdata
 @pytest.mark.parametrize("tf", ["1h", "4h"])
 @pytest.mark.parametrize("name", NEW)
 def test_real_data_smoke(name, tf):
@@ -173,6 +174,7 @@ def frame26k():
     return synth(26_000, seed=2)
 
 
+@pytest.mark.perf
 @pytest.mark.parametrize("name", NEW)
 def test_timing_default_under_2s(name, frame26k):
     st = STRATEGIES[name]
@@ -181,6 +183,7 @@ def test_timing_default_under_2s(name, frame26k):
     assert time.perf_counter() - t < 2.0
 
 
+@pytest.mark.perf
 @pytest.mark.parametrize("name", NEW)
 def test_timing_full_grid(name, frame26k):
     """Цель — около 2 с на всю сетку; порог тут с запасом на шум загруженной машины."""

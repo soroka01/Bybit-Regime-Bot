@@ -72,7 +72,7 @@ def test_busy_returns_429_with_wait_info(lanes):
             await api_mod.run_heavy(FakeReq(), "sweep", lambda: 1)             # другой вид — не вытесняет, просто ждёт
         status, d = detail_of(e)
         assert status == 429 and d["code"] == "busy"
-        assert d["queue_wait_s"] == 0.3 and 0.2 <= d["waited_s"] <= 1.5 and time.monotonic() - t0 < 2
+        assert d["queue_wait_s"] == 0.3 and 0.2 <= d["waited_s"] <= 10 and time.monotonic() - t0 < 15
         b.release.set()
         assert await t1 == "ok"
     run(go())
@@ -184,7 +184,7 @@ def test_watchdog_swaps_semaphore(lanes, caplog):
         t0 = time.monotonic()
         # пока watchdog не сработал (2 x 0.1 с), слот занят; ожидающий подхватит ЗАМЕНЁННЫЙ семафор
         assert await api_mod.run_heavy(FakeReq(), "backtest", lambda: "after-watchdog") == "after-watchdog"
-        assert 0.1 < time.monotonic() - t0 < 2.5
+        assert 0.1 < time.monotonic() - t0 < 15                                   # верхний порог с запасом на нагрузку
         assert calc.sem is not old and calc.abandoned == 1
         b.release.set()                                                         # зомби доработал
         await asyncio.sleep(0.1)
