@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ago, agoMs, date, datetime, fixSign, fmtLocal, fmtUtc, int, num, parseTime, pct, pctU, sgn, snum, spct, spctU, susd, toneOf, usd, utcShort } from "../src/ui/fmt";
 import { alignSeries, stepValueAt, stride } from "../src/charts/align";
+import { clockUtc } from "../src/ui/fmtTime";
 
 const MINUS = "−";
 
@@ -124,6 +125,13 @@ describe("проценты в процентных единицах и знак�
     expect(agoMs(now - 3 * 86400_000, now)).toBe("3 дн назад");
     expect(agoMs(NaN, now)).toBe("—");
     expect(ago(new Date(Date.now() - 5 * 60_000).toISOString())).toBe("5 мин назад");
+  });
+});
+
+describe("fmtTime", () => {
+  it("clockUtc: время суток в UTC с суффиксом, не зависит от пояса браузера", () => {
+    expect(clockUtc(Date.parse("2026-10-08T12:03:05Z"))).toBe("12:03:05 UTC");
+    expect(clockUtc(Date.parse("2026-10-08T23:59:59+03:00"))).toBe("20:59:59 UTC");
   });
 });
 

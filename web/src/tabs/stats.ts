@@ -10,6 +10,7 @@ import { setLoading, skeletonChart, skeletonTile } from "../ui/kit";
 import { createStatsCharts, isEqUnit, type EqUnit } from "./statsCharts";
 import { DEFAULT_STATS_RANGE, isStatsRange, isStTradeFilter, selectState, STATS_RANGES, type StTradeFilter } from "./statsLogic";
 import { agoMs } from "../ui/fmt";
+import { clockUtc } from "../ui/fmtTime";
 import {
   allMetrics, costsCard, heroGrid, oldBackendCard, pageNotices, positionCard, qualityBlock, reasonCard, reconCard, sideCard, unavailableCard, windowLine,
 } from "./statsView";
@@ -129,7 +130,7 @@ export function createStats(_meta: Meta): Tab {
       default: break;
     }
     const r = res!;
-    staleSlot.replaceChildren(stale ? h("div", { class: "notice warn", role: "status" }, h("strong", { text: "Не удалось обновить. " }), h("span", { text: `${stale.message}. Показаны данные от ${new Date(lastOk).toLocaleTimeString("ru-RU")}.` }),
+    staleSlot.replaceChildren(stale ? h("div", { class: "notice warn", role: "status" }, h("strong", { text: "Не удалось обновить. " }), h("span", { text: `${stale.message}. Показаны данные от ${clockUtc(lastOk)}.` }),
       h("button", { class: "btn sm", type: "button", onClick: () => void load(), text: "Повторить" })) : "");
     noticesSlot.replaceChildren(...pageNotices(r));
     heroSlot.replaceChildren(heroGrid(r));

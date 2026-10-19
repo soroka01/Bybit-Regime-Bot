@@ -1,6 +1,6 @@
 // Чистая логика вида результата: сравнение с Buy & Hold, предупреждение о коротком периоде.
 import type { BacktestResult, Num } from "../types";
-import { num } from "../ui/fmt";
+import { num, parseTime } from "../ui/fmt";
 
 export interface Versus { tone: "pos" | "neg" | ""; text: string }
 
@@ -26,6 +26,7 @@ export function ddVersus(dd: Num | undefined, bhDd: Num | undefined): Versus {
 }
 
 export const SHORT_DAYS = 180;
+/** Длина периода данных в сутках; строки без часового пояса — UTC (parseTime), иначе браузер читал бы их как местное время и сдвигал на DST. */
 export const periodDays = (r: Pick<BacktestResult, "data_range">): number =>
-  (+new Date(r.data_range.end) - +new Date(r.data_range.start)) / 86400000;
+  (+(parseTime(r.data_range.end) ?? NaN) - +(parseTime(r.data_range.start) ?? NaN)) / 86400000;
 export const isShortPeriod = (r: Pick<BacktestResult, "data_range">): boolean => periodDays(r) < SHORT_DAYS;

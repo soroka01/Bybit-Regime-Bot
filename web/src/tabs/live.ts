@@ -12,6 +12,7 @@ import { icon } from "../ui/icons";
 import { emptyState, pageHead, skeletonChart, skeletonTile } from "../ui/kit";
 import { publishLive } from "../ui/botStatus";
 import { num, usd } from "../ui/fmt";
+import { clockUtc } from "../ui/fmtTime";
 import {
   closedKey, heartbeatState, isEventFilter, isRange, newClosedKeys, parseSeries, RANGES, tradeMarkers, type EventFilter, type HbTone, type RangeKey, filterEvents,
 } from "./liveCalc";
@@ -231,7 +232,7 @@ export function createLive(meta: Meta): Tab {
       // та же картинка (и минутная корзина для «N мин назад») — DOM и график не трогаем
       const sig = JSON.stringify(s) + "|" + Math.floor(Date.now() / 60_000);
       if (sig !== lastJson) { lastJson = sig; render(s); }
-      lastFetch.textContent = `обновлено ${new Date().toLocaleTimeString("ru-RU")} · авто каждые 10 с`;
+      lastFetch.textContent = `обновлено ${clockUtc(Date.now())} · авто каждые 10 с`;
     } catch (e) {
       if (c.signal.aborted) return;
       lastJson = "";

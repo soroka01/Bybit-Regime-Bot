@@ -24,5 +24,7 @@ export const ddmmyy = (t: number): string => { const d = new Date(t * 1000); ret
 export const hhmm = (t: number): string => { const d = new Date(t * 1000); return `${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`; };
 /** «дд.мм.гг чч:мм» (UTC). */
 export const stamp = (t: number): string => `${ddmmyy(t)} ${hhmm(t)}`;
+/** Время суток в UTC с явным суффиксом: «12:03:05 UTC» (для «обновлено …»; браузерное локальное время не показываем — везде в интерфейсе UTC). */
+export const clockUtc = (ms: number): string => `${new Date(ms).toISOString().slice(11, 19)} UTC`;
 /** «ГГГГ-ММ-ДД» -> «дд.мм.гггг». */
 export const ymdRu = (s: string): string => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s); return m ? `${m[3]}.${m[2]}.${m[1]}` : s; };

@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { daysLabel, leverageSummary, marketSummary, overlaysSummary, strategySummary } from "../src/tabs/labLogic";
 import { importLiveLegs, weightReport, weightSum } from "../src/tabs/portfolioLogic";
-import { ddVersus, isShortPeriod, vsBenchmark } from "../src/tabs/resultLogic";
+import { ddVersus, isShortPeriod, periodDays, vsBenchmark } from "../src/tabs/resultLogic";
 import { csvCell, csvFileName, csvText, filterTrades, tradeCounts, tradesToCsv } from "../src/tabs/tradesLogic";
 import { windowMatrix, windowSpan, wfVerdict } from "../src/tabs/wfLogic";
 import type { LegCfg, LiveSnapshot, StrategyMeta, TradeRow, WfWindow } from "../src/types";
@@ -88,6 +88,22 @@ describe("результат: сравнение с B&H", () => {
   it("короткий период — меньше 180 дней", () => {
     expect(isShortPeriod({ data_range: { start: "2026-01-01", end: "2026-03-01", bars: 1, step_min: 60 } })).toBe(true);
     expect(isShortPeriod({ data_range: { start: "2025-01-01", end: "2026-01-01", bars: 1, step_min: 60 } })).toBe(false);
+  });
+  it("periodDays читает строки сервера как UTC и не зависит от часового пояса браузера (DST)", () => {
+    const env = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env;
+    const prev = env.TZ;
+    const dr = (start: string, end: string) => ({ data_range: { start, end, bars: 1, step_min: 60 } });
+    try {
+      for (const tz of ["America/New_York", "Europe/Moscow", "Pacific/Auckland", "UTC"]) {
+        env.TZ = tz;
+        expect(periodDays(dr("2025-03-01 00:00:00", "2025-03-31 00:00:00")), tz).toBe(30);          // между ними переход на летнее время в США
+        expect(periodDays(dr("2025-10-01T00:00:00", "2025-11-01T00:00:00")), tz).toBe(31);
+        expect(periodDays(dr("2025-03-01T00:00:00+00:00", "2025-03-31T00:00:00Z")), tz).toBe(30);
+      }
+    } finally {
+      if (prev === undefined) delete env.TZ; else env.TZ = prev;
+    }
+    expect(periodDays(dr("мусор", "2025-01-01"))).toBeNaN();
   });
 });
 
