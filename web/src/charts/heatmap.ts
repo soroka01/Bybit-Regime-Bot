@@ -45,16 +45,16 @@ function repaintOnTheme(wrap: HTMLElement, cells: [HTMLElement, number | null][]
   });
 }
 
-/** Подсказка для ячеек: показывается у ячейки по наведению и фокусу. */
-function cellTip(wrap: HTMLElement, tip: ChartTip, td: HTMLElement, title: string, value: string, tone: string, label: string, note?: string) {
+/** Подсказка для ячеек: показывается у ячейки по наведению и по фокусу focusEl (по умолчанию сама ячейка; у кликабельных — кнопка внутри неё). */
+function cellTip(wrap: HTMLElement, tip: ChartTip, td: HTMLElement, title: string, value: string, tone: string, label: string, note?: string, focusEl: HTMLElement = td) {
   const show = () => {
     const hr = wrap.getBoundingClientRect(), r = td.getBoundingClientRect();
     tip.show({ title, rows: [{ label, value, color: td.style.background, box: true, tone }], note }, r.left - hr.left + r.width / 2, r.top - hr.top + r.height / 2);
   };
   td.addEventListener("pointerenter", show);
-  td.addEventListener("focus", show);
+  focusEl.addEventListener("focus", show);
   td.addEventListener("pointerleave", () => tip.hide());
-  td.addEventListener("blur", () => tip.hide());
+  focusEl.addEventListener("blur", () => tip.hide());
 }
 
 const legend = (lo: string, hi: string) =>
@@ -135,18 +135,17 @@ export function sweepHeatmap(
         const isBase = cur[res.x.name] === x && cur[ry.name] === y;
         const isBest = bestVal != null && v === bestVal && !bestMarked;
         if (isBest) bestMarked = true;
-        const td = h("td", {
-          class: "pickable" + (isBase ? " base" : "") + (isBest ? " best" : ""), tabindex: 0, role: "button",
+        // ячейка таблицы остаётся ячейкой (роль button на td ломала семантику таблицы): кликабельная кнопка — внутри неё
+        const pick = () => onPick(x, y);
+        const btn = h("button", {
+          class: "pick", type: "button", onClick: pick, text: spec.fmt(v),
           "aria-label": `${res.x.name}=${x}, ${ry.name}=${y}: ${spec.fmt(v)}${isBest ? ", лучшая по метрике" : ""}${isBase ? ", текущая точка" : ""} — нажмите, чтобы применить`,
-          text: spec.fmt(v),
         });
+        const td = h("td", { class: "pickable" + (isBase ? " base" : "") + (isBest ? " best" : "") }, btn);
         cells.push([td, norm(v)]);
         paint(td, sc.cell(norm(v)));
         cellTip(wrap, tip, td, `${res.x.name}=${fmtAxis(x)} · ${ry.name}=${fmtAxis(y)}`, spec.fmt(v),
-          v != null && v < 0 && metric !== "max_drawdown" ? "neg" : v != null && v > 0 && metric !== "max_drawdown" && metric !== "trades" ? "pos" : "", spec.label, [isBase ? "текущие значения" : "", isBest ? "лучшая по метрике" : "", "нажмите, чтобы применить"].filter(Boolean).join(" · "));
-        const pick = () => onPick(x, y);
-        td.addEventListener("click", pick);
-        td.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+          v != null && v < 0 && metric !== "max_drawdown" ? "neg" : v != null && v > 0 && metric !== "max_drawdown" && metric !== "trades" ? "pos" : "", spec.label, [isBase ? "текущие значения" : "", isBest ? "лучшая по метрике" : "", "нажмите, чтобы применить"].filter(Boolean).join(" · "), btn);
         return td;
       })));
   const sym = metric !== "max_drawdown" && metric !== "trades";

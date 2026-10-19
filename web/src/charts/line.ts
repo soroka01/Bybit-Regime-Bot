@@ -89,7 +89,7 @@ export function lineChart(host: HTMLElement, o: LineOpts): LineChart {
 
   const build = () => {
     u?.destroy();
-    const text = cssVar("--fg-muted"), grid = cssVar("--grid"), surface = cssVar("--surface-1"), crosshair = cssVar("--crosshair");
+    const text = cssVar("--fg-muted"), grid = cssVar("--grid"), surface = cssVar("--surface-1");
     const font = `11px ${cssVar("--font-ui") || "system-ui, sans-serif"}`;
     const colors = o.series.map((s) => cssVar(s.color) || "#888888");
     const long = cssVar("--long"), short = cssVar("--short"), fg = cssVar("--fg");
@@ -168,7 +168,7 @@ export function lineChart(host: HTMLElement, o: LineOpts): LineChart {
                 return g;
               }
               : undefined,
-            fillTo: (_self, _si, min) => (o.yMax === 0 ? 0 : log ? min : min),
+            fillTo: (_self, _si, min) => (o.yMax === 0 ? 0 : min),
             points: { show: false },
             spanGaps: false,
             paths: s.step ? uPlot.paths.stepped!({ align: 1 }) : undefined,
@@ -254,8 +254,7 @@ export function lineChart(host: HTMLElement, o: LineOpts): LineChart {
         ],
       },
     };
-    // перекрестие: цвет из токена (стили .u-cursor-* в styles/charts.css берут тот же --crosshair)
-    void crosshair;
+    // цвет перекрестия задаёт CSS (.u-cursor-* в styles/charts.css берут токен --crosshair) — из JS он не нужен
     u = new uPlot(opts, current(), host);
     host.querySelector<HTMLElement>(".u-over")?.addEventListener("mouseleave", () => tip.hide());
   };

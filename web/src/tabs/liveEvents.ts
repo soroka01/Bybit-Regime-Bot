@@ -8,7 +8,20 @@ import { eventKind, filterEvents, isNoiseEvent, type EventFilter, type LiveEvent
 const EV_ICON: Record<string, string> = { info: "info", trade: "swap", signal: "pulse", warn: "warn", error: "error", daily: "chart" };
 const EV_WORD: Record<string, string> = { info: "Инфо", trade: "Сделка", signal: "Сигнал", warn: "Внимание", error: "Ошибка", daily: "Итоги дня" };
 
-export function eventsList(events: readonly LiveEvent[] | undefined, mode: EventFilter, limit = 60): HTMLElement {
+/** Сколько событий показывает лента (остальные есть в снимке, но не отрисовываются). */
+export const EVENTS_LIMIT = 60;
+
+/** Подпись счётчика над лентой: честно говорит, когда показана только часть («последние 60 из 100»), а не «100» при 60 строках. */
+export function eventsCountText(events: readonly LiveEvent[] | undefined, mode: EventFilter, limit = EVENTS_LIMIT): string {
+  const total = (events ?? []).length;
+  if (!total) return "";
+  const matching = filterEvents(events, mode).length;
+  const shown = Math.min(matching, limit);
+  if (mode === "all") return matching > limit ? `последние ${shown} из ${total}` : `${total}`;
+  return matching > limit ? `последние ${shown} из ${matching} (всего ${total})` : `${matching} из ${total}`;
+}
+
+export function eventsList(events: readonly LiveEvent[] | undefined, mode: EventFilter, limit = EVENTS_LIMIT): HTMLElement {
   const list = filterEvents(events, mode);
   if (!list.length) return emptyState(mode === "all" ? "Событий нет" : "В этой категории событий нет", undefined, null);
   return h("ol", { class: "lv-timeline", tabindex: 0, "aria-label": "События бота" }, ...list.slice(0, limit).map((e) => {

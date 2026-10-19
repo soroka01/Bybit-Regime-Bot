@@ -14,10 +14,10 @@ import { publishLive } from "../ui/botStatus";
 import { num, usd } from "../ui/fmt";
 import { clockUtc } from "../ui/fmtTime";
 import {
-  closedKey, heartbeatState, isEventFilter, isRange, newClosedKeys, parseSeries, RANGES, tradeMarkers, type EventFilter, type HbTone, type RangeKey, filterEvents,
+  closedKey, heartbeatState, isEventFilter, isRange, newClosedKeys, parseSeries, RANGES, tradeMarkers, type EventFilter, type HbTone, type RangeKey,
 } from "./liveCalc";
 import {
-  closedTradesCard, closedTradesLoading, eventsList, fallbackHint, heroCard, killedBanner, noSnapshot, positionCard, riskCard, signalsCard, staleBanner, tickAll, tradesCard, type ClosedState,
+  closedTradesCard, closedTradesLoading, eventsCountText, eventsList, fallbackHint, heroCard, killedBanner, noSnapshot, positionCard, riskCard, signalsCard, staleBanner, tickAll, tradesCard, type ClosedState,
 } from "./liveView";
 import { resolveWindow, statsNeeded, type Feeds, type FullRange } from "./liveWindow";
 import { loadStats } from "./statsFeed";
@@ -116,8 +116,7 @@ export function createLive(meta: Meta): Tab {
     h("header", { class: "card-head" }, h("h3", { text: "События" }), evCount), evSeg.el, evHost);
   function paintEvents(s: LiveSnapshot) {
     evHost.replaceChildren(eventsList(s.events, S.ev));
-    const total = (s.events ?? []).length, shown = filterEvents(s.events, S.ev).length;
-    evCount.textContent = total ? (S.ev === "all" ? `${total}` : `${shown} из ${total}`) : "";
+    evCount.textContent = eventsCountText(s.events, S.ev);
   }
 
   // ---------- закрытые сделки (или откат к списку ордеров)

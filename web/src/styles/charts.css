@@ -60,9 +60,11 @@ table.heat td {
 }
 table.heat .sep { margin-left: 6px; }
 table.heat .strong { font-weight: 700; }
-table.heat td.pickable { cursor: pointer; }
+table.heat td.pickable { cursor: pointer; padding: 0; }
 table.heat td.pickable:hover, table.heat td:hover { box-shadow: 0 0 0 2px var(--fg); position: relative; z-index: 1; }
-table.heat td.pickable:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+/* кнопка внутри ячейки: занимает её целиком, шрифт и цвет (подобран под заливку) наследует от ячейки */
+table.heat td .pick { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 8px 4px; cursor: pointer; border-radius: 6px; }
+table.heat td .pick:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 table.heat td.base { box-shadow: 0 0 0 2px var(--fg); }
 table.heat th.corner { text-align: left; font-size: var(--fs-11); width: 120px; text-transform: none; letter-spacing: 0; }
 .heat-wrap { position: relative; }

@@ -153,7 +153,7 @@ export function openOptimize(ctx: OptimizeCtx): void {
     if (curveCard && best.curve) {
       const host = curveCard.querySelector(".chart") as HTMLElement;
       const data = best.curve;
-      // графики подгружаются лениво: окно открывается без загрузки uPlot, пока нет кривой
+      // динамический import: график строится уже после вставки карточки в документ (host.isConnected). Откладывать загрузку он не умеет — бандл один, без splitting
       void import("../charts/line").then(({ lineChart }) => {
         if (!host.isConnected) return;
         curve = lineChart(host, {
