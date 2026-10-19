@@ -5,18 +5,24 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
+import os
 import sqlite3
 import threading
+import time
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from tradebot.core.portfolio import DEFAULT_LEGS, Leg
 from tradebot.core.strategies import STRATEGIES
-from tradebot.paths import STATE
+from tradebot.paths import STATE, STORAGE
 from tradebot.trading.config import MAX_LEVERAGE
 
 DB_PATH = STATE / "bot.db"
+BACKUP_DIR = STORAGE / "backups" / "db"   # ежедневные копии bot.db (sqlite backup API): bot_YYYYMMDD.db
+BACKUP_KEEP = 14
+SIGNALS_KEEP_DAYS = 90                    # журнал сигналов старше — удаляется (последняя строка по каждому ключу остаётся всегда)
+EVENTS_KEEP_DAYS = 400                    # журнал событий старше — удаляется; trades/roundtrips/equity не чистятся
 
 DEFAULTS = {
     "enabled": False, "leverage": 1.0, "stop_pct": 0.08,
@@ -40,6 +46,10 @@ CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, ts TEXT, level TEXT, t
 CREATE TABLE IF NOT EXISTS proposals(id INTEGER PRIMARY KEY, ts TEXT, source TEXT, status TEXT, payload TEXT);
 CREATE TABLE IF NOT EXISTS roundtrips(id INTEGER PRIMARY KEY, ts_open TEXT, ts_close TEXT, side TEXT, qty REAL, entry REAL, exit REAL,
     pnl REAL, fees REAL, funding REAL, equity_open REAL, eq_est INTEGER, approx INTEGER, kind TEXT, reason TEXT, order_id TEXT);
+CREATE INDEX IF NOT EXISTS idx_equity_ts ON equity(ts);
+CREATE INDEX IF NOT EXISTS idx_signals_key_id ON signals(key, id);
+CREATE INDEX IF NOT EXISTS idx_signals_ts ON signals(ts);
+CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
 """
 RT_COLS = ("ts_open", "ts_close", "side", "qty", "entry", "exit", "pnl", "fees", "funding", "equity_open", "eq_est", "approx",
            "kind", "reason", "order_id")
@@ -156,15 +166,48 @@ class Store:
     def set(self, k: str, v) -> None:
         self._x("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (k, json.dumps(v)))
 
+    def set_many(self, items: dict) -> None:
+        """Несколько записей kv ОДНОЙ транзакцией (всё или ничего). Нельзя вызывать внутри другой транзакции (_txn)."""
+        with self._txn():
+            for k, v in items.items():
+                self.set(k, v)
+
+    def set_acted(self, exposure: float | None, qty: float | None, latch: float | None = None) -> None:
+        """Инвариант: acted_exposure (последняя исполненная цель) и acted_qty (удерживаемый размер в BTC со знаком) пишутся
+        ТОЛЬКО парой и одной транзакцией — сбой между двумя записями не должен оставить цель без размера (или наоборот).
+        latch не None -> в той же транзакции ставится защёлка (latch=True, latch_exposure=latch)."""
+        items = {"acted_exposure": exposure, "acted_qty": qty}
+        if latch is not None:
+            items.update(latch=True, latch_exposure=latch)
+        self.set_many(items)
+
     def clear_acted(self) -> None:
-        """Забыть «отработанную» цель: следующая сверка пересчитает размер от свежего баланса счёта.
-        acted_exposure (последняя исполненная цель) и acted_qty (удерживаемый размер в BTC со знаком) всегда идут парой."""
-        self.set("acted_exposure", None)
-        self.set("acted_qty", None)
+        """Забыть «отработанную» цель: следующая сверка пересчитает размер от свежего баланса счёта."""
+        self.set_acted(None, None)
+
+    def set_latch(self, exposure: float) -> None:
+        """Защёлка после закрытия биржей: latch и latch_exposure — парой, одной транзакцией."""
+        self.set_many({"latch": True, "latch_exposure": exposure})
+
+    def mark_killed(self, reason: str) -> None:
+        """kill-switch: торговля выключена + killed + причина ОДНОЙ транзакцией (иначе сбой между записями оставил бы
+        enabled=False без killed — и владелец мог бы включить торговлю кнопкой, не зная о срабатывании)."""
+        self.set_many({"s_enabled": False, "killed": True, "kill_reason": reason})
 
     def next_seq(self) -> int:
         with self._lock:
             n = int(self.get("order_seq", 0)) + 1
+            self.set("order_seq", n)
+            return n
+
+    def seed_order_seq(self, now: float | None = None) -> int:
+        """Инвариант: порядковый номер в orderLinkId не повторяется НИКОГДА. Дубль биржа отклонила бы кодом 110072, а исполнитель
+        трактует 110072 как «ордер уже существует» — то есть новый ордер молча принялся бы за старый. Поэтому при старте счётчик
+        поднимается до max(сохранённый order_seq, max(trades.id), текущее время в секундах): восстановленная из копии или старая
+        БД не вернёт его назад. Возвращает новое значение."""
+        with self._lock:
+            mx = self._db.execute("SELECT MAX(id) FROM trades").fetchone()[0] or 0
+            n = max(int(self.get("order_seq", 0)), int(mx), int(now if now is not None else time.time()))
             self.set("order_seq", n)
             return n
 
@@ -392,7 +435,10 @@ class Store:
     def stop_breaks(self) -> list[float]:
         """Моменты (unix-секунды), когда позицию закрыла биржа мимо ленты исполнений: события «Позиция исчезла …». Для реплея
         trades (иначе средняя цена и время входа смешают позицию до и после стоп-аута). Уточнение по стоп-ауту (followup)
-        этой подстроки не содержит и вторым разрывом не считается."""
+        этой подстроки не содержит и вторым разрывом не считается.
+        ИЗВЕСТНЫЙ РИСК (отложено, T3b): разрывы берутся из последних 2000 событий; при очень насыщенном журнале событий старый
+        «Позиция исчезла» выпадет из окна, и реплей смешает позицию до и после того стоп-аута. Правильное решение — выводить
+        разрывы из roundtrips.kind (стоп-ауты пишутся туда), но это меняет учёт P/L и сделано не было."""
         from tradebot.trading import pnl as pnl_mod
         return [t for t in (pnl_mod.parse_ts(e["ts"]) for e in self.events(2000) if "озиция исчезла" in e["text"]) if t]
 
@@ -423,6 +469,81 @@ class Store:
 
     def events(self, n: int = 100, offset: int = 0) -> list[dict]:
         return _events(self._db, n, offset)
+
+    # --- обслуживание БД: ежедневная копия -> чистка журналов -> усечение WAL (именно в таком порядке) ---
+    @staticmethod
+    def backup_file(backup_dir: Path | str, day: datetime) -> Path:
+        return Path(backup_dir) / f"bot_{day:%Y%m%d}.db"
+
+    def backup_due(self, backup_dir: Path | str = BACKUP_DIR, now: datetime | None = None) -> bool:
+        return not self.backup_file(backup_dir, now or datetime.now(timezone.utc)).exists()
+
+    def backup(self, backup_dir: Path | str = BACKUP_DIR, now: datetime | None = None, keep: int = BACKUP_KEEP) -> Path:
+        """Копия bot.db за сегодня (sqlite3 backup API с ОТДЕЛЬНОГО read-only соединения: торговые записи не блокируются, копия
+        согласована). Пишется во временный файл, проверяется quick_check и только потом атомарно переименовывается — полурабочая
+        копия под настоящим именем не появится. Остаются последние `keep` копий. Исключение при любом сбое."""
+        now = now or datetime.now(timezone.utc)
+        d = Path(backup_dir)
+        d.mkdir(parents=True, exist_ok=True)
+        dest = self.backup_file(d, now)
+        tmp = dest.with_name(dest.name + ".tmp")
+        tmp.unlink(missing_ok=True)
+        src = sqlite3.connect(f"file:{Path(self.path).as_posix()}?mode=ro", uri=True, timeout=30)
+        try:
+            dst = sqlite3.connect(str(tmp))
+            try:
+                src.backup(dst)
+                if dst.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+                    raise sqlite3.DatabaseError("quick_check копии не прошёл")
+            finally:
+                dst.close()
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
+        finally:
+            src.close()
+        os.replace(tmp, dest)
+        for old in sorted(d.glob("bot_????????.db"))[:-keep]:
+            old.unlink(missing_ok=True)
+        return dest
+
+    def purge(self, now: datetime | None = None) -> dict:
+        """Чистка журналов: signals старше SIGNALS_KEEP_DAYS (последняя строка по каждому key остаётся независимо от возраста —
+        по ней считается «прежний» сигнал) и events старше EVENTS_KEEP_DAYS. trades/roundtrips/equity не трогаются.
+        Вызывать только после успешной копии (см. maintenance)."""
+        now = now or datetime.now(timezone.utc)
+        cut_s = (now - timedelta(days=SIGNALS_KEEP_DAYS)).isoformat(timespec="seconds")
+        cut_e = (now - timedelta(days=EVENTS_KEEP_DAYS)).isoformat(timespec="seconds")
+        with self._lock:
+            with self._txn():
+                s = self._db.execute("DELETE FROM signals WHERE ts<? AND id NOT IN (SELECT MAX(id) FROM signals GROUP BY key)",
+                                     (cut_s,)).rowcount
+                e = self._db.execute("DELETE FROM events WHERE ts<?", (cut_e,)).rowcount
+        return {"signals": s, "events": e}
+
+    def checkpoint(self) -> None:
+        """Усечь WAL-файл (TRUNCATE). Если читатель (веб) держит снимок, SQLite усечёт сколько сможет — это не ошибка."""
+        with self._lock:
+            self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+
+    def maintenance(self, backup_dir: Path | str = BACKUP_DIR, now: datetime | None = None) -> dict:
+        """Раз в сутки (если копии за сегодня ещё нет): копия -> чистка -> усечение WAL. ПОРЯДОК важен: чистка удаляет данные,
+        поэтому выполняется только после УСПЕШНОЙ копии; усечение WAL — последним. Блокирующий вызов: запускать в потоке."""
+        out: dict = {"ran": False}
+        if not self.backup_due(backup_dir, now):
+            return out
+        out["ran"] = True
+        try:
+            out["backup"] = str(self.backup(backup_dir, now))
+        except Exception as e:  # копия не удалась: чистку пропускаем, данные не теряем
+            out["error"] = f"{type(e).__name__}: {e}"
+        else:
+            out["purged"] = self.purge(now)
+        try:
+            self.checkpoint()
+        except Exception as e:
+            out.setdefault("error", f"{type(e).__name__}: {e}")
+        return out
 
 
 def _proposal_row(r) -> dict:
