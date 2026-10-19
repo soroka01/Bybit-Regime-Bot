@@ -40,6 +40,8 @@
 
 canvas.strips { display: block; width: 100%; border-radius: var(--r-2); }
 .strips-wrap { position: relative; }
+.strips-stage { position: relative; }
+canvas.strips-overlay { position: absolute; left: 0; top: 0; pointer-events: none; }   /* вертикаль наведения: отдельный слой, mousemove не перерисовывает полосы */
 
 /* SVG-графики (столбцы, профиль) */
 svg.bars text, .profile svg text { font-family: var(--font-ui); font-variant-numeric: tabular-nums; }

@@ -1,5 +1,6 @@
 // Полосы сигналов/экспозиции по ногам портфеля (canvas): «плюс» — --pos (лонг), «минус» — --neg (шорт), интенсивность = |значение|.
 // Дорожки скруглены, подпись ряда — текстовым токеном; при наведении — плавающая подсказка и тонкая вертикаль.
+// Основной слой рисуется только при изменении данных/размера/темы, вертикаль наведения — на отдельном прозрачном слое (mousemove не перерисовывает полосы).
 import type { Num } from "../types";
 import { cssVar, h, observeWidth } from "../ui/dom";
 import { date, num } from "../ui/fmt";
@@ -11,17 +12,29 @@ export interface StripRow {
   max: number; // |значение| для полной насыщенности
 }
 
+/** Токены цвета и шрифта: читаются один раз на перерисовку (getComputedStyle не вызывается в циклах и на mousemove). */
+function readPalette() {
+  return {
+    pos: cssVar("--pos"), neg: cssVar("--neg"), track: cssVar("--surface-2"), text: cssVar("--fg-muted"), fg: cssVar("--fg"), cross: cssVar("--crosshair"),
+    font: cssVar("--font-ui") || "system-ui, sans-serif",
+  };
+}
+
 export function signalStrips(host: HTMLElement) {
   let t: number[] = [];
   let rows: StripRow[] = [];
   let hoverX = -1;
+  let pal = readPalette();
+  let boxW = 0, boxH = 0;
   const ROW = 22, GAP = 6;
   let LABEL = 132;
   host.classList.add("strips-wrap");
   const canvas = h("canvas", { class: "strips", role: "img", "aria-label": "Сигналы и экспозиция по ногам портфеля" });
+  const overlay = h("canvas", { class: "strips-overlay", "aria-hidden": "true" });
+  const stage = h("div", { class: "strips-stage" }, canvas, overlay);
   const readout = h("div", { class: "muted small", "aria-live": "off", text: "Наведите курсор на полосу" });
   const tip = chartTip(host);
-  host.append(canvas, readout);
+  host.append(stage, readout);
 
   const rr = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, hh: number, r: number) => {
     ctx.beginPath();
@@ -29,27 +42,45 @@ export function signalStrips(host: HTMLElement) {
     ctx.arcTo(x, y + hh, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   };
 
+  /** Вертикаль наведения — отдельный слой: очистить и провести одну линию. */
+  const drawOverlay = () => {
+    const ctx = overlay.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    if (hoverX >= LABEL && hoverX <= boxW) {
+      const dpr = devicePixelRatio || 1;
+      ctx.scale(dpr, dpr);
+      ctx.fillStyle = pal.cross;
+      ctx.fillRect(Math.round(hoverX) - 0.5, 0, 1, boxH);
+    }
+  };
+
   const draw = () => {
     const w = host.clientWidth;
     if (w < 50) return;
+    pal = readPalette();
     const dpr = devicePixelRatio || 1;
     const H = Math.max(rows.length * (ROW + GAP) - GAP, 1);
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(H * dpr);
-    canvas.style.width = w + "px";
-    canvas.style.height = H + "px";
+    boxW = w; boxH = H;
+    for (const c of [canvas, overlay]) {
+      c.width = Math.round(w * dpr);
+      c.height = Math.round(H * dpr);
+      c.style.width = w + "px";
+      c.style.height = H + "px";
+    }
     const ctx = canvas.getContext("2d")!;
     ctx.scale(dpr, dpr);
-    const pos = cssVar("--pos"), neg = cssVar("--neg"), track = cssVar("--surface-2"), text = cssVar("--fg-muted"), cross = cssVar("--crosshair");
-    ctx.font = `12px ${cssVar("--font-ui") || "system-ui, sans-serif"}`;
+    const { pos, neg, track, text, fg, font } = pal;
+    ctx.font = `12px ${font}`;
     ctx.textBaseline = "middle";
     const n = t.length;
     LABEL = Math.round(Math.min(150, Math.max(78, w * 0.24)));
     const plotW = w - LABEL;
     rows.forEach((r, k) => {
       const y = k * (ROW + GAP);
-      ctx.fillStyle = r.label === "Итого" ? cssVar("--fg") : text;
-      ctx.font = `${r.label === "Итого" ? "600 " : ""}12px ${cssVar("--font-ui") || "system-ui, sans-serif"}`;
+      ctx.fillStyle = r.label === "Итого" ? fg : text;
+      ctx.font = `${r.label === "Итого" ? "600 " : ""}12px ${font}`;
       let lab = r.label;
       while (lab.length > 3 && ctx.measureText(lab).width > LABEL - 10) lab = lab.slice(0, -2) + "…";
       ctx.fillText(lab, 0, y + ROW / 2);
@@ -68,13 +99,10 @@ export function signalStrips(host: HTMLElement) {
       }
       ctx.restore();
     });
-    if (hoverX >= LABEL && hoverX <= w) {
-      ctx.fillStyle = cross;
-      ctx.fillRect(Math.round(hoverX) - 0.5, 0, 1, H);
-    }
+    drawOverlay();
   };
 
-  const leave = () => { hoverX = -1; tip.hide(); readout.textContent = "Наведите курсор на полосу"; draw(); };
+  const leave = () => { hoverX = -1; tip.hide(); readout.textContent = "Наведите курсор на полосу"; drawOverlay(); };
   canvas.addEventListener("mouseleave", leave);
   canvas.addEventListener("mousemove", (e) => {
     const rect = canvas.getBoundingClientRect();
@@ -87,13 +115,13 @@ export function signalStrips(host: HTMLElement) {
     const v = row.values[i];
     hoverX = e.clientX - rect.left;
     readout.textContent = `${row.label} · ${date(t[i])}: ${num(v, 2)}`;
-    draw();
+    drawOverlay();
     const hr = host.getBoundingClientRect();
     tip.show({
       title: date(t[i]),
       rows: rows.map((r) => {
         const val = r.values[i];
-        return { label: r.label, value: num(val, 2), color: val == null || val === 0 ? undefined : val > 0 ? cssVar("--pos") : cssVar("--neg"), box: true };
+        return { label: r.label, value: num(val, 2), color: val == null || val === 0 ? undefined : val > 0 ? pal.pos : pal.neg, box: true };
       }),
     }, e.clientX - hr.left, e.clientY - hr.top);
   });

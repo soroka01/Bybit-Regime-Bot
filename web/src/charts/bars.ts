@@ -52,6 +52,9 @@ export function barChart(host: HTMLElement, getOpts: () => BarOpts): { redraw():
     const bw = Math.max(2, Math.min(28, (gw * 0.72) / o.series.length) - 2);       // 2 px зазор между соседями, потолок 28 px
     const grid = cssVar("--grid"), muted = cssVar("--fg-muted"), axis = cssVar("--axis"), fg = cssVar("--fg");
     const font = cssVar("--font-ui");
+    // цвета читаются один раз на перерисовку, а не в цикле по столбцам
+    const posC = cssVar("--pos"), negC = cssVar("--neg");
+    const seriesColors = o.series.map((s) => cssVar(s.color));
     const root = svg("svg", { class: "bars", viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img", "aria-label": "Столбчатая диаграмма" });
     root.style.fontFamily = font;
     for (const v of tickVals) {
@@ -72,7 +75,7 @@ export function barChart(host: HTMLElement, getOpts: () => BarOpts): { redraw():
         const v = s.values[i];
         if (v == null || !isFinite(v)) return;
         const x = cx - ((bw + 2) * o.series.length) / 2 + k * (bw + 2) + 1;
-        const col = o.bySign ? cssVar(v >= 0 ? "--pos" : "--neg") : cssVar(s.color);
+        const col = o.bySign ? (v >= 0 ? posC : negC) : seriesColors[k]!;
         const top = Math.min(y(v), y(0)), hgt = Math.max(1.5, Math.abs(y(v) - y(0)));
         const bar = svg("path", { class: "bar", d: barPath(x, top, bw, hgt, 4, v >= 0), fill: col, tabindex: 0, role: "img",
           "aria-label": `${c}${o.series.length > 1 ? " · " + s.name : ""}: ${o.fmt(v)}` });
@@ -97,10 +100,10 @@ export function barChart(host: HTMLElement, getOpts: () => BarOpts): { redraw():
       });
     });
     // легенда — только для нескольких рядов
-    legend.replaceChildren(...(o.series.length > 1 ? o.series.map((s) => {
-      const k = h("i", { class: "lg-key area" });
-      k.style.setProperty("--k", cssVar(s.color));
-      return h("span", { class: "lg-item" }, k, s.name);
+    legend.replaceChildren(...(o.series.length > 1 ? o.series.map((s, k) => {
+      const key = h("i", { class: "lg-key area" });
+      key.style.setProperty("--k", seriesColors[k]!);
+      return h("span", { class: "lg-item" }, key, s.name);
     }) : []));
     legend.hidden = o.series.length <= 1;
     host.replaceChildren(legend, root, tip.el);

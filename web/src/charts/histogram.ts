@@ -34,9 +34,9 @@ export function histogramChart(host: HTMLElement, getModel: () => HistModel | nu
         Object.assign(svg("text", { x: padL - 8, y: y(t) + 4, "text-anchor": "end", fill: muted, "font-size": 11 }), { textContent: String(t) }));
     }
     root.append(svg("line", { x1: padL, x2: W - padR, y1: y(0), y2: y(0), stroke: axis }));
-    const bw = (W - padL - padR) / m.bins.length;
+    const toneCol = { neg: cssVar(TONE_VAR.neg), pos: cssVar(TONE_VAR.pos), mixed: cssVar(TONE_VAR.mixed) };     // токены читаются один раз, не на каждую корзину
     m.bins.forEach((b) => {
-      const col = cssVar(TONE_VAR[b.tone]);
+      const col = toneCol[b.tone];
       const x0 = x(b.lo) + 1, w = Math.max(2, x(b.hi) - x(b.lo) - 2);
       const top = y(b.count), hgt = Math.max(b.count > 0 ? 1.5 : 0, y(0) - top);
       const label = `${b.label}: ${int(b.count)} сделок (${pct(b.share, 0)}), ${TONE_WORD[b.tone]}`;
@@ -70,7 +70,6 @@ export function histogramChart(host: HTMLElement, getModel: () => HistModel | nu
       root.append(Object.assign(svg("text", { x: x(e), y: H - padB + 16, "text-anchor": anchor, fill: muted, "font-size": 11 }), { textContent: num(e, d) }));
     });
     root.append(Object.assign(svg("text", { x: (padL + W - padR) / 2, y: H - 6, "text-anchor": "middle", fill: muted, "font-size": 11 }), { textContent: `доходность сделки, ${unit}` }));
-    void bw;
     host.replaceChildren(root, tip.el);
   };
   const stop = observeWidth(host, (w) => { if (w > 0 && Math.abs(w - width) > 1) { width = w; draw(); } });
