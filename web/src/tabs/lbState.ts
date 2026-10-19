@@ -45,7 +45,6 @@ const NEXT: Record<Phase, readonly Phase[]> = {
 };
 export const canTransition = (from: Phase, to: Phase): boolean => from === to || NEXT[from].includes(to);
 
-export type LbStore = ReturnType<typeof createLbStore>;
 
 /**
  * onChange вызывается после КАЖДОГО успешного set(); исключение в нём перехватывается (состояние уже записано),

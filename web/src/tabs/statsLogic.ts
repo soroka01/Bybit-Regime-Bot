@@ -3,7 +3,8 @@
 import type {
   Num, StatsCalendarCell, StatsHistogram, StatsPnlBucket, StatsRange, StatsResponse, StatsTradeRow, StatsWarning,
 } from "../types";
-import { MONTHS, num, usd } from "../ui/fmt";
+import { stepValueAt } from "../charts/align";
+import { agoMs, isNum, MONTHS, num, pctU, snum, spctU, susd, toneOf, usd } from "../ui/fmt";
 import { csvCell } from "./tradesLogic";
 
 // ---------------------------------------------------------------- диапазоны
@@ -31,17 +32,11 @@ export const rangeTitle = (k: StatsRange): string => rangeDef(k).title;
 export const compareSupported = (k: StatsRange): boolean => { const d = rangeDef(k).days; return d != null && d >= 7; };
 
 // ---------------------------------------------------------------- форматирование (проценты — в «процентных» единицах ответа)
-const ok = (v: Num | undefined): v is number => v != null && Number.isFinite(v);
-const nz = (s: string): boolean => /[1-9]/.test(s);
+const ok = isNum;
 
-/** «12,3%»; null -> «—». */
-export const fp = (v: Num | undefined, d = 1): string => (ok(v) ? num(v, d) + "%" : "—");
-/** Со знаком «+» у положительных (ноль после округления — без знака). */
-export const fsp = (v: Num | undefined, d = 1): string => { const s = fp(v, d); return ok(v) && v > 0 && nz(s) ? "+" + s : s; };
-export const fsusd = (v: Num | undefined, d = 2): string => { const s = usd(v, d); return ok(v) && v > 0 && nz(s) ? "+" + s : s; };
-export const fsnum = (v: Num | undefined, d = 2): string => { const s = num(v, d); return ok(v) && v > 0 && nz(s) ? "+" + s : s; };
-/** Знак значения с допуском (округлённый ноль — нейтральный). */
-export const toneOf = (v: Num | undefined, eps = 0): "pos" | "neg" | "" => (!ok(v) || Math.abs(v) <= eps ? "" : v > 0 ? "pos" : "neg");
+// Форматтеры живут в ui/fmt.ts; прежние имена оставлены как совместимые алиасы (тесты и внешние импорты).
+// Проценты здесь — в «процентных» единицах ответа (1,5 = 1,5 %), поэтому pctU, а не pct.
+export { agoMs, pctU as fp, spctU as fsp, susd as fsusd, toneOf };
 
 /** Длительность по-русски: «45 с», «12 мин», «5 ч 20 мин», «3 д 4 ч». */
 export function fmtDuration(sec: Num | undefined): string {
@@ -55,16 +50,6 @@ export function fmtDuration(sec: Num | undefined): string {
   }
   const d = Math.floor(s / 86400), hh = Math.round((s % 86400) / 3600);
   return hh === 24 ? `${d + 1} д` : hh ? `${d} д ${hh} ч` : `${d} д`;
-}
-
-/** «N с/мин/ч/дн назад» от момента в мс. */
-export function agoMs(ms: number, now = Date.now()): string {
-  const sec = Math.max(0, (now - ms) / 1000);
-  if (!Number.isFinite(sec)) return "—";
-  if (sec < 90) return `${Math.round(sec)} с назад`;
-  if (sec < 5400) return `${Math.round(sec / 60)} мин назад`;
-  if (sec < 172800) return `${Math.round(sec / 3600)} ч назад`;
-  return `${Math.round(sec / 86400)} дн назад`;
 }
 
 /** unix-секунды -> «ГГГГ-ММ-ДД ЧЧ:ММ:СС» (UTC) / ISO с «Z». */
@@ -278,7 +263,7 @@ export function moneySummary(rows: readonly StatsTradeRow[]): MoneySummary {
 /** «Закрыто 3: заработано +12,00 $, потеряно −4,00 $, итого +8,00 $»; без сделок — «Закрытых сделок нет». */
 export function moneyLine(s: MoneySummary, label = "Закрыто"): string {
   if (!s.count) return "Закрытых сделок нет";
-  return `${label} ${s.count}: заработано ${fsusd(s.profit)}, потеряно ${fsusd(s.loss)}, итого ${fsusd(s.net)}`;
+  return `${label} ${s.count}: заработано ${susd(s.profit)}, потеряно ${susd(s.loss)}, итого ${susd(s.net)}`;
 }
 
 /**
@@ -297,12 +282,12 @@ export function periodSummary(r: StatsResponse | null | undefined): MoneySummary
 
 /** «За 30 дн.: закрыто 12 · плюс +40,00 $ · минус −15,00 $ · итого +25,00 $» (части — отдельно, чтобы вёрстка могла красить числа). */
 export function periodParts(s: MoneySummary): { count: string; profit: string; loss: string; net: string } {
-  return { count: String(s.count), profit: fsusd(s.profit), loss: fsusd(s.loss), net: fsusd(s.net) };
+  return { count: String(s.count), profit: susd(s.profit), loss: susd(s.loss), net: susd(s.net) };
 }
 
 /** Результат сделки: доллары (главное) и «% счёта» (ret_account_pct) — вместе. Нет кошелька на входе — «% счёта: —». */
 export function resultText(net: Num | undefined, accountPct: Num | undefined): { usd: string; pct: string; tone: "pos" | "neg" | "" } {
-  return { usd: fsusd(net), pct: ok(accountPct) ? `${fsp(accountPct, 2)} счёта` : "% счёта: —", tone: toneOf(net, 0.005) };
+  return { usd: susd(net), pct: ok(accountPct) ? `${spctU(accountPct, 2)} счёта` : "% счёта: —", tone: toneOf(net, 0.005) };
 }
 
 /** Нереализованный результат открытой позиции в % кошелька сейчас (проценты — в «процентных» единицах ответа); null — нет данных. */
@@ -321,14 +306,7 @@ export interface EqMarker { t: number; p: number; kind: "entry" | "exit"; side: 
 export const MAX_AUTO_MARKERS = 150;
 
 /** Значение ряда на момент t: последняя точка ≤ t (до начала ряда — первая). */
-export function valueAt(t: readonly number[], v: readonly Num[], at: number): number | null {
-  if (!t.length) return null;
-  let lo = 0, hi = t.length - 1, i = 0;
-  while (lo <= hi) { const m = (lo + hi) >> 1; if (t[m]! <= at) { i = m; lo = m + 1; } else hi = m - 1; }
-  for (let j = i; j >= 0; j--) if (ok(v[j])) return v[j] as number;
-  for (let j = i + 1; j < t.length; j++) if (ok(v[j])) return v[j] as number;
-  return null;
-}
+export const valueAt = (t: readonly number[], v: readonly Num[], at: number): number | null => stepValueAt(t.length, (i) => t[i]!, (i) => v[i], at);
 
 /** Маркеры входов/выходов внутри окна; при большом числе сделок — только выбранная. `map` переводит значение капитала в единицы оси (USDT / %). */
 export function tradeMarkers(
@@ -418,11 +396,11 @@ export function heroKpis(r: StatsResponse): Kpi[] {
   const costs = ok(k.fees_total) || ok(k.funding_total) ? (k.fees_total ?? 0) + (k.funding_total ?? 0) : null;
   return [
     {
-      key: "roi", label: "ROI счёта", def: "wallet_return_pct", value: fsp(e.wallet_return_pct, 2), tone: toneOf(e.wallet_return_pct, 0.005), big: true, cmp: CMP.roi,
-      sub: `Net P/L сделок ${fsusd(k.net_pnl)} · Δ кошелька ${fsusd(e.delta)}`,
+      key: "roi", label: "ROI счёта", def: "wallet_return_pct", value: spctU(e.wallet_return_pct, 2), tone: toneOf(e.wallet_return_pct, 0.005), big: true, cmp: CMP.roi,
+      sub: `Net P/L сделок ${susd(k.net_pnl)} · Δ кошелька ${susd(e.delta)}`,
     },
     {
-      key: "win", label: "Win rate", def: "win_rate_pct", value: k.trades ? fp(k.win_rate_pct, 1) : "—", tone: "", cmp: CMP.win,
+      key: "win", label: "Win rate", def: "win_rate_pct", value: k.trades ? pctU(k.win_rate_pct, 1) : "—", tone: "", cmp: CMP.win,
       sub: k.trades ? `${k.wins} прибыльных / ${k.losses} убыточных${k.breakeven ? ` / ${k.breakeven} в ноль` : ""}` : "сделок нет",
     },
     {
@@ -430,7 +408,7 @@ export function heroKpis(r: StatsResponse): Kpi[] {
       sub: pf === "∞" ? "убытков нет" : "прибыль / убыток", est: true,
     },
     {
-      key: "dd", label: "Макс. просадка", def: "max_drawdown_pct", value: fp(e.max_drawdown_pct, 2), tone: ok(e.max_drawdown_pct) && e.max_drawdown_pct < -0.005 ? "neg" : "", cmp: CMP.dd,
+      key: "dd", label: "Макс. просадка", def: "max_drawdown_pct", value: pctU(e.max_drawdown_pct, 2), tone: ok(e.max_drawdown_pct) && e.max_drawdown_pct < -0.005 ? "neg" : "", cmp: CMP.dd,
       sub: e.max_drawdown_peak_ts && e.max_drawdown_trough_ts && (e.max_drawdown_pct ?? 0) < 0 ? `пик ${ddmm(e.max_drawdown_peak_ts)} → дно ${ddmm(e.max_drawdown_trough_ts)}` : "кошелька в окне",
     },
     {
@@ -443,8 +421,8 @@ export function heroKpis(r: StatsResponse): Kpi[] {
       sub: `комиссии ${usd(k.fees_total, 2)} · фандинг ${usd(k.funding_total, 2)}`,
     },
     {
-      key: "vsbh", label: "vs Buy & Hold", def: "vs_bh", value: vs == null ? "—" : `${fsnum(vs, 2)} п.п.`, tone: toneOf(vs, 0.005),
-      why: vs == null ? "нет свечей BTC для Buy & Hold за это окно" : undefined, sub: ok(bh) ? `B&H BTC ${fsp(bh, 2)}` : "B&H недоступен",
+      key: "vsbh", label: "vs Buy & Hold", def: "vs_bh", value: vs == null ? "—" : `${snum(vs, 2)} п.п.`, tone: toneOf(vs, 0.005),
+      why: vs == null ? "нет свечей BTC для Buy & Hold за это окно" : undefined, sub: ok(bh) ? `B&H BTC ${spctU(bh, 2)}` : "B&H недоступен",
     },
   ];
 }
@@ -454,27 +432,27 @@ export function miniKpis(r: StatsResponse): Kpi[] {
   const k = r.kpis, e = r.equity;
   if (!r.available || !k || !e) return [];
   const ls = longShort(r);
-  const ref = (t: { n: number; net: Num; ret_pct: Num } | null) => (t ? `#${t.n} · ${fsp(t.ret_pct, 2)}` : undefined);
-  const day = (d: { date: string; ret_pct: Num } | null) => (d ? `${ymdRu(d.date).slice(0, 5)} · ${fsp(d.ret_pct, 2)}` : "—");
+  const ref = (t: { n: number; net: Num; ret_pct: Num } | null) => (t ? `#${t.n} · ${spctU(t.ret_pct, 2)}` : undefined);
+  const day = (d: { date: string; ret_pct: Num } | null) => (d ? `${ymdRu(d.date).slice(0, 5)} · ${spctU(d.ret_pct, 2)}` : "—");
   const m = (key: string, label: string, def: string, value: string, tone: "pos" | "neg" | "" = "", extra: Partial<Kpi> = {}): Kpi => ({ key, label, def, value, tone, ...extra });
   return [
-    m("avg_win", "Ср. выигрыш", "avg_win", fsusd(k.avg_win), toneOf(k.avg_win, 0.005), { est: true }),
-    m("avg_loss", "Ср. проигрыш", "avg_loss", fsusd(k.avg_loss), toneOf(k.avg_loss, 0.005), { est: true }),
+    m("avg_win", "Ср. выигрыш", "avg_win", susd(k.avg_win), toneOf(k.avg_win, 0.005), { est: true }),
+    m("avg_loss", "Ср. проигрыш", "avg_loss", susd(k.avg_loss), toneOf(k.avg_loss, 0.005), { est: true }),
     m("payoff", "Payoff", "payoff", ok(k.payoff_ratio) ? num(k.payoff_ratio, 2) : "—"),
-    m("exp_usd", "Матожидание, $", "expectancy", fsusd(k.expectancy_usdt), toneOf(k.expectancy_usdt, 0.005), { est: true }),
-    m("exp_pct", "Матожидание, %", "expectancy", fsp(k.expectancy_pct, 2), toneOf(k.expectancy_pct, 0.005), { est: true }),
-    m("best", "Лучшая сделка", "best_trade", k.best_trade ? fsusd(k.best_trade.net) : "—", toneOf(k.best_trade?.net, 0.005), { sub: ref(k.best_trade) }),
-    m("worst", "Худшая сделка", "worst_trade", k.worst_trade ? fsusd(k.worst_trade.net) : "—", toneOf(k.worst_trade?.net, 0.005), { sub: ref(k.worst_trade) }),
+    m("exp_usd", "Матожидание, $", "expectancy", susd(k.expectancy_usdt), toneOf(k.expectancy_usdt, 0.005), { est: true }),
+    m("exp_pct", "Матожидание, %", "expectancy", spctU(k.expectancy_pct, 2), toneOf(k.expectancy_pct, 0.005), { est: true }),
+    m("best", "Лучшая сделка", "best_trade", k.best_trade ? susd(k.best_trade.net) : "—", toneOf(k.best_trade?.net, 0.005), { sub: ref(k.best_trade) }),
+    m("worst", "Худшая сделка", "worst_trade", k.worst_trade ? susd(k.worst_trade.net) : "—", toneOf(k.worst_trade?.net, 0.005), { sub: ref(k.worst_trade) }),
     m("hold_mean", "Ср. удержание", "hold_mean", fmtDuration(k.hold_mean_s)),
     m("hold_median", "Медиана удержания", "hold_median", fmtDuration(k.hold_median_s)),
     m("streaks", "Серии (поб. / убыт.)", "streaks", k.trades ? `${k.max_win_streak} / ${k.max_loss_streak}` : "—"),
-    m("tim", "Время в рынке", "time_in_market_pct", fp(k.time_in_market_pct, 1)),
+    m("tim", "Время в рынке", "time_in_market_pct", pctU(k.time_in_market_pct, 1)),
     m("turnover", "Оборот", "turnover", usd(k.turnover, 0), "", { est: true }),
-    m("fees_pct", "Комиссии / вал. прибыль", "fees_pct_of_gross_profit", fp(k.fees_pct_of_gross_profit, 1), "", { est: true }),
-    m("gross", "Валовый P/L", "gross_pnl", fsusd(k.gross_pnl), toneOf(k.gross_pnl, 0.005)),
+    m("fees_pct", "Комиссии / вал. прибыль", "fees_pct_of_gross_profit", pctU(k.fees_pct_of_gross_profit, 1), "", { est: true }),
+    m("gross", "Валовый P/L", "gross_pnl", susd(k.gross_pnl), toneOf(k.gross_pnl, 0.005)),
     m("sortino", "Sortino", "sortino", ok(e.sortino) ? num(e.sortino, 2) : "—", toneOf(e.sortino, 0.005), { why: ok(e.sortino) ? undefined : NEED_SORTINO }),
     m("calmar", "Calmar", "calmar", ok(e.calmar) ? num(e.calmar, 2) : "—", toneOf(e.calmar, 0.005), { why: ok(e.calmar) ? undefined : NEED_CALMAR }),
-    m("vol", "Волатильность (год.)", "volatility_pct", fp(e.volatility_pct, 1), "", { why: ok(e.volatility_pct) ? undefined : NEED_SHARPE }),
+    m("vol", "Волатильность (год.)", "volatility_pct", pctU(e.volatility_pct, 1), "", { why: ok(e.volatility_pct) ? undefined : NEED_SHARPE }),
     m("best_day", "Лучший день", "best_day", day(e.best_day), toneOf(e.best_day?.ret_pct, 0.005)),
     m("worst_day", "Худший день", "worst_day", day(e.worst_day), toneOf(e.worst_day?.ret_pct, 0.005)),
     m("sides", "Лонг / шорт (сделок)", "side_counts", `${ls.long} / ${ls.short}`),
@@ -504,8 +482,8 @@ export function cmpView(r: StatsResponse, spec: CmpSpec | undefined): CmpView | 
   const dir = flat ? "flat" : d > 0 ? "up" : "down";
   const good = flat || spec.better === "none" ? "" : d > 0 ? "pos" : "neg";
   const text = flat ? "без изменений"
-    : spec.kind === "pp" ? `${fsnum(d, 1)} п.п.` : spec.kind === "usd" ? fsusd(d) : spec.kind === "count" ? fsnum(d, 0) : fsnum(d, 2);
-  const prev = (x: Num) => (spec.kind === "pp" ? fp(x, 2) : spec.kind === "usd" ? usd(x) : num(x, spec.kind === "count" ? 0 : 2));
+    : spec.kind === "pp" ? `${snum(d, 1)} п.п.` : spec.kind === "usd" ? susd(d) : spec.kind === "count" ? snum(d, 0) : snum(d, 2);
+  const prev = (x: Num) => (spec.kind === "pp" ? pctU(x, 2) : spec.kind === "usd" ? usd(x) : num(x, spec.kind === "count" ? 0 : 2));
   const period = c.prev_start && c.prev_end ? ` (${ddmmyy(c.prev_start)} – ${ddmmyy(c.prev_end)})` : "";
   return { kind: "chip", dir, good, text, title: `Было в предыдущем окне такой же длины${period}: ${prev(row.prev)}; сейчас: ${prev(row.cur)}` };
 }

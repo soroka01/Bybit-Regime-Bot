@@ -4,7 +4,7 @@ import { sparkline } from "../charts/sparkline";
 import type { LiveSnapshot, Meta, StatsResponse } from "../types";
 import { h } from "../ui/dom";
 import { envBadge } from "../ui/env";
-import { ago, datetime, num, parseTime, pct, spct, usd } from "../ui/fmt";
+import { ago, datetime, num, parseTime, pct, spct, spctU, susd, toneOf, usd } from "../ui/fmt";
 import { icon } from "../ui/icons";
 import { badge, deltaChip, emptyState, glyph, meterBar, sectionLabel } from "../ui/kit";
 import { orderBadge, SIDE_GLYPH, SIDE_WORD, sideBadge } from "../ui/side";
@@ -14,13 +14,10 @@ import {
   type EventFilter, type LiveEvent, type LiveTrade, type Pt, type PosView, type RangeKey,
 } from "./liveCalc";
 import { resolveWindow, todayLabel, type Feeds } from "./liveWindow";
-import { ddmm, fmtDuration, fsp, fsusd, hhmm, isoUtc, periodSummary, resultText, resultTone, toneOf as sToneOf } from "./statsLogic";
+import { ddmm, fmtDuration, hhmm, isoUtc, periodSummary, resultText, resultTone } from "./statsLogic";
 import { reasonCell } from "./statsView";
 
 export const LATCH_TIP = "Защёлка (latch): после срабатывания стопа или ручного закрытия бот не входит в рынок повторно, пока целевая экспозиция не изменится.";
-
-const susd = (v: number) => (v > 0 && /[1-9]/.test(usd(v)) ? "+" : "") + usd(v);
-const toneOf = (v: number | null | undefined, eps = 0): "pos" | "neg" | "" => (v == null || Math.abs(v) <= eps ? "" : v > 0 ? "pos" : "neg");
 
 /** Элемент, который тикер обновляет раз в секунду: cd — обратный отсчёт до метки времени (мс), age — «N с назад» от ISO-времени. */
 export const tk = (kind: "cd" | "age", value: number | string, el: HTMLElement = h("span")): HTMLElement => {
@@ -361,8 +358,8 @@ export function closedTradesLoading(): HTMLElement {
 export interface ClosedOpts { limit: number; onMore(): void; fresh: ReadonlySet<string> }
 
 const signedM = (v: number, strong = false): HTMLElement => {
-  const t = sToneOf(v, 0.005);
-  return h("b", { class: `st-m ${t}${strong ? " strong" : ""}` }, t ? h("span", { class: "g", "aria-hidden": "true", text: glyph(t) + " " }) : null, fsusd(v));
+  const t = toneOf(v, 0.005);
+  return h("b", { class: `st-m ${t}${strong ? " strong" : ""}` }, t ? h("span", { class: "g", "aria-hidden": "true", text: glyph(t) + " " }) : null, susd(v));
 };
 
 /** Шапка: «За 30 дн.: закрыто N · плюс +A $ · минус −B $ · итого ±C $» (+ ROI счёта за окно — отдельной приглушённой подписью). */
@@ -377,14 +374,14 @@ export function closedStrip(res: StatsResponse): HTMLElement | null {
     h("span", { class: "lv-strip-p" }, "плюс ", signedM(sm.profit)), dot(),
     h("span", { class: "lv-strip-m" }, "минус ", signedM(sm.loss)), dot(),
     h("span", { class: "lv-strip-t" }, "итого ", signedM(sm.net, true)),
-    roi != null ? h("span", { class: "lv-strip-roi muted small", title: "Только за 30 дней (не за всё время): изменение кошелька за 30 дней / кошелёк на начале окна (включает вводы и выводы). Не равно сумме сделок: учитывает открытую позицию и движения вне бота." }, `ROI счёта за 30 дн. ${fsp(roi, 2)}`) : null);
+    roi != null ? h("span", { class: "lv-strip-roi muted small", title: "Только за 30 дней (не за всё время): изменение кошелька за 30 дней / кошелёк на начале окна (включает вводы и выводы). Не равно сумме сделок: учитывает открытую позицию и движения вне бота." }, `ROI счёта за 30 дн. ${spctU(roi, 2)}`) : null);
 }
 
 /** Строка открытой позиции — всегда первая: нереализованный результат (ещё не зафиксирован). */
 function openRow(s: LiveSnapshot, res: StatsResponse): HTMLElement | null {
   const v = positionView(s.position, s.settings);
   if (!v) return null;
-  const t = sToneOf(v.upnl, 0.005);
+  const t = toneOf(v.upnl, 0.005);
   const frac = upnlAccountFrac(v.upnl, s.equity);
   const opened = res.open_position?.opened_ts ?? null;
   return h("tr", { class: "lv-open-row", "data-open": "1" },
@@ -393,8 +390,8 @@ function openRow(s: LiveSnapshot, res: StatsResponse): HTMLElement | null {
     h("td", { class: "left" }, sideBadge(v.long ? "long" : "short")),
     h("td", { class: "lv-c-qty", text: num(v.qty, 4) }),
     h("td", { class: "lv-c-px", text: `${num(v.entry, 2)} → ${num(v.mark, 2)}`, title: "Вход → текущая цена (mark)" }),
-    h("td", { class: `lv-res ${t}` }, h("div", { class: "lv-res-usd" }, t ? h("span", { class: "g", "aria-hidden": "true", text: glyph(t) + " " }) : null, fsusd(v.upnl)),
-      h("div", { class: "lv-res-pct muted small", text: frac != null ? `${fsp(frac * 100, 2)} счёта · не зафиксирован` : "не зафиксирован" })),
+    h("td", { class: `lv-res ${t}` }, h("div", { class: "lv-res-usd" }, t ? h("span", { class: "g", "aria-hidden": "true", text: glyph(t) + " " }) : null, susd(v.upnl)),
+      h("div", { class: "lv-res-pct muted small", text: frac != null ? `${spctU(frac * 100, 2)} счёта · не зафиксирован` : "не зафиксирован" })),
     h("td", { class: "lv-c-hold", text: opened ? fmtDuration(Date.now() / 1000 - opened) : "—" }),
     h("td", { class: "left lv-reason muted", text: "позиция ещё открыта" }));
 }

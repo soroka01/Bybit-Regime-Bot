@@ -7,12 +7,9 @@ import { lineChart, type LineChart } from "../charts/line";
 import type { Num, StatsResponse } from "../types";
 import { segmented } from "../ui/controls";
 import { h } from "../ui/dom";
-import { num, usd } from "../ui/fmt";
+import { num, pctU, snum, spctU, susd, usd } from "../ui/fmt";
 import { emptyState } from "../ui/kit";
-import {
-  BUCKET_TITLE, bucketLabel, bucketTitle, bucketValues, calendarIsCompact, ddmm, equityMapper, fp, fsnum, fsp, fsusd, histModel, stamp, tradeMarkers, ymdRu,
-  type BucketKind, type HistModel,
-} from "./statsLogic";
+import { BUCKET_TITLE, bucketLabel, bucketTitle, bucketValues, calendarIsCompact, ddmm, equityMapper, histModel, stamp, tradeMarkers, ymdRu, type BucketKind, type HistModel } from "./statsLogic";
 import { infoMark } from "./statsView";
 
 export type EqUnit = "usdt" | "pct";
@@ -45,7 +42,7 @@ export function createStatsCharts(o: { getUnit(): EqUnit; setUnit(u: EqUnit): vo
   const seg = segmented({ label: "Единицы графика", options: [{ value: "usdt", label: "USDT" }, { value: "pct", label: "% к старту окна" }], value: unit, onChange: (v) => { if (v === "usdt" || v === "pct") { unit = v; o.setUnit(v); if (last) paintEquity(last); } } });
   seg.el.classList.add("st-seg");
   let eqData: { lo: Num[]; hi: Num[] } = { lo: [], hi: [] };
-  const fmtVal = (v: number) => (unit === "usdt" ? usd(v) : fsp(v, 2));
+  const fmtVal = (v: number) => (unit === "usdt" ? usd(v) : spctU(v, 2));
   const eq: LineChart = lineChart(eqHost, {
     height: 300, sync: "st",
     yFmt: (v) => (unit === "usdt" ? num(v, Math.abs(v) >= 1000 ? 0 : 2) : num(v, Math.abs(v) < 10 ? 1 : 0) + "%"),
@@ -94,7 +91,7 @@ export function createStatsCharts(o: { getUnit(): EqUnit; setUnit(u: EqUnit): vo
   function paintSelection(res: StatsResponse) {
     const t = selected == null ? null : res.trades?.rows.find((r) => r.n === selected);
     selNote.hidden = !t;
-    if (t) selNote.querySelector(".st-sel-t")!.textContent = `Выбрана сделка №${t.n}: ${t.side === "long" ? "лонг" : "шорт"}, ${stamp(t.entry_ts)} → ${stamp(t.exit_ts)} · Net ${fsusd(t.net)}`;
+    if (t) selNote.querySelector(".st-sel-t")!.textContent = `Выбрана сделка №${t.n}: ${t.side === "long" ? "лонг" : "шорт"}, ${stamp(t.entry_ts)} → ${stamp(t.exit_ts)} · Net ${susd(t.net)}`;
   }
 
   // ---------------- просадка
@@ -104,7 +101,7 @@ export function createStatsCharts(o: { getUnit(): EqUnit; setUnit(u: EqUnit): vo
   const ddSummary = sr();
   const dd: LineChart = lineChart(ddHost, {
     height: 150, sync: "st", yMax: 0, yFmt: (v) => num(v, Math.abs(v) < 1 ? 2 : Math.abs(v) < 10 ? 1 : 0) + "%",
-    series: [{ label: "Просадка", color: "--neg", width: 1.5, fill: 0.32, fillMode: "up", fmt: (v) => fp(v, 2) }],
+    series: [{ label: "Просадка", color: "--neg", width: 1.5, fill: 0.32, fillMode: "up", fmt: (v) => pctU(v, 2) }],
   });
   const ddWrap = h("div", { role: "img", "aria-label": "График просадки" }, ddBody);
   const ddCard = sec("Просадка кошелька", [ddWrap, ddSummary], [ddNote, infoMark("Просадка от предыдущего пика кошелька внутри окна, %. Это кошелёк аккаунта, а не только позиция бота.")], "st-dd");
@@ -118,8 +115,8 @@ export function createStatsCharts(o: { getUnit(): EqUnit; setUnit(u: EqUnit): vo
     }
     if (!ddBody.contains(ddHost)) ddBody.replaceChildren(ddHost);
     dd.setData(s.t, [s.dd_pct]);
-    ddNote.textContent = e && e.max_drawdown_pct != null && e.max_drawdown_pct < 0 ? `макс. ${fp(e.max_drawdown_pct, 2)} · ${ddmm(e.max_drawdown_peak_ts)} → ${ddmm(e.max_drawdown_trough_ts)}` : "просадки не было";
-    const txt = `Просадка кошелька: максимум ${fp(e?.max_drawdown_pct, 2)}.`;
+    ddNote.textContent = e && e.max_drawdown_pct != null && e.max_drawdown_pct < 0 ? `макс. ${pctU(e.max_drawdown_pct, 2)} · ${ddmm(e.max_drawdown_peak_ts)} → ${ddmm(e.max_drawdown_trough_ts)}` : "просадки не было";
+    const txt = `Просадка кошелька: максимум ${pctU(e?.max_drawdown_pct, 2)}.`;
     ddSummary.textContent = txt;
     ddWrap.setAttribute("aria-label", `График просадки. ${txt}`);
   }
@@ -133,7 +130,7 @@ export function createStatsCharts(o: { getUnit(): EqUnit; setUnit(u: EqUnit): vo
     const kind = (b?.kind ?? "day") as BucketKind;
     const rows = b?.rows ?? [];
     return {
-      categories: rows.map((r) => bucketLabel(kind, r.t)), height: 220, bySign: true, fmt: (v) => fsnum(v, Math.abs(v) < 10 ? 2 : 1),
+      categories: rows.map((r) => bucketLabel(kind, r.t)), height: 220, bySign: true, fmt: (v) => snum(v, Math.abs(v) < 10 ? 2 : 1),
       series: [{ name: "Net", color: "--c1", values: bucketValues(rows), titles: rows.map((r) => `${bucketTitle(kind, r.t)}\n${r.n ? `сделок ${r.n}, прибыльных ${r.wins}` : "сделок нет"}`) }],
     };
   });
@@ -144,7 +141,7 @@ export function createStatsCharts(o: { getUnit(): EqUnit; setUnit(u: EqUnit): vo
   const daySummary = sr();
   const dayBars = barChart(dayHost, () => {
     const d = last?.series?.daily_returns ?? [];
-    return { categories: d.map((x) => x.date.slice(5).split("-").reverse().join(".")), height: 220, bySign: true, fmt: (v) => fsp(v, Math.abs(v) < 10 ? 1 : 0),
+    return { categories: d.map((x) => x.date.slice(5).split("-").reverse().join(".")), height: 220, bySign: true, fmt: (v) => spctU(v, Math.abs(v) < 10 ? 1 : 0),
       series: [{ name: "Доходность дня", color: "--c1", values: d.map((x) => x.ret_pct), titles: d.map((x) => ymdRu(x.date)) }] };
   });
   const dayCard = sec("Дневная доходность кошелька", [h("div", { role: "group", "aria-label": "Столбцы дневной доходности" }, dayHost), daySummary], [infoMark("Доходность кошелька по дням UTC (по последней точке каждого дня); дни без данных пропущены.")], "st-daily");
@@ -168,7 +165,7 @@ export function createStatsCharts(o: { getUnit(): EqUnit; setUnit(u: EqUnit): vo
     const b = res.series?.pnl_buckets;
     pnlTitle.textContent = b ? BUCKET_TITLE[b.kind] : "";
     const pn = (b?.rows ?? []).filter((r) => r.n > 0);
-    pnlSummary.textContent = pn.length ? `Периодов со сделками: ${pn.length}; сумма Net ${fsusd(pn.reduce((a, r) => a + (r.net ?? 0), 0))}.` : "Сделок в периодах нет.";
+    pnlSummary.textContent = pn.length ? `Периодов со сделками: ${pn.length}; сумма Net ${susd(pn.reduce((a, r) => a + (r.net ?? 0), 0))}.` : "Сделок в периодах нет.";
     pnlBars.redraw();
     const d = res.series?.daily_returns ?? [];
     dayCard.hidden = d.length < 2;

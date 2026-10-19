@@ -15,7 +15,12 @@ function fmtN(d: number): Intl.NumberFormat {
   return f;
 }
 
-const isNum = (v: Num | undefined): v is number => v != null && Number.isFinite(v);
+export const isNum = (v: Num | undefined): v is number => v != null && Number.isFinite(v);
+
+/** Ненулевая цифра в отформатированной строке: после округления «0,00» ноль — знак «+» не нужен. */
+const nonZero = (s: string): boolean => /[1-9]/.test(s);
+/** «+» у положительных значений с ненулевой строкой (ноль после округления — без знака). */
+const plus = (v: Num | undefined, s: string): string => (isNum(v) && v > 0 && nonZero(s) ? "+" + s : s);
 
 /**
  * Приводит знак к типографскому минусу и убирает «отрицательный ноль»: если после округления в строке нет ни одной
@@ -36,18 +41,30 @@ export function pct(v: Num | undefined, d = 1): string {
 }
 /** Процент со знаком «+» для положительных значений (ноль после округления — без знака). */
 export function spct(v: Num | undefined, d = 1): string {
-  if (!isNum(v)) return "—";
-  const s = pct(v, d);
-  return v > 0 && /[1-9]/.test(s) ? "+" + s : s;
+  return plus(v, pct(v, d));
 }
+/** Значение, УЖЕ выраженное в процентах (1,5 = 1,5 %; так отдаёт /api/stats): «12,3%». В отличие от pct не умножает на 100. */
+export function pctU(v: Num | undefined, d = 1): string {
+  return isNum(v) ? num(v, d) + "%" : "—";
+}
+/** pctU со знаком «+». */
+export const spctU = (v: Num | undefined, d = 1): string => plus(v, pctU(v, d));
 export function int(v: Num | undefined): string {
   return isNum(v) ? fixSign(fmtN(0).format(Math.round(v))) : "—";
 }
 export function usd(v: Num | undefined, d = 2): string {
   return isNum(v) ? fixSign(fmtN(d).format(v)) + " $" : "—";
 }
+/** Сумма в долларах со знаком «+» у положительных. */
+export const susd = (v: Num | undefined, d = 2): string => plus(v, usd(v, d));
+/** Число со знаком «+» у положительных. */
+export const snum = (v: Num | undefined, d = 2): string => plus(v, num(v, d));
+/** Знак значения для раскраски с допуском eps (округлённый ноль — нейтральный). */
+export function toneOf(v: Num | undefined, eps = 0): "pos" | "neg" | "" {
+  return !isNum(v) || Math.abs(v) <= eps ? "" : v > 0 ? "pos" : "neg";
+}
 export function sgn(v: Num | undefined): "pos" | "neg" | "" {
-  return !isNum(v) || v === 0 ? "" : v > 0 ? "pos" : "neg";
+  return toneOf(v);
 }
 
 // ---------- время
@@ -96,15 +113,19 @@ export function utcShort(s: string | number | null | undefined): string {
   return d ? d.toISOString().slice(0, 16).replace("T", " ") : "—";
 }
 
-export function ago(s: string | null | undefined): string {
-  const d = parseTime(s);
-  if (!d) return "—";
-  const sec = (Date.now() - +d) / 1000;
-  if (!isFinite(sec)) return "—";
-  if (sec < 90) return `${Math.max(0, Math.round(sec))} с назад`;
+/** «N с/мин/ч/дн назад» от момента в мс (now — для тестов). */
+export function agoMs(ms: number, now = Date.now()): string {
+  const sec = Math.max(0, (now - ms) / 1000);
+  if (!Number.isFinite(sec)) return "—";
+  if (sec < 90) return `${Math.round(sec)} с назад`;
   if (sec < 5400) return `${Math.round(sec / 60)} мин назад`;
   if (sec < 172800) return `${Math.round(sec / 3600)} ч назад`;
   return `${Math.round(sec / 86400)} дн назад`;
+}
+/** То же от строки времени сервера (naive-строка = UTC); нераспознанное — «—». */
+export function ago(s: string | null | undefined): string {
+  const d = parseTime(s);
+  return d ? agoMs(+d) : "—";
 }
 
 export const MONTHS = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"];

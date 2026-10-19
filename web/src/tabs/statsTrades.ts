@@ -3,9 +3,9 @@
 import type { StatsFill, StatsResponse, StatsTradeRow } from "../types";
 import { downloadText } from "../ui/download";
 import { h } from "../ui/dom";
-import { agoMs, fillBasisText, filterStTrades, fmtDuration, fsp, fsusd, isoUtc, moneyLine, moneySummary, resultTone, ST_TRADE_FILTERS, stamp, stTradeCounts, stTradesToCsv, toneOf, type StTradeFilter } from "./statsLogic";
+import { fillBasisText, filterStTrades, fmtDuration, isoUtc, moneyLine, moneySummary, resultTone, ST_TRADE_FILTERS, stamp, stTradeCounts, stTradesToCsv, type StTradeFilter } from "./statsLogic";
 import { icon } from "../ui/icons";
-import { int, num, usd } from "../ui/fmt";
+import { agoMs, int, num, spctU, susd, toneOf, usd } from "../ui/fmt";
 import { csvFileName } from "./tradesLogic";
 import { glyph } from "../ui/kit";
 import { dataTable } from "../ui/table";
@@ -64,14 +64,14 @@ export function createTradesCard(o: { getFilter(): StTradeFilter; setFilter(f: S
       { key: "exit", label: "Закрыта, UTC", align: "left", value: (r) => r.exit_ts, node: (r) => timeCell(r.exit_ts) },
       { key: "side", label: "Сторона", align: "left", value: (r) => r.side, node: (r) => sideBadge(r.side), title: "Сторона позиции (лонг/шорт). Цвет результата от стороны не зависит" },
       {
-        key: "net", label: "Итог, $", value: (r) => r.net, render: (r) => `${glyph(resultTone(r))} ${fsusd(r.net)}`.trim(),
+        key: "net", label: "Итог, $", value: (r) => r.net, render: (r) => `${glyph(resultTone(r))} ${susd(r.net)}`.trim(),
         cls: (r) => `${resultTone(r)} strong st-money-c`, title: "Итог сделки в долларах = валовый − комиссии − фандинг, USDT: по данным Bybit, а у сделок с бейджем «оценка» — расчёт бота",
       },
       {
-        key: "acct", label: "% счёта", value: (r) => r.ret_account_pct, render: (r) => fsp(r.ret_account_pct, 2), cls: (r) => `${toneOf(r.ret_account_pct, 0.005)} st-money-c`,
+        key: "acct", label: "% счёта", value: (r) => r.ret_account_pct, render: (r) => spctU(r.ret_account_pct, 2), cls: (r) => `${toneOf(r.ret_account_pct, 0.005)} st-money-c`,
         title: "Итог / кошелёк счёта на входе в сделку, % (проценты разных сделок не складываются). «—» — нет точки капитала на входе",
       },
-      { key: "gross", label: "Валовый", value: (r) => r.gross, render: (r) => fsusd(r.gross), cls: (r) => toneOf(r.gross, 0.005), title: "Валовый P/L до комиссий и фандинга, USDT" },
+      { key: "gross", label: "Валовый", value: (r) => r.gross, render: (r) => susd(r.gross), cls: (r) => toneOf(r.gross, 0.005), title: "Валовый P/L до комиссий и фандинга, USDT" },
       { key: "fees", label: "Комиссии*", value: (r) => r.fees, render: (r) => usd(r.fees, 2), title: "* оценка: объём fill × ставка тейкера; у сделок без бейджа «оценка» — фактические по данным Bybit" },
       { key: "fund", label: "Фандинг*", value: (r) => r.funding, render: (r) => usd(r.funding, 2), title: "* оценка по локальным данным; у сделок без бейджа «оценка» — фактический по данным Bybit; уплачено (отрицательное — получено)" },
       { key: "qty", label: "Объём", value: (r) => r.qty, render: (r) => num(r.qty, 4), title: "Объём входа, BTC" },
@@ -79,7 +79,7 @@ export function createTradesCard(o: { getFilter(): StTradeFilter; setFilter(f: S
       { key: "xp", label: "Цена выхода", value: (r) => r.exit_price, render: (r) => num(r.exit_price, 2) },
       { key: "entry", label: "Вход, UTC", align: "left", value: (r) => r.entry_ts, node: (r) => timeCell(r.entry_ts) },
       { key: "hold", label: "Удержание", value: (r) => r.hold_s, render: (r) => fmtDuration(r.hold_s) },
-      { key: "ret", label: "На объём, %", value: (r) => r.ret_pct, render: (r) => fsp(r.ret_pct, 2), cls: (r) => toneOf(r.ret_pct, 0.005), title: "Net / входной объём, % (не % счёта)" },
+      { key: "ret", label: "На объём, %", value: (r) => r.ret_pct, render: (r) => spctU(r.ret_pct, 2), cls: (r) => toneOf(r.ret_pct, 0.005), title: "Net / входной объём, % (не % счёта)" },
       { key: "reason", label: "Причина", align: "left", value: (r) => r.reason, node: (r) => reasonCell(r) },
     ],
   });
@@ -96,7 +96,7 @@ export function createTradesCard(o: { getFilter(): StTradeFilter; setFilter(f: S
         f.basis ? h("span", { class: "muted small", text: ` ${fillBasisText(f.basis)}` }) : null),
       h("td", { class: "left muted", text: f.reason ?? "" }));
     return h("div", { class: "st-fills" },
-      h("div", { class: "st-fills-head muted small" }, `Сделка №${r.n}: `, `на маржу ≈ ${fsp(r.ret_margin_pct, 2)} (оценка, текущее плечо)`, r.reconstructed ? " · цена выхода реконструирована" : ""),
+      h("div", { class: "st-fills-head muted small" }, `Сделка №${r.n}: `, `на маржу ≈ ${spctU(r.ret_margin_pct, 2)} (оценка, текущее плечо)`, r.reconstructed ? " · цена выхода реконструирована" : ""),
       h("table", { class: "data st-fills-t" },
         h("caption", { class: "sr-only", text: `Fills сделки ${r.n}` }),
         h("thead", {}, h("tr", {}, ...[["Время", true], ["Сторона", true], ["Объём", false], ["Цена", false], ["Комиссия*", false], ["Пометки", true], ["Причина", true]].map(([t, l]) => h("th", { class: l ? "left" : "", scope: "col", text: String(t) })))),

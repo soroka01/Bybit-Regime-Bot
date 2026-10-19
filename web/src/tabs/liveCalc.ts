@@ -1,5 +1,6 @@
 // Чистая логика вкладки «Бот (live)» (без DOM; тесты: tests/liveCalc.test.ts).
 // Всё, что здесь считается «по оценке» (стоп, ликвидация, P/L за день), на экране помечено как расчётное: источник правды — биржа и бот.
+import { stepValueAt } from "../charts/align";
 import { MMR } from "../leverage";
 import type { LiveSnapshot, Num } from "../types";
 import { parseTime } from "../ui/fmt";
@@ -86,12 +87,7 @@ export function sliceSeries(pts: readonly Pt[], start: number): Pt[] {
 }
 
 /** Значение ряда на момент t (шагом вперёд: последняя точка не позже t; до первой — первая). */
-export function valueAt(pts: readonly Pt[], t: number): number | null {
-  if (!pts.length) return null;
-  let v = pts[0]!.v;
-  for (const p of pts) { if (p.t <= t) v = p.v; else break; }
-  return v;
-}
+export const valueAt = (pts: readonly Pt[], t: number): number | null => stepValueAt(pts.length, (i) => pts[i]!.t, (i) => pts[i]!.v, t);
 
 // ---------- сигнал жизни
 export type HbTone = "ok" | "warn" | "bad";
@@ -104,7 +100,6 @@ export function heartbeatState(hb: string | null | undefined, nowMs: number): He
   const ageS = Math.max(0, (nowMs - +d) / 1000);
   return { ageS, tone: ageS < STALE_S ? "ok" : ageS < DEAD_S ? "warn" : "bad" };
 }
-export const isStale = (h: Heartbeat): boolean => h.tone !== "ok";
 
 // ---------- таймфреймы и отсчёт до закрытия свечи
 const UNIT_MS: Record<string, number> = { m: 60_000, h: 3_600_000, d: DAY_MS, w: 7 * DAY_MS };

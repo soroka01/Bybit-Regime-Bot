@@ -3,7 +3,6 @@ import { h } from "./dom";
 import { icon } from "./icons";
 
 export type Tone = "ok" | "warn" | "bad" | "info" | "off";
-export type Sign = "pos" | "neg" | "";
 
 /** Глиф направления: ▲ плюс, ▼ минус (рядом со знаком числа; цвет никогда не единственный носитель смысла). */
 export const glyph = (tone: string): string => (tone === "pos" ? "▲" : tone === "neg" ? "▼" : "");

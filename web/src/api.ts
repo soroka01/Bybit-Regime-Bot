@@ -71,7 +71,6 @@ export const hooks = { afterDataChange: async (): Promise<void> => {} };
 let dataJobCount = 0;
 const jobSubs = new Set<() => void>();
 export const dataJobsActive = (): boolean => dataJobCount > 0;
-export const dataJobsCount = (): number => dataJobCount;
 export function onDataJobs(fn: () => void): () => void {
   jobSubs.add(fn);
   return () => { jobSubs.delete(fn); };

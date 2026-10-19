@@ -17,7 +17,6 @@ export const PALETTE_KEYS: string[] = [IS_MAC ? "⌘" : "Ctrl", "K"];
 let meta: Meta | null = null;
 let lastLive: LiveSnapshot | null = null;
 let titles: Record<string, string> = {};
-let open: (() => void) | null = null;
 
 /** После загрузки /api/meta: названия вкладок и список стратегий становятся доступны палитре. */
 export function setPaletteContext(m: Meta | null, tabTitles: Record<string, string>): void { meta = m; titles = tabTitles; }
@@ -153,7 +152,6 @@ export function installPalette(): { button: HTMLButtonElement } {
     refilter();
     input.focus();
   };
-  open = openPalette;
 
   const button = h("button", {
     class: "btn ghost palette-btn", type: "button", "aria-label": `Командная палитра (${PALETTE_KEYS.join(" ")})`, "aria-haspopup": "dialog", title: `Командная палитра · ${PALETTE_KEYS.join("+")}`,
@@ -173,6 +171,3 @@ export function installPalette(): { button: HTMLButtonElement } {
   });
   return { button };
 }
-
-/** Для тестов и внешнего вызова. */
-export const openCommandPalette = (): void => open?.();

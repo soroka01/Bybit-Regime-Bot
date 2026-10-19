@@ -12,7 +12,7 @@ const isTyping = (t: EventTarget | null): boolean => {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
 };
 
-export function installShortcuts(titles: Record<string, string>, onSwitched?: (route: string) => void): { button: HTMLButtonElement } {
+export function installShortcuts(titles: Record<string, string>): { button: HTMLButtonElement } {
   let pop: HTMLElement | null = null;
   let opener: HTMLElement | null = null;
 
@@ -51,7 +51,7 @@ export function installShortcuts(titles: Record<string, string>, onSwitched?: (r
     if (e.key === "?") { e.preventDefault(); open(); return; }
     if (/^[1-9]$/.test(e.key)) {
       const r = ROUTES[+e.key - 1];
-      if (r && r !== currentRoute()) { e.preventDefault(); setRoute(r); onSwitched?.(r); }
+      if (r && r !== currentRoute()) { e.preventDefault(); setRoute(r); }
     }
   });
   document.addEventListener("pointerdown", (e) => {

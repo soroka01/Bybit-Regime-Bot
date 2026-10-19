@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ago, date, datetime, fixSign, fmtLocal, fmtUtc, int, num, parseTime, pct, sgn, spct, usd, utcShort } from "../src/ui/fmt";
-import { alignSeries, stride } from "../src/charts/align";
+import { ago, agoMs, date, datetime, fixSign, fmtLocal, fmtUtc, int, num, parseTime, pct, pctU, sgn, snum, spct, spctU, susd, toneOf, usd, utcShort } from "../src/ui/fmt";
+import { alignSeries, stepValueAt, stride } from "../src/charts/align";
 
 const MINUS = "−";
 
@@ -88,7 +88,57 @@ describe("время (UTC)", () => {
   });
 });
 
+describe("проценты в процентных единицах и знаковые форматтеры", () => {
+  it("pctU не умножает на 100; pct(x) == pctU(x * 100)", () => {
+    expect(pctU(12.34, 1)).toBe("12,3%");
+    expect(pctU(-0.001, 1)).toBe("0,0%");
+    expect(pctU(null)).toBe("—");
+    expect(pct(0.1234, 2)).toBe(pctU(12.34, 2));
+  });
+  it("spctU / susd / snum: «+» только у положительных с ненулевой строкой", () => {
+    expect(spctU(1.5, 1)).toBe("+1,5%");
+    expect(spctU(0.0001, 1)).toBe("0,0%");
+    expect(spctU(-1.5, 1)).toBe("−1,5%");
+    expect(susd(12)).toBe("+12,00 $");
+    expect(susd(0.001)).toBe("0,00 $");
+    expect(susd(-4)).toBe("−4,00 $");
+    expect(susd(null)).toBe("—");
+    expect(snum(2.5, 1)).toBe("+2,5");
+    expect(snum(undefined)).toBe("—");
+  });
+  it("toneOf: допуск eps, не-числа нейтральны, sgn == toneOf без допуска", () => {
+    expect(toneOf(0.004, 0.005)).toBe("");
+    expect(toneOf(-0.006, 0.005)).toBe("neg");
+    expect(toneOf(1)).toBe("pos");
+    expect(toneOf(NaN)).toBe("");
+    expect(toneOf(null)).toBe("");
+    for (const v of [1, -1, 0, null, undefined, NaN]) expect(sgn(v as number)).toBe(toneOf(v as number));
+  });
+  it("agoMs: границы единиц; будущее — 0 с; ago(строка) считает так же", () => {
+    const now = 1_000_000_000_000;
+    expect(agoMs(now - 5000, now)).toBe("5 с назад");
+    expect(agoMs(now + 5000, now)).toBe("0 с назад");
+    expect(agoMs(now - 89_000, now)).toBe("89 с назад");
+    expect(agoMs(now - 5 * 60_000, now)).toBe("5 мин назад");
+    expect(agoMs(now - 3 * 3600_000, now)).toBe("3 ч назад");
+    expect(agoMs(now - 3 * 86400_000, now)).toBe("3 дн назад");
+    expect(agoMs(NaN, now)).toBe("—");
+    expect(ago(new Date(Date.now() - 5 * 60_000).toISOString())).toBe("5 мин назад");
+  });
+});
+
 describe("charts/align", () => {
+  it("stepValueAt: step-вперёд, до начала — первая, пропуски обходятся, пусто — null", () => {
+    const t = [100, 200, 300, 400], v = [10, null, null, 40];
+    const at = (x: number) => stepValueAt(t.length, (i) => t[i]!, (i) => v[i], x);
+    expect(at(50)).toBe(10);
+    expect(at(100)).toBe(10);
+    expect(at(350)).toBe(10);        // 300 и 200 — пропуски, берём последнее известное
+    expect(at(999)).toBe(40);
+    expect(stepValueAt(0, () => 0, () => 0, 1)).toBeNull();
+    expect(stepValueAt(2, (i) => i, () => null, 1)).toBeNull();
+    expect(stepValueAt(3, (i) => i, (i) => (i === 2 ? 7 : NaN), 0)).toBe(7);   // до начала ряда и первая точка — пропуск: ищем вперёд
+  });
   it("alignSeries: step-вперёд, до старта — null", () => {
     const r = alignSeries([{ t: [1, 3], v: [10, 30] }, { t: [2], v: [200] }]);
     expect(r.x).toEqual([1, 2, 3]);

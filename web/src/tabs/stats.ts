@@ -8,9 +8,8 @@ import { envBadge } from "../ui/env";
 import { icon } from "../ui/icons";
 import { setLoading, skeletonChart, skeletonTile } from "../ui/kit";
 import { createStatsCharts, isEqUnit, type EqUnit } from "./statsCharts";
-import {
-  agoMs, DEFAULT_STATS_RANGE, isStatsRange, isStTradeFilter, selectState, STATS_RANGES, type StTradeFilter,
-} from "./statsLogic";
+import { DEFAULT_STATS_RANGE, isStatsRange, isStTradeFilter, selectState, STATS_RANGES, type StTradeFilter } from "./statsLogic";
+import { agoMs } from "../ui/fmt";
 import {
   allMetrics, costsCard, heroGrid, oldBackendCard, pageNotices, positionCard, qualityBlock, reasonCard, reconCard, sideCard, unavailableCard, windowLine,
 } from "./statsView";

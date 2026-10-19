@@ -5,11 +5,8 @@ import { h } from "../ui/dom";
 import { badge, disclosure, emptyState, glyph } from "../ui/kit";
 import { icon } from "../ui/icons";
 import { sideBadge } from "../ui/side";
-import { int, num, usd } from "../ui/fmt";
-import {
-  agoMs, cmpView, defText, fp, fsp, fsusd, FUNDING_HINT, feeNote, heroKpis, miniKpis, moneyLine, openAccountPct, rangeTitle,
-  RECON_REASON, stamp, toneOf, trimMessage, unavailableCopy, warningChips, ymdRu, type CmpView, type Kpi, type MoneySummary, type WarnChip,
-} from "./statsLogic";
+import { agoMs, int, num, pctU, spctU, susd, toneOf, usd } from "../ui/fmt";
+import { cmpView, defText, FUNDING_HINT, feeNote, heroKpis, miniKpis, moneyLine, openAccountPct, rangeTitle, RECON_REASON, stamp, trimMessage, unavailableCopy, warningChips, ymdRu, type CmpView, type Kpi, type MoneySummary, type WarnChip } from "./statsLogic";
 
 // ---------------------------------------------------------------- мелкие элементы
 /** Значок «i» с определением метрики (фокусируемый; текст — в title и aria-label). */
@@ -27,7 +24,7 @@ export function moneyStrip(s: MoneySummary, label = "Закрыто"): HTMLEleme
   if (!s.count) return h("p", { class: "st-money muted", "data-n": "0", text: "Закрытых сделок нет" });
   const m = (v: number, strong = false) => {
     const t = toneOf(v, 0.005);
-    return h("b", { class: `st-m ${t}${strong ? " strong" : ""}` }, t ? h("span", { class: "g", "aria-hidden": "true", text: glyph(t) + " " }) : null, fsusd(v));
+    return h("b", { class: `st-m ${t}${strong ? " strong" : ""}` }, t ? h("span", { class: "g", "aria-hidden": "true", text: glyph(t) + " " }) : null, susd(v));
   };
   return h("p", { class: "st-money", "data-n": String(s.count), "aria-label": moneyLine(s, label) },
     `${label} ${s.count}: заработано `, m(s.profit), ", потеряно ", m(s.loss), ", итого ", m(s.net, true));
@@ -164,14 +161,14 @@ export function positionCard(res: StatsResponse): HTMLElement {
   return card("st-pos", "Позиция сейчас", [
     h("div", { class: "st-pos-top" },
       h("div", {}, h("div", { class: "st-big", text: `${num(p.qty, 4)} BTC` }), h("div", { class: "muted small", text: `≈ ${usd(p.notional, 2)} номинал` })),
-      h("div", { class: `st-pos-pnl ${t}` }, h("div", { class: "st-big" }, t ? h("span", { class: "g", "aria-hidden": "true", text: glyph(t) + " " }) : null, fsusd(p.upnl)),
-        h("div", { class: "muted small st-pos-pct", text: acct != null ? `${fsp(acct, 2)} счёта` : "" }),
+      h("div", { class: `st-pos-pnl ${t}` }, h("div", { class: "st-big" }, t ? h("span", { class: "g", "aria-hidden": "true", text: glyph(t) + " " }) : null, susd(p.upnl)),
+        h("div", { class: "muted small st-pos-pct", text: acct != null ? `${spctU(acct, 2)} счёта` : "" }),
         h("div", { class: "muted small", text: "нереализованный P/L" }))),
     h("dl", { class: "st-kvs" },
       kv("Вход", num(p.entry, 2)), kv("Mark", num(p.mark, 2)),
       kv("Комиссия входа", usd(p.fees_paid_est, 2), "", estMark()),
       kv("Фандинг до сих пор", usd(p.funding_est, 2), "", estMark(p.funding_complete ? undefined : "Часть расчётов фандинга вне локальных данных — принята за 0")),
-      kv("Net с учётом издержек", signed(tn, fsusd(p.net_est)), tn, estMark(), "Нереализованный P/L − комиссия входа − фандинг (оценка)"),
+      kv("Net с учётом издержек", signed(tn, susd(p.net_est)), tn, estMark(), "Нереализованный P/L − комиссия входа − фандинг (оценка)"),
       kv("Открыта", opened)),
     p.funding_complete ? null : h("p", { class: "muted small st-note", text: "Фандинг неполный: данные о ставках кончились раньше, остаток принят за 0. " + FUNDING_HINT }),
   ], [p.side ? sideBadge(p.side) : null], "Позиция сейчас");
@@ -187,9 +184,9 @@ export function sideCard(res: StatsResponse): HTMLElement {
     const n = g?.count ?? 0, t = toneOf(g?.net, 0.005);
     return h("div", { class: `st-side-tile ${side}` },
       h("div", { class: "st-side-top" }, sideBadge(side), h("span", { class: "muted small", text: `${n} ${plural(n)}` })),
-      h("div", { class: `st-side-net ${t}` }, signed(t, fsusd(g?.net)), estMark()),
-      h("div", { class: "st-side-sub" }, h("span", { class: "muted", text: "Win rate " }), h("b", { text: n ? fp(g?.win_rate_pct, 0) : "—" }),
-        h("span", { class: "muted", text: " · в среднем " }), h("b", { text: n ? fsusd(g?.avg_net) : "—" })));
+      h("div", { class: `st-side-net ${t}` }, signed(t, susd(g?.net)), estMark()),
+      h("div", { class: "st-side-sub" }, h("span", { class: "muted", text: "Win rate " }), h("b", { text: n ? pctU(g?.win_rate_pct, 0) : "—" }),
+        h("span", { class: "muted", text: " · в среднем " }), h("b", { text: n ? susd(g?.avg_net) : "—" })));
   };
   const lp = total ? ((l?.count ?? 0) / total) * 100 : 0;
   const bar = h("div", { class: "st-split", role: "img", "aria-label": `Сделок: лонг ${l?.count ?? 0}, шорт ${s?.count ?? 0}` },
@@ -212,9 +209,9 @@ export function reasonCard(res: StatsResponse): HTMLElement {
       const t = toneOf(r.net, 0.005);
       return h("tr", {},
         h("td", { class: "left st-reason-k" }, r.key || "—", r.key.includes("реконструкция") ? h("span", { class: "badge off st-mini-badge", text: "оценка", title: "Цена выхода реконструирована" }) : null),
-        h("td", { text: int(r.count) }), h("td", { text: fp(r.win_rate_pct, 0) }),
-        h("td", { class: `st-net ${t}` }, h("span", { class: "st-bar", "aria-hidden": "true" }, h("i", { class: t, style: `width:${Math.max(3, (Math.abs(r.net ?? 0) / maxAbs) * 100)}%` })), h("span", { class: "st-net-v", text: signed(t, fsusd(r.net)) })),
-        h("td", { text: fsusd(r.avg_net) }));
+        h("td", { text: int(r.count) }), h("td", { text: pctU(r.win_rate_pct, 0) }),
+        h("td", { class: `st-net ${t}` }, h("span", { class: "st-bar", "aria-hidden": "true" }, h("i", { class: t, style: `width:${Math.max(3, (Math.abs(r.net ?? 0) / maxAbs) * 100)}%` })), h("span", { class: "st-net-v", text: signed(t, susd(r.net)) })),
+        h("td", { text: susd(r.avg_net) }));
     })));
   return card("st-reasons", "Причины закрытия", [h("div", { class: "table-wrap", tabindex: 0, role: "region", "aria-label": "Причины закрытия" }, tbl)],
     [h("span", { class: "muted small", text: "группа = текст причины до первой запятой" })]);
@@ -230,7 +227,7 @@ export function costsCard(res: StatsResponse): HTMLElement {
       kv("Комиссии", usd(k?.fees_total, 2), "", estMark(), defText(res.definitions, "fees_est")),
       kv("Фандинг (уплачено)", usd(k?.funding_total, 2), "", estMark(), defText(res.definitions, "funding_est")),
       kv("Итого издержек", usd(total, 2), "st-strong"),
-      kv("Комиссии / валовая прибыль", fp(k?.fees_pct_of_gross_profit, 1), "", null, defText(res.definitions, "fees_pct_of_gross_profit")),
+      kv("Комиссии / валовая прибыль", pctU(k?.fees_pct_of_gross_profit, 1), "", null, defText(res.definitions, "fees_pct_of_gross_profit")),
       kv("Оборот", usd(k?.turnover, 0), "", null, defText(res.definitions, "turnover")),
       kv("Ставка тейкера счёта", c ? `${num(c.taker_fee_est * 100, c.taker_fee_est * 100 < 0.1 ? 3 : 2)}%` : "—", "", null, "Реальная комиссия рыночных ордеров аккаунта Bybit")),
     note ? h("div", { class: "notice st-fee-note", role: "note" }, h("span", { text: note })) : null,
@@ -248,7 +245,7 @@ export function reconCard(res: StatsResponse): HTMLElement | null {
   }
   const col = (label: string, val: number | null, hint: string, est = false) => {
     const t = toneOf(val, 0.005);
-    return h("div", { class: "st-rc" }, h("div", { class: "st-rc-l muted", text: label }), h("div", { class: `st-rc-v ${t}` }, signed(t, fsusd(val))), est ? estMark() : null, h("div", { class: "st-rc-s muted small", text: hint }));
+    return h("div", { class: "st-rc" }, h("div", { class: "st-rc-l muted", text: label }), h("div", { class: `st-rc-v ${t}` }, signed(t, susd(val))), est ? estMark() : null, h("div", { class: "st-rc-s muted small", text: hint }));
   };
   const op = (s: string) => h("div", { class: "st-op", "aria-hidden": "true", text: s });
   return card("st-recon", "Сверка кошелька", [

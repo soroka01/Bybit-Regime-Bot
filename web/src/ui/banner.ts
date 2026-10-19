@@ -2,7 +2,6 @@
 import { api, ApiError, asApiError, dataJobsActive } from "../api";
 import type { FetchEstimate } from "../types";
 import { h } from "./dom";
-import { emptyState } from "./kit";
 
 export const estimateText = (e: FetchEstimate): string =>
   `≈ ${e.requests} запросов к Bybit (свечи ${e.klines_requests} + деривативы ${e.derivs_requests}), до ${e.minutes} мин`;
@@ -50,8 +49,4 @@ export function showError(slot: HTMLElement, err: ApiError | unknown, onRetry: (
   const e = asApiError(err);
   if (dataJobsActive() && (e.code === "busy" || e.code === "superseded") && slot.querySelector("[data-code=data_missing]")) return;
   slot.replaceChildren(errorBanner(e, onRetry));
-}
-
-export function empty(text: string, hint?: string, action?: HTMLElement | null): HTMLElement {
-  return emptyState(text, hint, action);
 }
