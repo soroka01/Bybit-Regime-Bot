@@ -48,10 +48,10 @@
   --border-strong: rgb(255 255 255 / 14%);
   --hl: inset 0 1px 0 rgb(255 255 255 / 4.5%);   /* внутренний блик верхней грани: «подъём» без тяжёлых теней */
 
-  /* текст (контраст >= 4.5:1 на surface-1/2/3 — проверено, см. DESIGN.md) */
+  /* текст (контраст >= 4.5:1 на bg и surface-1/2/3/inset — измерено, см. DESIGN.md и tests/contrast.test.ts) */
   --fg: #e8ebf2;
   --fg-muted: #8f99ab;
-  --fg-subtle: #7a8498;                  /* подсказки, placeholder; на surface-2/3 — только для неважного текста */
+  --fg-subtle: #838ea2;                  /* подсказки, placeholder: 4,7:1 на surface-3, 5,2:1 на surface-2 (был #7a8498: 4,1:1 на surface-3) */
   --fg-on-accent: #06101f;
 
   /* акцент и состояния */
@@ -111,7 +111,7 @@
 
   --fg: #10141c;
   --fg-muted: #566174;
-  --fg-subtle: #6b7588;
+  --fg-subtle: #616c7f;                  /* 5,0:1 на surface-2, 4,9:1 на bg (был #6b7588: 4,4:1 на surface-2, 4,25:1 на bg) */
   --fg-on-accent: #ffffff;
 
   --accent: var(--blue-600);
