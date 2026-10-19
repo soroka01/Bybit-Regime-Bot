@@ -19,6 +19,8 @@ import { rememberStats } from "./statsFeed";
 import type { DataCtx, Tab } from "./tab";
 
 const REFRESH_MS = 60_000;
+/** Ответ моложе этого при возврате на вкладку / в окно не перезапрашивается (сервер всё равно кэширует его на минуту). */
+const FRESH_MS = 30_000;
 const SUB = "Анализ реальных сделок бота по журналу bot.db: доходность кошелька, просадка, издержки, сделки. Это не бэктест стратегий. Данные обновляются раз в минуту.";
 
 interface SState { range: StatsRange; unit: EqUnit; filter: StTradeFilter }
@@ -149,7 +151,8 @@ export function createStats(_meta: Meta): Tab {
     const c = (ctl = new AbortController());
     const my = ++seq;
     const range = S.range;
-    if (!res) content.replaceChildren(skeleton());
+    // нет данных или на экране данные ДРУГОГО диапазона: показываем скелетон, а не старые цифры под новой кнопкой периода
+    if (!res || res.range !== range) content.replaceChildren(skeleton());
     setLoading(refreshBtn, true);
     root.setAttribute("aria-busy", "true");
     root.classList.add("busy");
@@ -160,7 +163,7 @@ export function createStats(_meta: Meta): Tab {
       lastOk = Date.now();
       rememberStats(r, lastOk);
       const sig = JSON.stringify({ ...r, computed_at: 0 });
-      if (sig === lastSig && res?.range === r.range && content.firstChild) { paintUpdated(); return; }
+      if (sig === lastSig && res?.range === r.range && content.firstChild === ready) { paintUpdated(); return; }
       lastSig = sig;
       res = r;
       render();
@@ -184,19 +187,25 @@ export function createStats(_meta: Meta): Tab {
     selectedN = null;
     trades.setSelected(null);
     paintHead();
-    void load().then(loop);
+    void load().then(() => loop());
   }
 
   // ---------- таймеры (в скрытой вкладке/окне не работают)
-  function loop() {
+  function loop(delay = REFRESH_MS) {
     clearTimeout(timer);
     if (!visible || document.hidden) return;
-    timer = window.setTimeout(async () => { if (!visible || document.hidden) return; await load(); loop(); }, REFRESH_MS);
+    timer = window.setTimeout(async () => { if (!visible || document.hidden) return; await load(); loop(); }, delay);
+  }
+  /** Вкладка снова на виду: свежие данные (< FRESH_MS) показываем как есть и ждём остаток минуты, старые — перезапрашиваем. */
+  function resume() {
+    const age = Date.now() - lastOk;
+    if (lastOk && res && res.range === S.range && !err && age >= 0 && age < FRESH_MS) { paintUpdated(); loop(Math.max(1000, REFRESH_MS - age)); return; }
+    void load().then(() => loop());
   }
   const tick = () => { if (visible && !document.hidden) paintUpdated(); };
   document.addEventListener("visibilitychange", () => {
     if (!visible) return;
-    if (document.hidden) { clearTimeout(timer); ctl?.abort(); } else { void load().then(loop); }
+    if (document.hidden) { clearTimeout(timer); ctl?.abort(); } else resume();
   });
 
   content.replaceChildren(skeleton());
@@ -204,7 +213,7 @@ export function createStats(_meta: Meta): Tab {
 
   return {
     el: root,
-    show() { visible = true; clearInterval(tickTimer); tickTimer = window.setInterval(tick, 1000); void load().then(loop); },
+    show() { visible = true; clearInterval(tickTimer); tickTimer = window.setInterval(tick, 1000); resume(); },
     hide() { visible = false; clearTimeout(timer); clearInterval(tickTimer); ctl?.abort(); setLoading(refreshBtn, false); root.classList.remove("busy"); },
     // полоса свежести: после «Подгрузить новые свечи» ответ нужно пересчитать (сервер увидит новые свечи/фандинг)
     dataContext: (): DataCtx => ({ symbol: res?.config?.symbol ?? "BTCUSDT", tfs: ["1h"] }),
