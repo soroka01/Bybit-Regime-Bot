@@ -42,6 +42,7 @@ const opts = {
   outdir: TMP,
   format: "esm",
   target: "es2022",
+  charset: "utf8",          // кириллица в бандле как есть (по умолчанию esbuild экранирует её в \uXXXX: ~+35 % к размеру app.js); сервер отдаёт text/*; charset=utf-8
   minify: !watch,
   sourcemap: watch,
   loader: { ".css": "css" },
