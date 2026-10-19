@@ -522,9 +522,14 @@ class Store:
         return {"signals": s, "events": e}
 
     def checkpoint(self) -> None:
-        """Усечь WAL-файл (TRUNCATE). Если читатель (веб) держит снимок, SQLite усечёт сколько сможет — это не ошибка."""
-        with self._lock:
-            self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+        """Усечь WAL-файл (TRUNCATE). Отдельное соединение с коротким ожиданием (1 с): ожидание читателей не должно держать
+        блокировку Store и тормозить торговый поток. Если читатель (веб) держит снимок, SQLite усечёт сколько сможет — это
+        не ошибка."""
+        db = sqlite3.connect(self.path, timeout=1.0)
+        try:
+            db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+        finally:
+            db.close()
 
     def maintenance(self, backup_dir: Path | str = BACKUP_DIR, now: datetime | None = None) -> dict:
         """Раз в сутки (если копии за сегодня ещё нет): копия -> чистка -> усечение WAL. ПОРЯДОК важен: чистка удаляет данные,
