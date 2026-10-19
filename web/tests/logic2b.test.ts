@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { daysLabel, leverageSummary, marketSummary, overlaysSummary, strategySummary } from "../src/tabs/labLogic";
 import { importLiveLegs, weightReport, weightSum } from "../src/tabs/portfolioLogic";
 import { ddVersus, isShortPeriod, vsBenchmark } from "../src/tabs/resultLogic";
-import { csvCell, csvFileName, filterTrades, tradeCounts, tradesToCsv } from "../src/tabs/tradesLogic";
+import { csvCell, csvFileName, csvText, filterTrades, tradeCounts, tradesToCsv } from "../src/tabs/tradesLogic";
 import { windowMatrix, windowSpan, wfVerdict } from "../src/tabs/wfLogic";
 import type { LegCfg, LiveSnapshot, StrategyMeta, TradeRow, WfWindow } from "../src/types";
 import { changedParams, isChanged } from "../src/ui/paramLogic";
@@ -48,6 +48,19 @@ describe("сделки: CSV", () => {
     expect(lines[1]).toBe("2026-01-01 00:00:00,2026-01-02 00:00:00,long,0.0512,5,85510.5,101");
     expect(lines[2]).toBe("2026-01-01 00:00:00,2026-01-02 00:00:00,short,,5,100,101");
     expect(lines[3]).toBe("");
+  });
+  it("csvText: формулы в начале экранируются апострофом, обычный текст — нет", () => {
+    expect(csvText("=SUM(A1)")).toBe("'=SUM(A1)");
+    expect(csvText("+1")).toBe("'+1");
+    expect(csvText("-1")).toBe("'-1");
+    expect(csvText("@x")).toBe("'@x");
+    expect(csvText("\tтаб")).toBe("'\tтаб");
+    expect(csvText("long")).toBe("long");
+    expect(csvText(null)).toBe("");
+  });
+  it("текстовые ячейки сделки (время, сторона) защищены от формул; числа — нет", () => {
+    const csv = tradesToCsv([trade("=1+1" as never, -0.05, { entry: "@evil" as never })]);
+    expect(csv.split("\r\n")[1]).toBe("'@evil,2026-01-02 00:00:00,'=1+1,-0.05,5,100,101");
   });
   it("пустой список — только заголовок", () => {
     expect(tradesToCsv([])).toBe("entry,exit,side,return,bars,entry_price,exit_price\r\n");

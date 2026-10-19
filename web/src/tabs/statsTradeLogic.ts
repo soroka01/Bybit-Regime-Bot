@@ -1,7 +1,9 @@
 // Вкладка «Статистика»: фильтры сделок, счётчики, CSV и подписи базы цены исполнения (чистая логика; barrel — statsLogic.ts).
 import type { StatsTradeRow } from "../types";
 import { isoUtc } from "../ui/fmtTime";
-import { csvCell } from "./tradesLogic";
+import { csvCell, csvText } from "./tradesLogic";
+
+export { csvText };
 
 export type StTradeFilter = "all" | "long" | "short" | "win" | "loss" | "recon";
 export const ST_TRADE_FILTERS: { key: StTradeFilter; label: string }[] = [
@@ -27,9 +29,6 @@ export function stTradeCounts(rows: readonly StatsTradeRow[]): Record<StTradeFil
   return c;
 }
 
-/** Ячейка CSV для свободного текста: защита от формул (=, +, -, @ в начале) + RFC 4180. */
-export const csvText = (s: string | null | undefined): string => csvCell(s != null && /^[=+\-@\t\r]/.test(s) ? "'" + s : s);
-
 export const ST_CSV_HEADER = [
   "n", "entry_utc", "exit_utc", "side", "qty", "entry_price", "exit_price", "gross", "fees_est", "funding_est", "net", "ret_pct", "ret_margin_pct",
   "hold_s", "reason", "reconstructed", "funding_complete", "equity_at_entry", "ret_account_pct",
@@ -39,7 +38,7 @@ export function stTradesToCsv(rows: readonly StatsTradeRow[]): string {
   const lines: string[] = [ST_CSV_HEADER.join(",")];
   for (const r of rows) {
     lines.push([
-      csvCell(r.n), isoUtc(r.entry_ts), isoUtc(r.exit_ts), r.side, csvCell(r.qty), csvCell(r.entry_price), csvCell(r.exit_price), csvCell(r.gross),
+      csvCell(r.n), csvText(isoUtc(r.entry_ts)), csvText(isoUtc(r.exit_ts)), csvText(r.side), csvCell(r.qty), csvCell(r.entry_price), csvCell(r.exit_price), csvCell(r.gross),
       csvCell(r.fees), csvCell(r.funding), csvCell(r.net), csvCell(r.ret_pct), csvCell(r.ret_margin_pct), csvCell(r.hold_s),
       csvText(r.reason), r.reconstructed ? "1" : "0", r.funding_complete ? "1" : "0", csvCell(r.equity_at_entry), csvCell(r.ret_account_pct),
     ].join(","));

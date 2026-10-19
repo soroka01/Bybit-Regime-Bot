@@ -49,7 +49,9 @@ describe("длительности и время", () => {
     expect(fmtDuration(45)).toBe("45 с");
     expect(fmtDuration(59.6)).toBe("1 мин");
     expect(fmtDuration(60)).toBe("1 мин");
-    expect(fmtDuration(3599)).toBe("60 мин");
+    expect(fmtDuration(3569)).toBe("59 мин");
+    expect(fmtDuration(3570)).toBe("1 ч");         // 59,5 мин округляется до часа, а не до «60 мин»
+    expect(fmtDuration(3599)).toBe("1 ч");
     expect(fmtDuration(3600)).toBe("1 ч");
     expect(fmtDuration(5 * 3600 + 20 * 60)).toBe("5 ч 20 мин");
     expect(fmtDuration(86400 - 10)).toBe("24 ч");
@@ -255,6 +257,13 @@ describe("сделки: фильтры, сортировка, CSV", () => {
     expect(lines[2]).toBe("");
     expect(csv.endsWith("\r\n")).toBe(true);
     expect(stTradesToCsv([])).toBe(lines[0] + "\r\n");
+  });
+  it("CSV: текстовые поля (сторона, причина) защищены от формул, числа с минусом — нет", () => {
+    const csv = stTradesToCsv([row(1, { side: "=cmd|' /C calc'!A0" as never, reason: "+1+1", net: -2.5, gross: -1 })]);
+    const line = csv.split("\r\n")[1]!;
+    expect(line).toContain(",'=cmd|' /C calc'!A0,");
+    expect(line).toContain(",'+1+1,");
+    expect(line).toContain(",-1,0.1,0,-2.5,");   // отрицательные числа остаются числами
   });
   it("золотой ответ -> CSV с тем же числом строк", () => {
     const r = gAll.trades!.rows;

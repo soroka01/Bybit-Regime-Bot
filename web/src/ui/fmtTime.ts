@@ -7,7 +7,7 @@ export function fmtDuration(sec: Num | undefined): string {
   if (!ok(sec) || sec < 0) return "—";
   const s = Math.round(sec);
   if (s < 60) return `${s} с`;
-  if (s < 3600) return `${Math.round(s / 60)} мин`;
+  if (s < 3600) { const m = Math.round(s / 60); return m >= 60 ? "1 ч" : `${m} мин`; }     // 59,5+ мин округляется до часа, а не до «60 мин»
   if (s < 86400) {
     const hh = Math.floor(s / 3600), mm = Math.round((s % 3600) / 60);
     return mm === 60 ? `${hh + 1} ч` : mm ? `${hh} ч ${mm} мин` : `${hh} ч`;

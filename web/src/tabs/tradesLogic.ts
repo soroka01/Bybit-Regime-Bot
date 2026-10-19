@@ -36,12 +36,15 @@ export function csvCell(v: string | number | null | undefined): string {
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+/** Ячейка CSV для текста (в т.ч. от сервера): защита от формул (=, +, -, @, таб, CR в начале) + RFC 4180. Числа — через csvCell: их минус не экранируется. */
+export const csvText = (s: string | null | undefined): string => csvCell(s != null && /^[=+\-@\t\r]/.test(s) ? "'" + s : s);
+
 export const CSV_HEADER = ["entry", "exit", "side", "return", "bars", "entry_price", "exit_price"] as const;
 
 /** CSV сделок: машинный формат (точка в числах, доходность — доля, время — как пришло от сервера, UTC), разделитель строк CRLF. */
 export function tradesToCsv(rows: readonly TradeRow[]): string {
   const lines: string[] = [CSV_HEADER.join(",")];
-  for (const r of rows) lines.push([r.entry, r.exit, r.side, r.ret, r.bars, r.entry_price, r.exit_price].map(csvCell).join(","));
+  for (const r of rows) lines.push([csvText(r.entry), csvText(r.exit), csvText(r.side), csvCell(r.ret), csvCell(r.bars), csvCell(r.entry_price), csvCell(r.exit_price)].join(","));
   return lines.join("\r\n") + "\r\n";
 }
 
