@@ -242,7 +242,7 @@ input[type="range"]:disabled { opacity: .45; cursor: not-allowed; }
 }
 .overlay { position: sticky; top: calc(var(--topbar-h) + var(--sp-3)); height: 0; z-index: var(--z-sticky); order: -1; align-self: stretch; margin: 0 0 calc(-1 * var(--sp-4)); }
 .result { position: relative; display: flex; flex-direction: column; gap: var(--sp-4); }
-.result.is-initial > :not(.result-skeleton):not(.overlay):not(.banner-slot) { display: none; }
+.result.is-initial > :not(.result-skeleton):not(.overlay):not(.banner-slot):not(.rv-status) { display: none; }
 .result.has-error .result-skeleton { display: none; }
 .result:not(.is-initial) .result-skeleton { display: none; }
 /* пересчёт: рамка не прыгает; плитки «мерцают» полосой, графики слегка приглушены */

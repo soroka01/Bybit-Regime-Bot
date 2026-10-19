@@ -181,8 +181,10 @@ export function createResultView(opts: ResultViewOpts = {}): ResultView {
     h("header", { class: "card-head" }, h("h3", { text: "Сделки" }), h("div", { class: "rv-trades-tools" }, csvBtn)),
     filterBar, trades.el, tradesNote);
 
-  const el = h("div", { class: "result is-initial", "aria-live": "polite" },
-    skeleton, banner, notices, hero, allBox,
+  // Живая область — только эта короткая строка (скринридер зачитывает «Считаю…» и одну фразу с итогом), а не весь результат с графиками и таблицей
+  const status = h("p", { class: "sr-only rv-status", role: "status", "aria-live": "polite" });
+  const el = h("div", { class: "result is-initial" },
+    status, skeleton, banner, notices, hero, allBox,
     card("Капитал против Buy & Hold", [eqHost], [rangeLabel, logToggle.el]),
     slot,
     card("Цена и сделки", [prHost, legend, note]),
@@ -200,6 +202,7 @@ export function createResultView(opts: ResultViewOpts = {}): ResultView {
     el, slot,
     setBusy(b, text) {
       overlayText.textContent = text ?? "Считаю…";
+      status.textContent = b ? overlayText.textContent : "";
       el.setAttribute("aria-busy", String(b));
       overlay.hidden = !b;
       el.classList.toggle("busy", b);
@@ -241,6 +244,7 @@ export function createResultView(opts: ResultViewOpts = {}): ResultView {
       allBox.firstElementChild?.classList.add("rv-all");
 
       el.classList.remove("is-initial");
+      status.textContent = `Результат обновлён: доходность ${spct(m.total_return, 0)}, макс. просадка ${pct(m.max_drawdown, 1)}, сделок ${int(m.trades)}`;
       rangeLabel.textContent = `${date(r.data_range.start)} — ${date(r.data_range.end)} · ${int(r.data_range.bars)} свечей`;
       eq.setData(r.t, [r.equity, r.bh]);
       pr.setData(r.t, [r.price]);

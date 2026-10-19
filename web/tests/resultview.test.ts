@@ -121,3 +121,38 @@ describe("resultview: состояния", () => {
     expect(v.el.querySelector(".banner.error")).not.toBeNull();
   });
 });
+
+describe("resultview: живая область только на короткой строке статуса (F8)", () => {
+  it("корень результата не aria-live; единственная живая область — маленькая sr-only строка", () => {
+    const v = createResultView();
+    v.setData(result());
+    expect(v.el.hasAttribute("aria-live")).toBe(false);
+    const live = [...v.el.querySelectorAll("[aria-live]")];
+    expect(live).toHaveLength(1);
+    expect(live[0]!.getAttribute("role")).toBe("status");
+    expect(live[0]!.classList.contains("sr-only")).toBe(true);
+    expect(live[0]!.querySelector("*")).toBeNull();                 // только текст, без вложенной разметки результата
+  });
+
+  it("busy → «Считаю…», готово → одна фраза с итогом (коротко), снятие busy очищает строку", () => {
+    const v = createResultView();
+    const st = () => v.el.querySelector<HTMLElement>("[role=status][aria-live=polite]")!;
+    v.setBusy(true);
+    expect(st().textContent).toBe("Считаю…");
+    v.setBusy(true, "Сервер занят, жду… попытка 2/3");
+    expect(st().textContent).toContain("попытка 2/3");
+    v.setBusy(false);
+    expect(st().textContent).toBe("");
+    v.setData(result());
+    expect(st().textContent).toMatch(/^Результат обновлён: доходность \+42%, макс\. просадка −12,0%, сделок 4$/);
+    expect(st().textContent!.length).toBeLessThan(120);
+  });
+
+  it("строка статуса не скрывается в начальном состоянии (display:none не озвучивается)", () => {
+    // vitest подменяет импорты .css пустышкой, а типов node нет — читаем исходник через process.getBuiltinModule (cwd = web/)
+    const proc = (globalThis as unknown as { process: { cwd(): string; getBuiltinModule(n: string): unknown } }).process;
+    const fs = proc.getBuiltinModule("node:fs") as { readFileSync(p: string, enc: string): string };
+    const css = fs.readFileSync(`${proc.cwd()}/src/styles/components.css`, "utf8");
+    expect(css).toMatch(/\.result\.is-initial > [^{]*:not\(\.rv-status\)[^{]*\{ display: none/);
+  });
+});
