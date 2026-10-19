@@ -3,20 +3,27 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pandas as pd
 
 from tradebot.telegram import messages as M
 from tradebot.trading import risk
 from tradebot.trading.executor import Executor, Notify
-from tradebot.trading.market_feed import TF_DELTA, FeedError, MarketFeed, compute_target
-from tradebot.trading.state import Store
+from tradebot.trading.market_feed import TF_DELTA, FeedError, MarketFeed, compute_target, expected_last_bar
+from tradebot.trading.state import BACKUP_DIR, Store
 
 log = logging.getLogger("runner")
 WAKE_DELAY = pd.Timedelta(seconds=10)
 MONITOR_EVERY = 60
 EQUITY_EVERY = 300
+WAIT_CHUNK = 60            # ожидание следующего бара — отрезками не длиннее: время сверяется с часами заново (сон ПК, сдвиг часов)
+CATCHUP_DELAY = 45         # догоняющий пересчёт — не раньше, чем через столько секунд после конца последнего цикла
+MONITOR_REALERT_S = 1800   # монитор падает подряд: повторное предупреждение не чаще раза в 30 минут
+KILL_RETRY_S = 300         # повтор закрытия при killed + открытая позиция — не чаще раза в 5 минут
+MAINT_RETRY_S = 3600       # ежедневная копия БД не удалась — следующая попытка не раньше, чем через час
 
 
 def _tz(name: str):
@@ -32,7 +39,8 @@ MANUAL_RECALC = "внеплановый пересчёт"
 
 
 class Runner:
-    def __init__(self, store: Store, feed: MarketFeed, executor: Executor, notify: Notify, tz_name: str = "Europe/Moscow"):
+    def __init__(self, store: Store, feed: MarketFeed, executor: Executor, notify: Notify, tz_name: str = "Europe/Moscow",
+                 backup_dir: Path | str | None = None):
         self.store, self.feed, self.ex, self.notify = store, feed, executor, notify
         self.tz = _tz(tz_name)
         self.wake = asyncio.Event()  # внеплановый пересчёт (включение, смена настроек)
@@ -40,9 +48,31 @@ class Runner:
         self._cycle_lock = asyncio.Lock()
         self._last_eq_log = 0.0
         self._fails = 0
+        self.backup_dir = Path(backup_dir) if backup_dir is not None else BACKUP_DIR
+        self._alerts: dict[str, float] = {}          # дедупликация простых предупреждений: ключ -> когда послано (monotonic)
+        self._kill_retry_at: float | None = None
+        self._catchup_for: pd.Timestamp | None = None    # ожидаемый бар, для которого догоняющий цикл уже запускался
+        self._last_cycle_end = 0.0
+        self._maint_task: asyncio.Task | None = None
+        self._maint_next = 0.0
 
     def trigger(self) -> None:
         self.wake.set()
+
+    def _alert(self, key: str, text: str, level: str = "warn", every: float | None = None) -> bool:
+        """Простое (plain) предупреждение с дедупликацией: пока ключ не сброшен (_alert_clear) — один раз; с every — не чаще
+        раза в every секунд. Нужно для условий, которые держатся минутами (монитор проверяет раз в минуту): структурное
+        событие каждую минуту завалило бы Telegram."""
+        now = time.monotonic()
+        last = self._alerts.get(key)
+        if last is not None and (every is None or now - last < every):
+            return False
+        self._alerts[key] = now
+        self.notify(level, text)
+        return True
+
+    def _alert_clear(self, key: str) -> None:
+        self._alerts.pop(key, None)
 
     def _warn_weights(self) -> None:
         """Эффективные веса ограничены (сумма была бы > 100%) — предупредить один раз на каждое новое состояние."""
@@ -125,19 +155,47 @@ class Runner:
             if bf is not None and not bf.done():
                 bf.cancel()
 
+    def catchup_due(self, now: pd.Timestamp) -> bool:
+        """Последний обработанный бар (kv last_bar) отстаёт от ожидаемого, а штатный цикл за ним уже не придёт: он ушёл (ручной
+        пересчёт затянулся за границу часа, сбой ленты в момент бара, сон ПК). Раз на ожидаемый бар и не сразу после цикла."""
+        exp = expected_last_bar(now, "1h")
+        if self._catchup_for is not None and self._catchup_for >= exp:
+            return False                                              # на этот бар догоняющий цикл уже был (ровно один)
+        if now < exp + TF_DELTA["1h"] + WAKE_DELAY:
+            return False                                              # данные бара ещё не должны были появиться — ждём штатный цикл
+        if time.monotonic() - self._last_cycle_end < CATCHUP_DELAY:
+            return False                                              # только что был цикл: не долбим ленту подряд
+        raw = self.store.get("last_bar")
+        try:
+            last = pd.Timestamp(raw) if raw else None
+        except (ValueError, TypeError):
+            last = None
+        if last is not None and last.tzinfo is None:
+            last = last.tz_localize("UTC")
+        return last is None or last < exp
+
     async def _run(self) -> None:
         await self._safe_cycle("старт/перезапуск")
         while not self.stop.is_set():
             now = await self.feed.now()
             nxt = (now - WAKE_DELAY).floor("1h") + TF_DELTA["1h"] + WAKE_DELAY
+            if self.catchup_due(now):
+                # Инвариант: ровно ОДИН цикл на последнем баре; пропущенные бары не переигрываем (цикл всегда берёт свежую ленту
+                # и действует по ней — торговать «задним числом» по старым барам нельзя).
+                self._catchup_for = expected_last_bar(now, "1h")
+                log.info("последний бар отстаёт от ожидаемого (%s) — один догоняющий пересчёт", self._catchup_for)
+                await self._safe_cycle("догоняющий пересчёт")
+                continue
             try:
-                await asyncio.wait_for(self.wake.wait(), timeout=max(1.0, (nxt - now).total_seconds()))
-                self.wake.clear()
-                await asyncio.sleep(1)  # схлопнуть пачку нажатий
-                self.wake.clear()
-                await self._safe_cycle(MANUAL_RECALC)
+                await asyncio.wait_for(self.wake.wait(), timeout=min(float(WAIT_CHUNK), max(1.0, (nxt - now).total_seconds())))
             except asyncio.TimeoutError:
-                await self._safe_cycle("бар")
+                if await self.feed.now() >= nxt:            # дошли до бара (а не просто отрезок кончился)
+                    await self._safe_cycle("бар")
+                continue
+            self.wake.clear()
+            await asyncio.sleep(1)  # схлопнуть пачку нажатий
+            self.wake.clear()
+            await self._safe_cycle(MANUAL_RECALC)
 
     async def _safe_cycle(self, why: str) -> None:
         try:
@@ -147,6 +205,8 @@ class Runner:
         except Exception as e:
             log.exception("cycle failed")
             self.notify("error", M.w_cycle_failed(e))
+        finally:
+            self._last_cycle_end = time.monotonic()
 
     # ---------- мониторинг ----------
     async def monitor(self) -> None:
@@ -154,6 +214,7 @@ class Runner:
             try:
                 await self.tick()
                 self._fails = 0
+                self._alert_clear("monitor_failed")
             except asyncio.CancelledError:
                 raise
             except Exception as e:
@@ -161,12 +222,92 @@ class Runner:
                 log.warning("monitor: %s", e)
                 if self._fails == 5:
                     self.notify("error", M.w_monitor_failed(5, e))
+                    self._alerts["monitor_failed"] = time.monotonic()
+                elif self._fails > 5:
+                    # сбои идут и дальше: напоминаем раз в 30 минут простым предупреждением (раньше — только на ровно 5-м сбое,
+                    # и дальше долгая недоступность биржи/ошибка в тике оставались молчаливыми)
+                    self._alert("monitor_failed", f"Мониторинг не работает уже {self._fails} проверок подряд "
+                                f"(≈{self._fails * MONITOR_EVERY // 60} мин): {str(e) or type(e).__name__}", every=MONITOR_REALERT_S)
+            self._maybe_maintain()
             await asyncio.sleep(MONITOR_EVERY)
+
+    # ---------- ежедневное обслуживание БД ----------
+    def _maybe_maintain(self) -> None:
+        """Раз в сутки: копия bot.db -> чистка журналов -> усечение WAL (Store.maintenance), в отдельном потоке — торговлю и
+        мониторинг не задерживает. Первый такт монитора после старта фактически и есть «запуск при старте, если копии за
+        сегодня нет». Сбой копии не ломает бота: предупреждение и повтор не раньше, чем через час."""
+        if self._maint_task is not None and not self._maint_task.done():
+            return
+        if time.monotonic() < self._maint_next or not self.store.backup_due(self.backup_dir):
+            return
+        self._maint_task = asyncio.create_task(self._maintain(), name="db-maintenance")
+
+    async def _maintain(self) -> None:
+        try:
+            res = await asyncio.to_thread(self.store.maintenance, self.backup_dir)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            res = {"error": f"{type(e).__name__}: {e}"}
+        if res.get("error"):
+            self._maint_next = time.monotonic() + MAINT_RETRY_S
+            log.warning("обслуживание БД: %s", res["error"])
+            self._alert("db_backup", f"Резервная копия базы бота не сделана ({res['error']}) — повторю через час.", every=86400)
+        else:
+            self._alert_clear("db_backup")
+            if res.get("ran"):
+                log.info("обслуживание БД: копия %s, удалено %s", res.get("backup"), res.get("purged"))
 
     async def tick(self) -> None:
         st = self.store
+        # heartbeat — «процесс жив» (пишется ДО чтения биржи, нарочно не двигать); monitor_ok_ts — «биржа отвечает» (ниже,
+        # только после успешного чтения). Сторожевой скрипт различает по ним «процесс молчит» и «биржа не отвечает».
         st.set("heartbeat", datetime.now(timezone.utc).isoformat(timespec="seconds"))
         eq = await self.ex.ex.equity()
+        st.set("monitor_ok_ts", datetime.now(timezone.utc).isoformat(timespec="seconds"))
+        s = st.settings()
+        peak = None
+        # Инвариант: баланс не прочитан или равен нулю/NaN (`not (eq > 0)` ловит и NaN) — это НЕ данные: ни кривая, ни пик, ни
+        # начало суток из такого значения не строятся, kill-switch в этом такте пропускается (с дедуплицированным предупреждением).
+        eq_ok = eq > 0
+        if eq_ok:
+            self._alert_clear("equity_bad")
+            peak = self._record_equity(eq)
+        else:
+            self._alert("equity_bad", "баланс счёта не прочитан/равен нулю: проверка kill-switch пропущена")
+        # kill-switch сразу после чтения эквити, независимо от успеха чтения позиции
+        if eq_ok and not self.ex.paper and not st.get("killed", False) and (s["enabled"] or st.get("position")):
+            reason = risk.check_kill(eq, peak, st.get("day_start_equity"), s["kill_dd"], s["kill_daily"])
+            if reason:
+                await self.ex.kill(reason)
+                return
+        pos = await self.ex.refresh_cache()
+        # Инвариант: обнаружение стоп-аута и перевзвод стопа НЕ зависят от enabled — при выключенной торговле позиция остаётся
+        # на бирже, и её закрытие биржей надо заметить и объявить.
+        await self.ex.check_stopout()
+        killed = st.get("killed", False)
+        if not self.ex.paper and pos is not None and pos.stop is None and not killed and not self.ex.lock.locked():
+            async with self.ex.lock:
+                await self.ex.rearm_quietly()  # позиция без биржевого стопа
+        if not self.ex.paper and killed and pos is not None:
+            await self._retry_kill_close()
+
+    async def _retry_kill_close(self) -> None:
+        """killed, а позиция на бирже осталась (закрытие в kill не удалось): повторяем закрытие не чаще раза в 5 минут,
+        предупреждение — простое и дедуплицированное (не структурное событие каждую минуту)."""
+        now = time.monotonic()
+        if self._kill_retry_at is not None and now - self._kill_retry_at < KILL_RETRY_S:
+            return
+        self._kill_retry_at = now
+        self._alert("kill_retry", "kill-switch: позиция всё ещё открыта — повторяю закрытие (раз в 5 минут), проверьте биржу.",
+                    every=MONITOR_REALERT_S)
+        if await self.ex.retry_kill_close() != "не закрыто":
+            self._kill_retry_at = None
+            self._alert_clear("kill_retry")
+
+    def _record_equity(self, eq: float) -> float:
+        """Бухгалтерия валидного эквити: значение, базовая точка, пик, начало суток, итог дня, кривая. Возвращает пик."""
+        st = self.store
         st.set("equity", eq)
         if st.get("baseline_equity") is None:
             st.set("baseline_equity", eq)      # только для строки «P/L всего» в Telegram; на риск не влияет
@@ -185,19 +326,7 @@ class Runner:
         if asyncio.get_running_loop().time() - self._last_eq_log >= EQUITY_EVERY:
             st.add_equity(eq)
             self._last_eq_log = asyncio.get_running_loop().time()
-        s = st.settings()
-        # kill-switch сразу после чтения эквити, независимо от успеха чтения позиции
-        if not self.ex.paper and not st.get("killed", False) and (s["enabled"] or st.get("position")):
-            reason = risk.check_kill(eq, peak, st.get("day_start_equity"), s["kill_dd"], s["kill_daily"])
-            if reason:
-                await self.ex.kill(reason)
-                return
-        pos = await self.ex.refresh_cache()
-        if s["enabled"]:
-            await self.ex.check_stopout()
-        if not self.ex.paper and pos is not None and pos.stop is None and not st.get("killed", False) and not self.ex.lock.locked():
-            async with self.ex.lock:
-                await self.ex.rearm_quietly()  # позиция без биржевого стопа
+        return peak
 
     def daily_data(self, eq: float) -> dict:
         """Данные итога суток (окно — последние 24 часа): изменение счёта в $ и %, закрытые за окно сделки с суммарным
