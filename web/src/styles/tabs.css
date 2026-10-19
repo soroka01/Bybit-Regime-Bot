@@ -1,0 +1,20 @@
+/* ---------- ВКЛАДКИ: частные раскладки, собранные из примитивов (phase 2 переработает их раскладку) ---------- */
+.sweep-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 var(--sp-3); align-items: end; margin-bottom: var(--sp-2); }
+.sweep-controls .btn { margin-bottom: var(--sp-3); }
+.sweep-msg { color: var(--warn); margin: 0 0 6px; min-height: 0; }
+.sweep-msg:empty { display: none; }
+.filters { display: grid; grid-template-columns: 1.2fr repeat(3, 1fr) 100px 1fr; gap: 0 var(--sp-3); align-items: end; }
+.filters .num-input { width: 100%; height: var(--h-md); text-align: left; font-family: inherit; font-size: var(--fs-13); padding: 0 10px; }
+.market-note { margin: 0 0 var(--sp-2); line-height: 1.4; }
+
+/* плечо */
+.lev-presets { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 4px; }
+.lev-hint { margin: 2px 0 var(--sp-2); color: var(--fg-muted); line-height: 1.4; }
+.lev-hint.warn { color: var(--warn); font-weight: 600; } .lev-hint.danger { color: var(--neg); font-weight: 600; } .lev-hint.bot { color: var(--warn); }
+
+/* рейтинг стратегий и бот (live): стили переехали в tab-leaderboard.css и tab-live.css */
+@media (max-width: 1100px) { .filters { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 560px) { .filters { grid-template-columns: repeat(2, 1fr); } .grid-2 { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+.profile svg { display: block; }

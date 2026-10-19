@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ru" data-theme="dark" data-theme-mode="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0a0d13">
+  <title>Tradebot — дашборд</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235ca4ff'/%3E%3Cstop offset='1' stop-color='%231b64cc'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M6 22l7-8 5 5 8-10' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <!-- Тема выставляется ДО первой отрисовки (без вспышки): ?theme=dark|light (не сохраняется) > localStorage "tb.theme" (light|dark|auto) > dark.
+       Должно совпадать с applyTheme() в src/ui/theme.ts. -->
+  <script>
+    (function () {
+      var d = document.documentElement, m = null;
+      try { var q = /[?&]theme=(light|dark)(?:&|#|$)/.exec(location.search); m = q && q[1]; } catch (e) {}
+      if (!m) { try { m = localStorage.getItem("tb.theme"); } catch (e) {} }
+      if (m !== "light" && m !== "dark" && m !== "auto") m = "dark";
+      var t = m;
+      if (m === "auto") { try { t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; } catch (e) { t = "dark"; } }
+      d.setAttribute("data-theme", t);
+      d.setAttribute("data-theme-mode", m);
+      var cs = document.querySelector('meta[name="color-scheme"]'), tc = document.querySelector('meta[name="theme-color"]');
+      if (cs) cs.setAttribute("content", t);
+      if (tc) tc.setAttribute("content", t === "dark" ? "#0a0d13" : "#f3f5f8");
+    })();
+  </script>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div id="app"></div>
+  <noscript>Для работы дашборда нужен JavaScript.</noscript>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

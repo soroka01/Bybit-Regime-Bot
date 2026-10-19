@@ -1,0 +1,178 @@
+/* =====================================================================================================================
+   ДИЗАЙН-ТОКЕНЫ.  Три слоя:  1) примитивы (сырые цвета и шкалы)  ->  2) семантические токены темы  ->  3) компоненты.
+   Компоненты и графики читают ТОЛЬКО семантические токены (var(--surface-1), var(--pos), ...), цветов вида #hex в них нет.
+   Тема = атрибут data-theme="dark"|"light" на <html> (его ставит inline-скрипт в index.html до первой отрисовки);
+   data-theme-mode="auto"|"light"|"dark" хранит выбор пользователя (auto = следовать ОС, значение уже разрешено в data-theme).
+   Подробности и рецепты (смена цветовой семантики, добавление темы) — web/DESIGN.md.
+   ===================================================================================================================== */
+
+/* ---------- 1. ПРИМИТИВЫ: шкалы, не зависящие от темы ---------- */
+:root {
+  /* радиусы */
+  --r-1: 6px; --r-2: 8px; --r-3: 12px; --r-4: 16px; --r-pill: 999px;
+  /* отступы */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+  /* шрифты */
+  --font-ui: system-ui, -apple-system, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", "JetBrains Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-16: 16px; --fs-20: 20px; --fs-28: 28px; --fs-36: 36px;
+  /* z-слои */
+  --z-sticky: 20; --z-topbar: 30; --z-popover: 40; --z-tooltip: 50; --z-modal: 60; --z-toast: 70;
+  /* движение */
+  --dur-1: 120ms; --dur-2: 150ms; --dur-3: 180ms; --ease: cubic-bezier(.2, .7, .2, 1);
+  --t1: 120ms cubic-bezier(.2, .7, .2, 1); --t3: 180ms cubic-bezier(.2, .7, .2, 1);
+  /* размеры контролов */
+  --h-sm: 28px; --h-md: 34px; --h-lg: 40px;
+  --topbar-h: 56px;
+
+  /* цветовые примитивы (используются в семантике ниже; Okabe–Ito для синего/оранжевого) */
+  --blue-300: #8cbcff; --blue-400: #5ca4ff; --blue-600: #1b64cc; --blue-700: #1555b0;
+  --orange-400: #ff9055; --orange-600: #ab4200;
+  --amber-400: #f0b429; --amber-700: #8f5a00;
+  --green-400: #34d399; --green-600: #08704d; --green-700: #0a6a49;
+  --red-400: #ff7b7b; --red-600: #c4282d;
+}
+
+/* ---------- 2. СЕМАНТИЧЕСКИЕ ТОКЕНЫ: тёмная тема (по умолчанию) ---------- */
+:root, :root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* поверхности: страница -> карточка -> приподнятый слой -> всплывающий слой */
+  --bg: #0a0d13;
+  --surface-1: #11151d;
+  --surface-2: #171c26;
+  --surface-3: #1e2430;
+  --surface-inset: #0d1119;              /* поля ввода, «утопленные» области */
+  --surface-hover: rgb(255 255 255 / 4%);
+  --border: rgb(255 255 255 / 8%);
+  --border-strong: rgb(255 255 255 / 14%);
+  --hl: inset 0 1px 0 rgb(255 255 255 / 4.5%);   /* внутренний блик верхней грани: «подъём» без тяжёлых теней */
+
+  /* текст (контраст >= 4.5:1 на surface-1/2/3 — проверено, см. DESIGN.md) */
+  --fg: #e8ebf2;
+  --fg-muted: #8f99ab;
+  --fg-subtle: #7a8498;                  /* подсказки, placeholder; на surface-2/3 — только для неважного текста */
+  --fg-on-accent: #06101f;
+
+  /* акцент и состояния */
+  --accent: var(--blue-400);
+  --accent-hover: var(--blue-300);
+  --accent-soft: rgb(92 164 255 / 14%);
+  --accent-border: rgb(92 164 255 / 40%);
+  --pos: var(--blue-400);                /* ПРИБЫЛЬ (Okabe–Ito синий). Сторона сделки этим цветом не красится */
+  --neg: var(--orange-400);              /* УБЫТОК (Okabe–Ito оранжевый). «Продажа»/«шорт» не значит «убыток» */
+  --warn: var(--amber-400);
+  --ok: var(--green-400);
+  --info: var(--blue-400);
+  --long: var(--pos);                    /* ТОЛЬКО маркеры входов на графиках и полосы сигналов (легенда — словами «лонг/шорт»); */
+  --short: var(--neg);                   /* в таблицах, бейджах и тексте сторона нейтральна: ui/side.ts */
+  --bad: var(--neg);
+  --focus-ring: var(--blue-400);
+
+  /* тени и оверлеи */
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 35%);
+  --shadow-2: 0 8px 24px rgb(0 0 0 / 38%);
+  --shadow-3: 0 24px 70px rgb(0 0 0 / 60%), 0 0 0 1px rgb(255 255 255 / 6%);
+  --backdrop: rgb(4 7 12 / 62%);
+  --bg-glow-1: rgb(60 110 220 / 13%);
+  --bg-glow-2: rgb(120 70 220 / 7%);
+  --skel-a: rgb(255 255 255 / 4%);
+  --skel-b: rgb(255 255 255 / 9%);
+  --scroll-thumb: rgb(255 255 255 / 14%);
+  --topbar-bg: rgb(10 13 19 / 93%);
+  --glow: 0 0 0 1px rgb(92 164 255 / 35%), 0 0 24px rgb(92 164 255 / 14%);
+
+  /* графики */
+  --track: rgb(255 255 255 / 14%);       /* незаполненная часть ползунка, дорожки прогресса */
+  --grid: rgb(255 255 255 / 6%);         /* сетка: волосок, рецессивная */
+  --axis: rgb(255 255 255 / 14%);        /* нулевая линия / ось */
+  --crosshair: rgb(255 255 255 / 38%);
+  --ref: #98a3b8;                         /* эталонный ряд (Buy & Hold, теневой счёт, цена) */
+  --heat-neg: #a84d17;                    /* тепловые карты: полюса дивергентной шкалы (заливка, не текст) */
+  --heat-mid: #1b2231;
+  --heat-pos: #2563c4;
+  /* категориальная палитра рядов (dataviz/palette.md, dark; проверена validate_palette.js на --surface-1) */
+  --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767;
+}
+
+/* ---------- светлая тема ---------- */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f3f5f8;
+  --surface-1: #ffffff;
+  --surface-2: #f6f8fb;
+  --surface-3: #ffffff;
+  --surface-inset: #ffffff;
+  --surface-hover: rgb(16 24 40 / 4%);
+  --border: rgb(16 24 40 / 10%);
+  --border-strong: rgb(16 24 40 / 20%);
+  --hl: inset 0 1px 0 rgb(255 255 255 / 90%);
+
+  --fg: #10141c;
+  --fg-muted: #566174;
+  --fg-subtle: #6b7588;
+  --fg-on-accent: #ffffff;
+
+  --accent: var(--blue-600);
+  --accent-hover: var(--blue-700);
+  --accent-soft: rgb(27 100 204 / 10%);
+  --accent-border: rgb(27 100 204 / 38%);
+  --pos: var(--blue-600);
+  --neg: var(--orange-600);
+  --warn: var(--amber-700);
+  --ok: var(--green-600);
+  --info: var(--blue-600);
+  --long: var(--pos);
+  --short: var(--neg);
+  --bad: var(--neg);
+  --focus-ring: var(--blue-600);
+
+  --shadow-1: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 1px rgb(16 24 40 / 4%);
+  --shadow-2: 0 6px 18px rgb(16 24 40 / 9%), 0 1px 2px rgb(16 24 40 / 6%);
+  --shadow-3: 0 24px 60px rgb(16 24 40 / 22%), 0 0 0 1px rgb(16 24 40 / 6%);
+  --backdrop: rgb(16 24 40 / 42%);
+  --bg-glow-1: rgb(40 110 230 / 9%);
+  --bg-glow-2: rgb(130 80 230 / 5%);
+  --skel-a: rgb(16 24 40 / 5%);
+  --skel-b: rgb(16 24 40 / 10%);
+  --scroll-thumb: rgb(16 24 40 / 20%);
+  --topbar-bg: rgb(243 245 248 / 93%);
+  --glow: 0 0 0 1px rgb(27 100 204 / 30%), 0 6px 20px rgb(27 100 204 / 14%);
+
+  --track: rgb(16 24 40 / 14%);
+  --grid: rgb(16 24 40 / 7%);
+  --axis: rgb(16 24 40 / 20%);
+  --crosshair: rgb(16 24 40 / 42%);
+  --ref: #6b7588;
+  --heat-neg: #e8864a;
+  --heat-mid: #f1f3f7;
+  --heat-pos: #4f8fe0;
+  /* light; на --surface-1 (#fff) слоты 3, 4, 5 дают <3:1 -> «relief rule»: у рядов всегда есть легенда и подсказка со значениями */
+  --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100; --c5: #e87ba4; --c6: #008300; --c7: #4a3aa7; --c8: #e34948;
+}
+
+/* ---------- ЦВЕТОВАЯ СЕМАНТИКА «зелёный / красный» ----------
+   По умолчанию «плюс = синий, минус = оранжевый» (безопасно при дальтонизме). Чтобы получить привычные зелёный/красный,
+   раскомментируйте блок ниже (он перекрывает только токены; ни один компонент или график править не нужно). Знаки +/− и ▲/▼ остаются.
+
+:root, :root[data-theme="dark"]  { --pos: var(--green-400); --neg: var(--red-400); --heat-pos: #12684a; --heat-neg: #a63232; }
+:root[data-theme="light"]        { --pos: var(--green-700); --neg: var(--red-600); --heat-pos: #46b985; --heat-neg: #e26d6d; }
+   --long / --short / --bad / метрики / столбцы / полосы сигналов подхватятся автоматически (они ссылаются на --pos / --neg). */
+
+/* ---------- плавная смена темы (класс ставится на <html> на ~200 мс из ui/theme.ts) ---------- */
+html.theme-anim, html.theme-anim *, html.theme-anim *::before, html.theme-anim *::after {
+  transition: background-color var(--dur-2) ease, border-color var(--dur-2) ease, color var(--dur-2) ease,
+    fill var(--dur-2) ease, stroke var(--dur-2) ease, box-shadow var(--dur-2) ease !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.theme-anim, html.theme-anim *, html.theme-anim *::before, html.theme-anim *::after { transition: none !important; }
+}
+
+/* Устаревшие имена токенов (до редизайна) — оставлены как алиасы, в новом коде не использовать. */
+:root, :root[data-theme] {
+  --surface: var(--surface-1);
+  --muted: var(--fg-muted);
+  --accent-fg: var(--fg-on-accent);
+  --shadow: var(--shadow-1);
+}

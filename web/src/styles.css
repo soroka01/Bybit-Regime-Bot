@@ -1,0 +1,15 @@
+/* Точка входа стилей (бандлится esbuild). Порядок слоёв важен: токены -> база -> каркас -> компоненты -> графики -> вкладки. */
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/shell.css";
+@import "./styles/components.css";
+@import "./styles/charts.css";
+@import "./styles/tabs.css";
+@import "./styles/tab-live.css";
+@import "./styles/tab-leaderboard.css";
+@import "./styles/tab-lab.css";
+@import "./styles/tab-portfolio.css";
+@import "./styles/tab-wf.css";
+@import "./styles/tab-opt.css";
+@import "./styles/tab-stats.css";
+@import "./styles/palette.css";

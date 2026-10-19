@@ -1,0 +1,374 @@
+{
+ "items": [
+  {
+   "name": "S0",
+   "verdict": "robust",
+   "oos": {
+    "calmar": 3.739,
+    "sharpe": 0.579,
+    "total_return": -0.403,
+    "max_drawdown": -0.496,
+    "trades": 12
+   }
+  },
+  {
+   "name": "S1",
+   "verdict": "overfit",
+   "oos": {
+    "calmar": 0.828,
+    "sharpe": -0.768,
+    "total_return": 0.515,
+    "max_drawdown": -0.042,
+    "trades": 0
+   }
+  },
+  {
+   "name": "S2",
+   "verdict": "few",
+   "oos": {
+    "calmar": 1.091,
+    "sharpe": -0.037,
+    "total_return": 0.602,
+    "max_drawdown": -0.054,
+    "trades": 40
+   }
+  },
+  {
+   "name": "S3",
+   "verdict": "loss",
+   "oos": {
+    "calmar": 3.737,
+    "sharpe": 1.523,
+    "total_return": 0.666,
+    "max_drawdown": -0.056,
+    "trades": 0
+   }
+  },
+  {
+   "name": "S4",
+   "verdict": "robust",
+   "oos": {
+    "calmar": -0.752,
+    "sharpe": -0.116,
+    "total_return": 0.613,
+    "max_drawdown": -0.097,
+    "trades": 40
+   }
+  },
+  {
+   "name": "S5",
+   "verdict": "overfit",
+   "oos": {
+    "calmar": -0.279,
+    "sharpe": -0.529,
+    "total_return": 0.117,
+    "max_drawdown": -0.493,
+    "trades": 40
+   }
+  },
+  {
+   "name": "S6",
+   "verdict": "few",
+   "oos": {
+    "calmar": -0.485,
+    "sharpe": 1.285,
+    "total_return": -0.124,
+    "max_drawdown": -0.077,
+    "trades": 3
+   }
+  },
+  {
+   "name": "S7",
+   "verdict": "loss",
+   "oos": {
+    "calmar": 1.822,
+    "sharpe": 1.476,
+    "total_return": 0.493,
+    "max_drawdown": -0.328,
+    "trades": 0
+   }
+  },
+  {
+   "name": "S8",
+   "verdict": "robust",
+   "oos": {
+    "calmar": 1.328,
+    "sharpe": 2.694,
+    "total_return": 0.223,
+    "max_drawdown": -0.164,
+    "trades": 12
+   }
+  },
+  {
+   "name": "S9",
+   "verdict": "overfit",
+   "oos": {
+    "calmar": 2.495,
+    "sharpe": -0.024,
+    "total_return": 0.649,
+    "max_drawdown": -0.325,
+    "trades": 3
+   }
+  },
+  {
+   "name": "S10",
+   "verdict": "few",
+   "oos": {
+    "calmar": 2.647,
+    "sharpe": 0.152,
+    "total_return": 1.46,
+    "max_drawdown": -0.088,
+    "trades": 12
+   }
+  },
+  {
+   "name": "S11",
+   "verdict": "loss",
+   "oos": {
+    "calmar": -0.175,
+    "sharpe": 0.368,
+    "total_return": 1.367,
+    "max_drawdown": -0.265,
+    "trades": 40
+   }
+  },
+  {
+   "name": "S12",
+   "verdict": "robust",
+   "oos": {
+    "calmar": 2.823,
+    "sharpe": 1.292,
+    "total_return": 1.251,
+    "max_drawdown": -0.202,
+    "trades": 0
+   }
+  },
+  {
+   "name": "S13",
+   "verdict": "overfit",
+   "oos": {
+    "calmar": 1.972,
+    "sharpe": 1.32,
+    "total_return": 0.412,
+    "max_drawdown": -0.507,
+    "trades": 12
+   }
+  },
+  {
+   "name": "S14",
+   "verdict": "few",
+   "oos": {
+    "calmar": 1.37,
+    "sharpe": 1.657,
+    "total_return": -0.379,
+    "max_drawdown": -0.427,
+    "trades": 12
+   }
+  },
+  {
+   "name": "S15",
+   "verdict": "loss",
+   "oos": {
+    "calmar": 0.423,
+    "sharpe": 0.543,
+    "total_return": 0.837,
+    "max_drawdown": -0.033,
+    "trades": 40
+   }
+  },
+  {
+   "name": "S16",
+   "verdict": "loss",
+   "oos": {
+    "calmar": -0.16,
+    "sharpe": -0.532,
+    "total_return": -0.382,
+    "max_drawdown": -0.466,
+    "trades": 12
+   }
+  },
+  {
+   "name": "S17",
+   "verdict": "overfit",
+   "oos": {
+    "calmar": 0.989,
+    "sharpe": 2.667,
+    "total_return": 0.493,
+    "max_drawdown": -0.116,
+    "trades": 3
+   }
+  },
+  {
+   "name": "S18",
+   "verdict": "loss",
+   "oos": {
+    "calmar": 3.417,
+    "sharpe": 2.277,
+    "total_return": 1.228,
+    "max_drawdown": -0.181,
+    "trades": 12
+   }
+  },
+  {
+   "name": "S19",
+   "verdict": "loss",
+   "oos": {
+    "calmar": 2.414,
+    "sharpe": 0.522,
+    "total_return": -0.038,
+    "max_drawdown": -0.068,
+    "trades": 12
+   }
+  },
+  {
+   "name": "S20",
+   "verdict": "overfit",
+   "oos": {
+    "calmar": 2.293,
+    "sharpe": -0.952,
+    "total_return": 1.162,
+    "max_drawdown": -0.126,
+    "trades": 3
+   }
+  },
+  {
+   "name": "S21",
+   "verdict": "few",
+   "oos": {
+    "calmar": -0.272,
+    "sharpe": 1.138,
+    "total_return": 0.72,
+    "max_drawdown": -0.205,
+    "trades": 0
+   }
+  },
+  {
+   "name": "S22",
+   "verdict": "overfit",
+   "oos": {
+    "calmar": 1.283,
+    "sharpe": 2.484,
+    "total_return": 1.404,
+    "max_drawdown": -0.415,
+    "trades": 0
+   }
+  },
+  {
+   "name": "S23",
+   "verdict": "loss",
+   "oos": {
+    "calmar": 0.995,
+    "sharpe": -0.586,
+    "total_return": 0.769,
+    "max_drawdown": -0.056,
+    "trades": 40
+   }
+  }
+ ],
+ "expected": {
+  "calmar": [
+   "S0",
+   "S12",
+   "S8",
+   "S4",
+   "S9",
+   "S20",
+   "S13",
+   "S22",
+   "S17",
+   "S1",
+   "S5",
+   "S10",
+   "S14",
+   "S2",
+   "S21",
+   "S6",
+   "S3",
+   "S18",
+   "S19",
+   "S7",
+   "S23",
+   "S15",
+   "S16",
+   "S11"
+  ],
+  "sharpe": [
+   "S8",
+   "S12",
+   "S0",
+   "S4",
+   "S17",
+   "S22",
+   "S13",
+   "S9",
+   "S5",
+   "S1",
+   "S20",
+   "S14",
+   "S6",
+   "S21",
+   "S10",
+   "S2",
+   "S18",
+   "S3",
+   "S7",
+   "S15",
+   "S19",
+   "S11",
+   "S16",
+   "S23"
+  ],
+  "return": [
+   "S12",
+   "S4",
+   "S8",
+   "S0",
+   "S22",
+   "S20",
+   "S9",
+   "S1",
+   "S17",
+   "S13",
+   "S5",
+   "S10",
+   "S21",
+   "S2",
+   "S6",
+   "S14",
+   "S11",
+   "S18",
+   "S15",
+   "S23",
+   "S3",
+   "S7",
+   "S19",
+   "S16"
+  ],
+  "dd": [
+   "S4",
+   "S8",
+   "S0",
+   "S12",
+   "S17",
+   "S20",
+   "S9",
+   "S5",
+   "S13",
+   "S1",
+   "S22",
+   "S2",
+   "S6",
+   "S10",
+   "S14",
+   "S21",
+   "S15",
+   "S23",
+   "S19",
+   "S18",
+   "S11",
+   "S16",
+   "S3",
+   "S7"
+  ]
+ }
+}

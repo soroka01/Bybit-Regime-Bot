@@ -1,0 +1,37 @@
+/* ---------- КОМАНДНАЯ ПАЛИТРА (Ctrl/Cmd+K, «/») и кнопка-подсказка в верхней панели ---------- */
+.palette-btn { gap: 8px; height: 30px; padding: 0 8px 0 10px; border: 1px solid var(--border); background: var(--surface-1); color: var(--fg-muted); font-size: var(--fs-12); }
+.palette-btn:hover:not(:disabled) { color: var(--fg); background: var(--surface-2); border-color: var(--border-strong); }
+.palette-btn-k { display: inline-flex; gap: 3px; margin-left: 2px; }
+.palette-btn-k .kbd { height: 17px; min-width: 17px; font-size: 10px; }
+@media (max-width: 1320px) { .palette-btn-t { display: none; } }
+@media (max-width: 1000px) { .palette-btn { width: var(--h-sm); padding: 0; justify-content: center; } .palette-btn-k { display: none; } }
+
+dialog.palette {
+  width: min(640px, calc(100vw - 24px)); max-height: min(520px, 80vh); margin: 12vh auto auto; padding: 0; overflow: hidden; display: none; flex-direction: column;
+  color: var(--fg); background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: var(--r-4); box-shadow: var(--shadow-3);
+}
+dialog.palette[open] { display: flex; animation: modal-in var(--t3) both; }
+dialog.palette::backdrop { background: var(--backdrop); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+.pal-head { display: flex; align-items: center; gap: 10px; padding: 0 var(--sp-4); border-bottom: 1px solid var(--border); color: var(--fg-muted); }
+.pal-head .pal-input {
+  flex: 1; min-width: 0; height: 52px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none;
+  font-size: var(--fs-16); color: var(--fg);
+}
+.pal-head .pal-input:focus-visible { outline: none; box-shadow: none; border: 0; }
+.pal-list { list-style: none; margin: 0; padding: var(--sp-2); overflow: auto; flex: 1; }
+.pal-item {
+  display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; align-items: center; gap: var(--sp-3); padding: 8px var(--sp-3);
+  border-radius: var(--r-2); cursor: pointer; border: 1px solid transparent;
+}
+.pal-item.active { background: var(--accent-soft); border-color: var(--accent-border); }
+.pal-ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-1); color: var(--fg-muted); background: var(--surface-2); }
+.pal-item.active .pal-ic { color: var(--accent); }
+.pal-txt { display: flex; flex-direction: column; min-width: 0; }
+.pal-title { font-size: var(--fs-14); font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-hint { font-size: var(--fs-12); color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-group { font-size: var(--fs-11); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-muted); }
+.pal-keys { display: inline-flex; gap: 3px; }
+.pal-empty { padding: var(--sp-5); text-align: center; color: var(--fg-muted); font-size: var(--fs-13); }
+.pal-foot { display: flex; gap: var(--sp-4); padding: 8px var(--sp-4); border-top: 1px solid var(--border); background: var(--surface-2); font-size: var(--fs-12); color: var(--fg-muted); }
+.pal-foot span { display: inline-flex; align-items: center; gap: 4px; }
+@media (max-width: 560px) { .pal-group, .pal-foot { display: none; } .pal-item { grid-template-columns: 28px minmax(0, 1fr) auto; } dialog.palette { margin-top: 8vh; } }

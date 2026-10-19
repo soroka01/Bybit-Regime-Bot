@@ -1,0 +1,73 @@
+/* ---------- ГРАФИКИ: контейнеры, легенда-чипы, плавающая подсказка, uPlot, тепловые карты, маркеры ---------- */
+.chart { position: relative; width: 100%; min-height: 40px; }
+.chart .uplot { font-family: var(--font-ui); display: block; }
+.chart .u-legend { display: none; }
+.chart .u-over { cursor: crosshair; }
+/* перекрестие: волосок; горизонтальная линия — едва заметная */
+.chart .u-cursor-x { border-right: 1px solid var(--crosshair) !important; }
+.chart .u-cursor-y { border-bottom: 1px dashed var(--grid) !important; }
+.chart .u-select { background: var(--accent-soft); border: 1px solid var(--accent-border); }
+
+/* плавающая карточка подсказки (общая для линий, столбцов, полос, тепловых карт) */
+.chart-tip {
+  position: absolute; left: 0; top: 0; z-index: var(--z-tooltip); min-width: 150px; max-width: 320px; padding: 9px 11px; border-radius: var(--r-2);
+  pointer-events: none; color: var(--fg); background: color-mix(in srgb, var(--surface-3) 94%, transparent); border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-2); backdrop-filter: blur(10px);
+  font-size: var(--fs-12); line-height: 1.35; opacity: 0; transition: opacity var(--dur-1); will-change: transform;
+}
+.chart-tip.on { opacity: 1; }
+.chart-tip .tt-title { color: var(--fg-muted); font-size: var(--fs-11); font-weight: 600; letter-spacing: .02em; margin-bottom: 6px; white-space: nowrap; }
+.chart-tip .tt-row { display: grid; grid-template-columns: 14px 1fr auto; align-items: center; column-gap: 8px; padding: 1.5px 0; }
+.chart-tip .tt-key { width: 14px; height: 0; border-top: 2px solid var(--k, currentColor); border-radius: 2px; }
+.chart-tip .tt-key.dash { border-top-style: dashed; }
+.chart-tip .tt-key.box { height: 8px; border: 0; border-radius: 3px; background: var(--k); width: 8px; justify-self: center; }
+.chart-tip .tt-label { color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+.chart-tip .tt-val { color: var(--fg); font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chart-tip .tt-val.pos { color: var(--pos); } .chart-tip .tt-val.neg { color: var(--neg); }
+.chart-tip .tt-note { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--border); color: var(--fg-muted); font-size: var(--fs-11); white-space: pre-line; max-width: 280px; }
+
+/* компактная легенда над графиком */
+.chart-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 var(--sp-2); min-height: 20px; }
+.lg-item { display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-12); color: var(--fg-muted); padding: 0; border: 0; background: none; cursor: default; }
+.lg-key { width: 16px; height: 0; border-top: 2px solid var(--k, currentColor); border-radius: 2px; }
+.lg-key.dash { border-top-style: dashed; }
+.lg-key.area { height: 8px; border: 0; border-radius: 3px; background: var(--k); width: 8px; }
+.marker-legend { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-2); }
+.mk { display: inline-block; width: 0; height: 0; vertical-align: middle; }
+.mk.up { border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--long); }
+.mk.down { border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 9px solid var(--short); }
+.mk.ring { width: 9px; height: 9px; border: 2px solid var(--fg-muted); border-radius: 50%; }
+
+canvas.strips { display: block; width: 100%; border-radius: var(--r-2); }
+.strips-wrap { position: relative; }
+
+/* SVG-графики (столбцы, профиль) */
+svg.bars text, .profile svg text { font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
+svg.bars path.bar { transition: opacity var(--dur-1), filter var(--dur-1); }
+svg.bars path.bar:hover, svg.bars path.bar:focus-visible { filter: brightness(1.18); }
+svg.bars path.bar:focus-visible { outline: none; stroke: var(--fg); stroke-width: 1.5; }
+.profile .pt { cursor: pointer; outline: none; }
+.profile .pt:hover .ring, .profile .pt:focus-visible .ring { stroke: var(--fg); stroke-width: 2; }
+.profile { position: relative; }
+
+/* тепловые карты: скруглённые ячейки, значения читаемы (цвет текста подбирает charts/heatmap.ts по контрасту) */
+table.heat { width: 100%; border-collapse: separate; border-spacing: 3px; }
+table.heat th { font-weight: 600; font-size: var(--fs-11); color: var(--fg-muted); padding: 4px 6px; text-align: center; letter-spacing: .04em; text-transform: uppercase; }
+table.heat th[scope="row"] { text-align: right; padding-right: 8px; text-transform: none; font-size: var(--fs-12); letter-spacing: 0; }
+table.heat td {
+  text-align: center; padding: 8px 4px; font-size: var(--fs-12); min-width: 38px; border-radius: 6px; background: var(--surface-2); font-variant-numeric: tabular-nums;
+  transition: transform var(--t1), box-shadow var(--dur-1);
+}
+table.heat .sep { margin-left: 6px; }
+table.heat .strong { font-weight: 700; }
+table.heat td.pickable { cursor: pointer; }
+table.heat td.pickable:hover, table.heat td:hover { box-shadow: 0 0 0 2px var(--fg); position: relative; z-index: 1; }
+table.heat td.pickable:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+table.heat td.base { box-shadow: 0 0 0 2px var(--fg); }
+table.heat th.corner { text-align: left; font-size: var(--fs-11); width: 120px; text-transform: none; letter-spacing: 0; }
+.heat-wrap { position: relative; }
+.heat-legend { display: flex; align-items: center; gap: 8px; margin-top: var(--sp-3); font-size: var(--fs-11); color: var(--fg-muted); }
+.heat-legend .bar { flex: 0 1 220px; height: 8px; border-radius: 8px; background: linear-gradient(90deg, var(--heat-neg), var(--heat-mid), var(--heat-pos)); box-shadow: inset 0 0 0 1px var(--border); }
+
+/* спарклайн (рейтинг стратегий) */
+.spark { display: block; width: 100%; max-width: 220px; height: auto; background: var(--surface-2); border-radius: var(--r-2); border: 1px solid var(--border); }

@@ -1,0 +1,56 @@
+/* ---------- ОКНО «ПОДОБРАТЬ ПАРАМЕТРЫ»: контекст, критерий, состояния, таблица IS/OOS ---------- */
+dialog.modal .modal-body { gap: var(--sp-4); }
+.opt-top { display: flex; flex-direction: column; gap: var(--sp-3); }
+.opt-ctx { display: flex; flex-wrap: wrap; gap: 6px; }
+.opt-crit-wrap .section-label { margin-bottom: 6px; }
+.opt-crit { display: flex; flex-wrap: wrap; gap: 6px; }
+.opt-crit .chip-btn { height: 28px; padding: 0 14px; }
+.opt-crit-note { margin: 6px 0 0; }
+
+.opt-out { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.opt-loading { display: flex; flex-direction: column; gap: 4px; }
+.opt-skel { display: flex; flex-direction: column; gap: 8px; }
+.opt-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2) var(--sp-3); }
+.opt-best { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.opt-best .section-label { margin: 0; }
+.opt-best .chip-param { margin: 0; }
+.opt-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--sp-2); }
+.opt-stat { padding: 9px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-2); min-width: 0; }
+.opt-stat .metric-label { font-size: var(--fs-11); letter-spacing: .04em; text-transform: uppercase; font-weight: 600; }
+.os-v { margin: 2px 0 1px; font-size: var(--fs-14); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* таблица: сгруппированные колонки In-sample / Out-of-sample */
+.opt-table { max-height: 420px; }
+table.data.opt th, table.data.opt td { padding: 8px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+table.data.opt thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); color: var(--fg-muted); font-size: var(--fs-11); font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+table.data.opt thead tr.group th { top: 0; text-align: center; border-bottom: 0; padding-bottom: 2px; letter-spacing: .06em; }
+table.data.opt thead tr:not(.group) th { top: 26px; border-bottom: 1px solid var(--border-strong); }
+table.opt tr.group th.is { color: var(--fg-muted); }
+table.opt tr.group th.oos { color: var(--accent); }
+table.opt .left { text-align: left; }
+table.opt td.is { color: var(--fg-muted); }
+table.opt th.oos, table.opt td.oos { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+table.data.opt thead th.oos { background: color-mix(in srgb, var(--accent) 7%, var(--surface-2)); }
+table.opt th.is:first-of-type, table.opt .is + .is { border-left: 0; }
+table.opt td.oos:first-of-type, table.opt th.oos:first-of-type { box-shadow: inset 1px 0 0 var(--border-strong); }
+table.opt td.rk { font-variant-numeric: tabular-nums; color: var(--fg-muted); }
+table.opt tr.best td { background: color-mix(in srgb, var(--accent) 9%, transparent); border-bottom-color: var(--accent-border); }
+table.opt tr.best td.oos { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+table.opt tr.best td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+table.opt .chip-param { margin: 0 4px 0 0; }
+.best-tag { display: inline-block; padding: 1px 7px; border-radius: var(--r-pill); font-size: var(--fs-11); font-weight: 650; color: var(--fg-on-accent); background: var(--accent); }
+table.data.opt td.act, table.data.opt th.act { padding-left: 2px; padding-right: 12px; }
+.opt-acts { flex-wrap: nowrap; }
+
+.opt-curve { padding: var(--sp-3) var(--sp-4) var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-3); background: var(--surface-2); }
+.opt-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.opt-foot p { margin: 0; flex: 1 1 320px; max-width: 70ch; }
+.opt-foot-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
+@media (max-width: 640px) {
+  .opt-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  dialog.modal { width: 100vw; max-height: 100dvh; border-radius: 0; }
+  .modal-body { padding: var(--sp-3) var(--sp-3) var(--sp-4); }
+  .opt-foot-actions { width: 100%; }
+  .opt-foot-actions .btn { flex: 1 1 auto; }
+}

@@ -1,0 +1,53 @@
+/* ---------- ВКЛАДКА «WALK-FORWARD»: сводка, оценка вариантов, выбранные кривые, матрица окон ---------- */
+.wf-content { display: flex; flex-direction: column; gap: var(--sp-4); }
+.wf-content[hidden] { display: none; }
+.wf-how > summary .disc-badge { margin-left: auto; }
+.wf-how .disc-body { color: var(--fg-muted); }
+
+.wf-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--sp-3); }
+.wf-tile { padding: 12px var(--sp-4) 11px; gap: 3px; }
+.wf-tile .wf-v { font-size: 28px; }
+.wf-lev .segmented { margin: 2px 0 4px; }
+.wf-lev .segmented button { height: 26px; }
+.wf-tile .btn { align-self: flex-start; margin-top: 2px; }
+.wf-best-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wf-tile .metric-sub { overflow-wrap: anywhere; }
+
+.wf-filters { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-items: end; }
+.wf-filters .field { margin-bottom: var(--sp-2); }
+.wf-count { margin: 0 0 var(--sp-3); }
+
+.wf-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; vertical-align: -1px; border: 1.5px solid var(--border-strong); background: transparent; }
+.wf-dot.on { border-color: transparent; background: var(--k, var(--accent)); }
+.wf-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 var(--sp-3); }
+.wf-chips:empty { display: none; }
+.wf-chip { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 4px 0 10px; border-radius: var(--r-pill); font-size: var(--fs-12); background: var(--surface-2); border: 1px solid var(--border); max-width: 100%; }
+.wf-chip > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wf-chip-x { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--fg-muted); cursor: pointer; }
+.wf-chip-x:hover { background: var(--surface-hover); color: var(--fg); }
+
+.wf-matrix { margin-top: var(--sp-3); max-height: 440px; }
+.wf-matrix table.data th, .wf-matrix table.data td { padding: 7px 12px; }
+.wf-matrix thead th { padding: 9px 12px; color: var(--fg-muted); font-size: var(--fs-11); font-weight: 650; letter-spacing: .02em; text-align: right; }
+.wf-matrix thead th.left { text-align: left; }
+.wf-th { display: inline-flex; align-items: center; gap: 6px; }
+.wf-th .wf-dot { background: var(--k); }
+.wf-matrix tbody th { font-weight: 500; color: var(--fg-muted); white-space: nowrap; }
+.wf-cell.pos { color: var(--pos); background: color-mix(in srgb, var(--pos) 9%, transparent); }
+.wf-cell.neg { color: var(--neg); background: color-mix(in srgb, var(--neg) 9%, transparent); }
+.wf-matrix tfoot th, .wf-matrix tfoot td { position: sticky; bottom: 0; background: var(--surface-2); border-top: 1px solid var(--border-strong); border-bottom: 0; }
+.wf-matrix tfoot th { text-align: left; font-size: var(--fs-12); color: var(--fg); }
+table.data td .badge { vertical-align: middle; }
+table.data tbody tr td:has(> .wf-dot) { padding-right: 4px; }
+
+.wf-levs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-top: var(--sp-3); }
+.wf-skel { display: flex; flex-direction: column; gap: var(--sp-4); }
+.wf .empty-state.big { margin-top: var(--sp-2); }
+
+@media (max-width: 640px) {
+  .wf-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+  .wf-lev { grid-column: 1 / -1; }
+  .wf-lev .segmented button { flex: 1 1 0; padding: 0 4px; }
+  .wf-tile .wf-v { font-size: 22px; }
+  .wf-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -1,0 +1,277 @@
+/* ---------- ВКЛАДКА «БОТ (LIVE)»: панель торговли. Только токены; раскладка — сетка, на телефоне всё в одну колонку ---------- */
+.live { gap: var(--sp-4); }
+.lv-updated { white-space: nowrap; }
+.live .page-head { align-items: flex-start; }
+.live .page-actions { gap: var(--sp-3); }
+
+/* ----- герой ----- */
+.lv-hero {
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(190px, 1fr) minmax(0, auto); gap: var(--sp-4) var(--sp-5); align-items: center;
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+}
+.lv-hero-main { min-width: 0; }
+.lv-equity { font-size: 44px; line-height: 1.05; font-weight: 650; letter-spacing: -.035em; font-variant-numeric: proportional-nums; margin: 2px 0 var(--sp-3); overflow-wrap: anywhere; }
+.lv-pls { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); }
+.lv-pl { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.lv-pl .delta { height: 24px; padding: 0 9px; font-size: var(--fs-13); gap: 5px; }
+.lv-pl .delta .g { font-size: 9px; }
+.lv-pl-l { font-size: var(--fs-12); color: var(--fg-muted); }
+.lv-hero-spark { min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.lv-hero-spark .sparkline { width: 100%; height: auto; max-height: 82px; display: block; }
+.lv-spark-cap { text-align: right; }
+.lv-hero-stats { display: flex; gap: var(--sp-5); }
+.lv-stat { min-width: 108px; }
+.lv-stat-l { font-size: var(--fs-12); color: var(--fg-muted); font-weight: 500; }
+.lv-stat-v { font-size: var(--fs-20); font-weight: 650; letter-spacing: -.02em; line-height: 1.25; font-variant-numeric: proportional-nums; }
+.lv-stat-v.sm { font-size: var(--fs-14); letter-spacing: 0; padding-top: 3px; }
+.lv-stat-v.neg { color: var(--neg); }
+.lv-stat-v .g { font-size: .55em; vertical-align: .18em; }
+.lv-stat-s { font-size: var(--fs-12); }
+.lv-pills { grid-column: 1 / -1; padding-top: var(--sp-3); border-top: 1px solid var(--border); }
+.lv-pill-note { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 6px; margin: -4px 0 0; line-height: 1.45; }
+.lv-pill-note .icon { margin-top: 2px; color: var(--warn); }
+.live .badge[role="listitem"] { cursor: default; }
+
+/* ----- две колонки ----- */
+.lv-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: var(--sp-4); align-items: stretch; }
+.lv-bottom { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+.live .card-head h3 { font-size: var(--fs-14); }
+.lv-foot { margin: var(--sp-3) 0 0; line-height: 1.45; }
+.lv-big { font-size: var(--fs-20); font-weight: 650; letter-spacing: -.02em; line-height: 1.2; font-variant-numeric: proportional-nums; }
+.lv-big .g { font-size: .55em; vertical-align: .16em; }
+
+/* ----- позиция ----- */
+/* сторона позиции: нейтральная рамка + слово + контурный значок; цвета прибыли/убытка здесь не используются */
+.lv-side {
+  --tone: var(--fg); display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: var(--r-2);
+  font-size: var(--fs-16); font-weight: 750; letter-spacing: .06em; color: var(--tone);
+  background: transparent; border: 1px solid var(--border-strong);
+}
+.lv-side-g { font-size: .8em; color: var(--fg-muted); }
+.lv-pos { display: flex; flex-direction: column; }
+.lv-pos > .lv-foot { margin-top: auto; padding-top: var(--sp-3); }
+.lv-pos .card-head { margin-bottom: var(--sp-4); }
+.lv-pos-top { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); margin-bottom: var(--sp-4); }
+.lv-pos-pnl.pos .lv-big { color: var(--pos); } .lv-pos-pnl.neg .lv-big { color: var(--neg); }
+.lv-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.lv-fact { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-2); padding: 8px 10px; min-width: 0; }
+.lv-fact-l { font-size: var(--fs-11); color: var(--fg-muted); font-weight: 500; line-height: 1.3; }
+.lv-fact-v { font-size: var(--fs-14); font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.lv-fact-s { font-size: var(--fs-11); line-height: 1.3; }
+.lv-fact.bad { border-color: color-mix(in srgb, var(--neg) 50%, var(--border)); }
+.lv-fact.bad .lv-fact-v { color: var(--neg); }
+.lv-warn { margin: var(--sp-2) 0 0; }
+.lv-flat { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: var(--sp-4) var(--sp-3) var(--sp-3); color: var(--fg-muted); }
+.lv-flat p { margin: 0; max-width: 46ch; line-height: 1.5; }
+.lv-flat .strong { color: var(--fg); font-size: var(--fs-14); }
+.lv-side.flat { --tone: var(--fg-muted); border-style: dashed; }
+
+/* линейка цены */
+.lv-ruler { position: relative; margin: auto var(--sp-3); padding-top: var(--sp-4); }
+.rl-track { position: relative; height: 8px; border-radius: 8px; background: var(--track); }
+.rl-zone {
+  position: absolute; top: 0; bottom: 0; border-radius: 8px; background: color-mix(in srgb, var(--neg) 30%, transparent);
+  background-image: repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--neg) 35%, transparent) 5px 7px);
+}
+.rl-pnl { position: absolute; top: 1px; bottom: 1px; border-radius: 4px; background: var(--fg-muted); opacity: .85; }
+.rl-pnl.pos { background: var(--pos); } .rl-pnl.neg { background: var(--neg); }
+.rl-tick { position: absolute; top: -6px; width: 3px; height: 20px; margin-left: -1.5px; border-radius: 2px; background: var(--fg); }
+.rl-tick.stop { background: var(--warn); } .rl-tick.liq { background: var(--neg); height: 24px; top: -8px; }
+.rl-dot { position: absolute; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface-1); box-shadow: 0 0 0 1.5px var(--accent); }
+.rl-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: var(--sp-2); margin-top: var(--sp-4); }
+.rl-item { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-2); }
+.rl-item-t { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.rl-key { flex: none; width: 3px; height: 26px; border-radius: 2px; background: var(--fg); }
+.rl-key.stop { background: var(--warn); } .rl-key.liq { background: var(--neg); }
+.rl-key.mark { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
+.rl-name { font-size: var(--fs-11); font-weight: 600; color: var(--fg-muted); }
+.rl-price { font-size: var(--fs-13); font-weight: 650; font-family: var(--font-mono); color: var(--fg); white-space: nowrap; }
+.rl-item.stop .rl-name { color: var(--warn); } .rl-item.liq .rl-name { color: var(--neg); } .rl-item.mark .rl-name { color: var(--accent); }
+
+/* ----- цель и сигналы ----- */
+.lv-gauge { margin-bottom: var(--sp-3); }
+.lg-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); }
+.lg-top .section-label { margin: 0; }
+.lg-val { font-size: var(--fs-20); font-weight: 650; letter-spacing: -.02em; font-variant-numeric: proportional-nums; }
+.lg-word { font-size: var(--fs-13); font-weight: 600; letter-spacing: 0; color: var(--fg-muted); }
+.lg-track { position: relative; height: 12px; margin: 10px 0 6px; border-radius: 12px; background: var(--track); }
+.lg-zero { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--fg-muted); border-radius: 2px; }
+.lg-fill { position: absolute; top: 0; bottom: 0; background: var(--fg-muted); opacity: .9; }
+.lg-fill.long { border-radius: 0 12px 12px 0; } .lg-fill.short { border-radius: 12px 0 0 12px; }      /* направление — положением от нуля и словом, не цветом */
+.lg-marker { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--surface-1); border: 3px solid var(--fg-muted); }
+.lg-marker.long, .lg-marker.short { border-color: var(--fg); }
+.lg-scale { display: flex; justify-content: space-between; font-size: var(--fs-11); color: var(--fg-muted); font-weight: 500; }
+.lv-nextbar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; padding: 8px 12px; margin-bottom: var(--sp-3); border-radius: var(--r-2); background: var(--surface-2); border: 1px solid var(--border); font-size: var(--fs-13); }
+.lv-nextbar .icon { color: var(--accent); }
+.lv-nextbar b { font-size: var(--fs-14); }
+.chip-tf { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 5px; font: 600 var(--fs-11) / 1 var(--font-mono); color: var(--fg-muted); background: var(--surface-2); border: 1px solid var(--border); }
+
+.lv-legs { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--r-2); overflow: hidden; background: var(--surface-1); }
+.lv-leg {
+  display: grid; grid-template-columns: minmax(0, 1fr) 54px 96px 58px 92px; gap: var(--sp-2) var(--sp-3); align-items: center; padding: 9px var(--sp-3);
+  border-bottom: 1px solid var(--border); font-size: var(--fs-13);
+}
+.lv-leg:last-child { border-bottom: 0; }
+.lv-leg.head { padding-top: 7px; padding-bottom: 7px; background: var(--surface-2); font-size: var(--fs-11); font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-muted); }
+.lv-leg.head span:not(:first-child) { text-align: right; }
+.lv-leg-id { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lv-leg-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.lv-leg-name b { font-weight: 650; overflow-wrap: anywhere; }
+.lv-leg-name .badge { height: 18px; font-size: var(--fs-11); padding: 0 7px; }
+.lv-leg-sub { overflow-wrap: anywhere; line-height: 1.35; }
+.lv-leg-w, .lv-leg-c, .lv-leg-cd { text-align: right; font-variant-numeric: tabular-nums; }
+.lv-leg-cd { font-size: var(--fs-12); }
+.lv-leg-sig { text-align: right; font-weight: 600; white-space: nowrap; }
+.lv-leg-sig.long, .lv-leg-sig.short { color: var(--fg); } .lv-leg-sig.flat, .lv-leg-sig.none { color: var(--fg-muted); }
+.lv-leg-c { font-weight: 650; }
+
+/* неактивные ноги: свёрнутый список под таблицей */
+.lv-idle { margin-top: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-2); background: var(--surface-1); }
+.lv-idle > summary {
+  display: flex; align-items: center; gap: var(--sp-2); padding: 8px var(--sp-3); cursor: pointer; list-style: none; user-select: none;
+  font-size: var(--fs-13); font-weight: 600; color: var(--fg-muted); border-radius: var(--r-2);
+}
+.lv-idle > summary::-webkit-details-marker { display: none; }
+.lv-idle > summary::before {
+  content: ""; width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg);
+  transition: transform var(--dur-2) var(--ease); margin: 0 4px 0 2px;
+}
+.lv-idle[open] > summary::before { transform: rotate(45deg) translate(-2px, -2px); }
+.lv-idle > summary:hover { color: var(--fg); background: var(--surface-hover); }
+.lv-idle-list { list-style: none; margin: 0; padding: 0; }
+.lv-idle-leg { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 7px var(--sp-3); border-top: 1px solid var(--border); font-size: var(--fs-13); }
+.lv-idle-leg b { font-weight: 650; color: var(--fg-muted); overflow-wrap: anywhere; }
+.lv-idle-leg .badge { height: 18px; font-size: var(--fs-11); padding: 0 7px; }
+.lv-idle-leg .mono { overflow-wrap: anywhere; min-width: 0; }
+.lv-hint { margin: var(--sp-3) 0 0; line-height: 1.45; }
+
+/* ----- лимиты риска ----- */
+.lv-risks .card-head { margin-bottom: var(--sp-2); }
+.lv-risk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2) var(--sp-6); }
+.lv-risk { padding: var(--sp-2) 0 var(--sp-3); }
+.lv-risk-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-bottom: 8px; }
+.lv-risk-l { font-size: var(--fs-13); font-weight: 600; }
+.lv-risk-state { font-size: var(--fs-12); font-weight: 650; color: var(--ok); }
+.lv-risk-state.warn { color: var(--warn); } .lv-risk-state.bad { color: var(--neg); }
+.lv-risk-state .g { font-weight: 800; }
+.lv-risk-bot { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); flex-wrap: wrap; margin-top: 8px; font-size: var(--fs-13); }
+.lv-risk-hint { margin: 2px 0 0; }
+.lv-chips { display: flex; flex-wrap: wrap; gap: 6px; padding-top: var(--sp-3); border-top: 1px solid var(--border); }
+.lv-risks .card-head { margin-bottom: var(--sp-1); }
+.lv-chips .chip b { font-weight: 650; }
+
+/* ----- график ----- */
+.lv-chart .card-head { margin-bottom: var(--sp-2); }
+.lv-range.segmented { margin: 0; }
+.lv-range.segmented button { padding: 0 12px; }
+.lv-mk { align-items: center; margin-top: var(--sp-2); }
+.lv-chart > .muted { margin: var(--sp-2) 0 0; }
+.lv-chart > .lv-range-note { margin: 0 0 var(--sp-2); }
+.lv-pl-loading { min-height: 24px; }
+
+/* ----- сделки ----- */
+.lv-trades-wrap { max-height: 440px; }
+table.lv-trades th, table.lv-trades td { padding-left: 10px; padding-right: 10px; }
+.lv-trades .th-txt { display: block; padding: 8px 0; font-size: var(--fs-11); font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-muted); }
+table.lv-trades thead th { padding: 0 10px; }
+table.lv-trades td.lv-reason { white-space: normal; min-width: 96px; max-width: 220px; color: var(--fg-muted); }
+.lv-t-abs { font-size: var(--fs-11); }
+/* сторона/ордер: нейтральная контурная пилюля (слово + △/▽); --pos/--neg зарезервированы за прибылью и убытком */
+.side-badge { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: var(--r-pill); font-size: var(--fs-12); font-weight: 650; letter-spacing: .03em; color: var(--fg); background: transparent; border: 1px solid var(--border-strong); white-space: nowrap; }
+.side-badge .sb-g { font-size: 10px; color: var(--fg-muted); }
+.side-badge.order { font-weight: 600; letter-spacing: 0; border-style: dashed; }
+.lv-more { margin-top: var(--sp-2); }
+.lv-trades-slot { display: block; min-width: 0; }
+.lv-trades-hint { margin: 0 0 var(--sp-3); }
+
+/* ----- закрытые сделки: деньги — главное ----- */
+.lv-strip { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 10px 14px; margin: 0 0 var(--sp-3); border-radius: var(--r-2); background: var(--surface-2); border: 1px solid var(--border); font-size: var(--fs-14); }
+.lv-strip-l { font-weight: 650; }
+.lv-strip b { font-variant-numeric: tabular-nums; }
+.lv-strip .st-m.strong { font-size: var(--fs-16); }
+.lv-strip .g { font-size: .6em; vertical-align: .14em; }
+.lv-strip-roi { margin-left: auto; white-space: nowrap; }
+.st-m.pos { color: var(--pos); } .st-m.neg { color: var(--neg); }
+table.lv-closed-t th, table.lv-closed-t td { vertical-align: middle; }
+td.lv-res, th.lv-res-h { text-align: right; white-space: nowrap; }
+.lv-res-usd { font-size: var(--fs-14); font-weight: 700; font-variant-numeric: tabular-nums; }
+.lv-res.pos .lv-res-usd { color: var(--pos); } .lv-res.neg .lv-res-usd { color: var(--neg); }
+.lv-res .g { font-size: .6em; vertical-align: .14em; }
+.lv-res-pct { font-variant-numeric: tabular-nums; line-height: 1.3; }
+.lv-open-row td { background: var(--surface-2); border-bottom: 1px solid var(--border-strong); }
+.lv-open-tag.badge { letter-spacing: .06em; color: var(--fg); background: var(--surface-3); border: 1px solid var(--border-strong); }
+/* новая закрытая сделка (10 с): лёгкая тонировка 8 % (контраст текста >= 4.5:1 в обеих темах) + полоса слева; смысл несёт метка «новая», не цвет */
+tr.tr-new td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+tr.tr-new td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.lv-new-tag.badge { margin-left: 6px; color: var(--fg); background: var(--surface-1); border: 1px solid var(--accent-border); }
+.lv-closed-note { margin: var(--sp-2) 0 0; }
+.lv-closed .st-reason-t { max-width: 200px; }
+td.lv-c-hold, td.lv-c-qty, td.lv-c-px { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ----- события: временная шкала ----- */
+.lv-evseg { margin-bottom: var(--sp-3); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.lv-evseg button { flex: none; }
+.lv-timeline { list-style: none; margin: 0; padding: 0 var(--sp-1) 0 0; max-height: 440px; overflow: auto; position: relative; }
+.lv-ev { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: var(--sp-2); padding-bottom: var(--sp-3); }
+.lv-ev::before { content: ""; position: absolute; left: 13.5px; top: 28px; bottom: 0; width: 1px; background: var(--border-strong); }
+.lv-ev:last-child::before { display: none; }
+.lv-ev-ic { --tone: var(--fg-muted); display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--tone); background: color-mix(in srgb, var(--tone) 13%, var(--surface-1)); border: 1px solid color-mix(in srgb, var(--tone) 38%, transparent); }
+.lv-ev.trade .lv-ev-ic { --tone: var(--accent); } .lv-ev.signal .lv-ev-ic { --tone: var(--info); }
+.lv-ev.warn .lv-ev-ic { --tone: var(--warn); } .lv-ev.error .lv-ev-ic { --tone: var(--neg); } .lv-ev.daily .lv-ev-ic { --tone: var(--ok); }
+.lv-ev-body { min-width: 0; padding-top: 2px; }
+.lv-ev-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--sp-2); font-size: var(--fs-11); color: var(--fg-muted); }
+.lv-ev-kind { font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.lv-ev.warn .lv-ev-kind { color: var(--warn); } .lv-ev.error .lv-ev-kind { color: var(--neg); }
+.lv-ev-text { font-size: var(--fs-13); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 1px; }
+.lv-ev.noise .lv-ev-text { color: var(--fg-muted); font-size: var(--fs-12); }
+.lv-ev.noise .lv-ev-ic { opacity: .6; } .lv-ev.noise .lv-ev-kind { font-weight: 600; }
+.lv-ev.error .lv-ev-text, .lv-ev.warn .lv-ev-text { font-size: var(--fs-12); }
+
+/* ----- пустое состояние ----- */
+.lv-empty .empty-state.big { padding: 72px var(--sp-4); }
+.lv-reason-line { text-align: center; margin-top: var(--sp-3); }
+.lv-skel { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* ----- адаптив ----- */
+@media (max-width: 1180px) {
+  .lv-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .lv-hero-stats { grid-column: 1 / -1; }
+  .lv-cols, .lv-bottom { grid-template-columns: minmax(0, 1fr); }
+  .lv-risk-grid { gap: var(--sp-2) var(--sp-5); }
+}
+@media (max-width: 720px) {
+  .lv-risk-grid { grid-template-columns: minmax(0, 1fr); }
+  .lv-hero { grid-template-columns: minmax(0, 1fr); padding: var(--sp-4); }
+  .lv-equity { font-size: 38px; }
+  .lv-hero-spark { order: 3; }
+  .lv-hero-stats { gap: var(--sp-4); flex-wrap: wrap; }
+  .lv-pos-top { grid-template-columns: 1fr; gap: var(--sp-3); }
+  .lv-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lv-skel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lv-leg { grid-template-columns: .7fr 1.35fr .8fr 1fr; row-gap: 6px; }
+  .lv-leg.head { display: none; }
+  .lv-leg-id { grid-column: 1 / -1; }
+  .lv-leg [data-l]::before { content: attr(data-l); display: block; font-size: var(--fs-11); font-weight: 500; color: var(--fg-muted); text-align: left; }
+  .lv-leg-w, .lv-leg-sig, .lv-leg-c, .lv-leg-cd { text-align: left; }
+  .live .page-head { gap: var(--sp-2); }
+  .lv-updated { display: none; }
+  .lv-trades-wrap { max-height: none; }
+  .lv-notional, .lv-t-abs { display: none; }
+  .lv-closed-t .lv-c-qty, .lv-closed-t .lv-c-hold { display: none; }
+  .lv-strip { font-size: var(--fs-13); padding: 8px 10px; }
+  .lv-strip-roi { margin-left: 0; width: 100%; }
+  .lv-closed .lv-t-abs { display: inline; }
+  table.lv-trades th, table.lv-trades td { padding-left: 8px; padding-right: 8px; }
+}
+@media (max-width: 520px) {
+  .lv-closed-t .lv-c-px, .lv-closed-t th:last-child, .lv-closed-t td:last-child { display: none; }
+  .lv-closed .lv-t-abs { display: none; }
+  .lv-closed .side-badge { padding: 0 6px; gap: 3px; font-size: var(--fs-11); letter-spacing: 0; }
+  table.lv-closed-t th, table.lv-closed-t td { padding-left: 6px; padding-right: 6px; }
+  table.lv-closed-t { table-layout: fixed; width: 100%; }
+  .lv-closed-t th:nth-child(1) { width: 34%; } .lv-closed-t th:nth-child(2) { width: 26%; } .lv-closed-t th.lv-res-h { width: 40%; }
+  .lv-closed-t th, .lv-closed-t td { overflow-wrap: anywhere; }
+  table.lv-closed-t td.lv-res, table.lv-closed-t th.lv-res-h, table.lv-closed-t td:first-child, table.lv-closed-t th { white-space: normal; }
+  .lv-res-usd { white-space: nowrap; }
+  .lv-closed-t .th-txt { letter-spacing: .02em; }
+}

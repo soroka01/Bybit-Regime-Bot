@@ -1,0 +1,93 @@
+/* ---------- БАЗА: сброс, типографика, фокус, утилиты, движение, forced-colors ---------- */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--topbar-h) + 16px); }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 400 var(--fs-14) / 1.5 var(--font-ui);
+  font-variant-numeric: tabular-nums;          /* числа в колонках и подписях выравниваются; у крупных чисел отключается ниже */
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh; overflow-x: hidden;
+}
+/* слоистый фон страницы: два мягких «свечения» + базовый цвет (fixed-слой, не перерисовывается при прокрутке) */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(1100px 520px at 12% -8%, var(--bg-glow-1), transparent 62%),
+    radial-gradient(900px 480px at 100% 0%, var(--bg-glow-2), transparent 58%);
+}
+h1, h2, h3, h4 { margin: 0; line-height: 1.2; font-weight: 600; letter-spacing: -.01em; }
+h1 { font-size: var(--fs-28); letter-spacing: -.025em; }
+h2 { font-size: var(--fs-20); letter-spacing: -.02em; }
+h3 { font-size: var(--fs-14); }
+p { margin: 0 0 var(--sp-2); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); text-decoration: underline; text-underline-offset: 3px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+code, kbd, .mono { font-family: var(--font-mono); font-size: .92em; }
+::selection { background: var(--accent-soft); }
+[hidden] { display: none !important; }
+
+/* фокус: 2px акцентное кольцо со смещением — только для клавиатуры */
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--r-1); }
+:focus:not(:focus-visible) { outline: none; }
+
+/* полосы прокрутки: тонкие, под тему */
+* { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- утилиты ---------- */
+.muted { color: var(--fg-muted); } .subtle { color: var(--fg-subtle); }
+.small { font-size: var(--fs-12); } .strong { font-weight: 600; }
+/* .pos/.neg — ТОЛЬКО прибыль/убыток. Сторона (лонг/шорт) этими цветами не красится: см. .side-badge и DESIGN.md §1a */
+.pos { color: var(--pos); } .neg { color: var(--neg); }
+.mono { font-family: var(--font-mono); }
+.sr-only, .skip:not(:focus) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip:focus {
+  position: fixed; top: 8px; left: 8px; z-index: 100; padding: 8px 14px; border-radius: var(--r-2);
+  background: var(--surface-3); border: 1px solid var(--border-strong); box-shadow: var(--shadow-2); color: var(--fg);
+}
+.divider { height: 1px; background: var(--border); border: 0; margin: var(--sp-3) 0; }
+.divider.v { width: 1px; height: 1em; margin: 0 var(--sp-2); display: inline-block; vertical-align: middle; }
+.section-label {
+  font-size: var(--fs-11); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--fg-muted);
+  margin: 0 0 var(--sp-2);
+}
+.kbd, kbd {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px;
+  font: 600 var(--fs-11) / 1 var(--font-mono); color: var(--fg-muted); background: var(--surface-2);
+  border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 5px;
+}
+
+/* ---------- маскированные иконки (в CSS, без TS): баннеры, пустые состояния ---------- */
+.icon { flex: none; display: inline-block; vertical-align: -0.15em; }
+
+/* ---------- движение ---------- */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes shimmer { to { background-position-x: -200%; } }
+@keyframes slide-ind { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+  .spinner { animation: spin 3s linear infinite !important; animation-duration: 3s !important; animation-iteration-count: infinite !important; }
+  .skeleton, .skel, .result.busy .metric::after { animation: none !important; }
+}
+
+/* ---------- forced-colors (Windows «Контрастная тема»): границы и текст система красит сама; здесь — то, что держится на фоне/тени ---------- */
+@media (forced-colors: active) {
+  body::before { display: none; }
+  :focus-visible { outline-color: Highlight; }
+  [aria-pressed="true"], [aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .btn.primary { border-color: Highlight; }
+  .tab-ind, .progress-fill, .toggle .track::after, .badge::before, .dot, .banner::before, .card.disclaimer::after { forced-color-adjust: none; background: Highlight; }
+  .toggle .track { border: 1px solid CanvasText; }
+  .logo { forced-color-adjust: none; }
+  input[type="range"]::-webkit-slider-runnable-track { forced-color-adjust: none; background: CanvasText; }
+  input[type="range"]::-webkit-slider-thumb { forced-color-adjust: none; background: Highlight; }
+  .skeleton, .skel { animation: none; background: GrayText; }
+}
