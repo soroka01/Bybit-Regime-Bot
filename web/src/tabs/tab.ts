@@ -1,5 +1,6 @@
 import type { Meta } from "../types";
 import { h } from "../ui/dom";
+import type { DataCtx } from "../ui/freshness";
 
 export interface Tab {
   el: HTMLElement;
@@ -13,7 +14,7 @@ export interface Tab {
   refresh?(): void;
 }
 
-export interface DataCtx { symbol: string; tfs: string[] }
+export type { DataCtx };
 
 /** Вкладка сообщает, что сменился символ/таймфрейм (полоса свежести перечитает статус). */
 export const notifyContext = () => window.dispatchEvent(new Event("tb-context"));

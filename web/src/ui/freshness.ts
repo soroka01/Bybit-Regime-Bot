@@ -1,12 +1,14 @@
 // Полоса свежести локальных данных + явная кнопка докачки новых свечей (сеть — только по клику).
 import { api, asApiError } from "../api";
 import type { DataStatus } from "../types";
-import type { DataCtx } from "../tabs/tab";
 import { toast } from "./clipboard";
 import { onMetaChange } from "../meta";
 import { h } from "./dom";
 import { icon } from "./icons";
 import { int, parseTime, utcShort } from "./fmt";
+
+/** Какие данные использует вкладка (для полосы свежести). */
+export interface DataCtx { symbol: string; tfs: string[] }
 
 const utc = (iso: string | null) => (iso ? utcShort(iso) : "—");
 const dfMsk = new Intl.DateTimeFormat("ru-RU", { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit" });

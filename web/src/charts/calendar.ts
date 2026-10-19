@@ -1,11 +1,12 @@
 // Календарь дневного P/L в стиле GitHub: недели — столбцы, дни — строки, понедельник первым; дивергентная шкала --heat-neg ↔ --heat-mid ↔ --heat-pos.
 // Цвет ячейки задаёт CSS (color-mix по --k), поэтому смена темы не требует перекраски. Для окон короче 14 суток — компактный список по дням.
-// Сетка и раскраска — чистая логика (tabs/statsLogic.ts: calendarSections / calLevel / calendarList).
+// Сетка и раскраска — чистая логика (charts/calendarModel.ts: calendarSections / calLevel / calendarList).
 import type { StatsCalendarCell } from "../types";
 import { h } from "../ui/dom";
 import { glyph } from "../ui/kit";
 import { susd, toneOf, usd } from "../ui/fmt";
-import { calendarIsCompact, calendarList, calendarSections, calLevel, ymdRu } from "../tabs/statsLogic";
+import { ymdRu } from "../ui/fmtTime";
+import { calendarIsCompact, calendarList, calendarSections, calLevel } from "./calendarModel";
 import { chartTip } from "./tooltip";
 
 const WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];

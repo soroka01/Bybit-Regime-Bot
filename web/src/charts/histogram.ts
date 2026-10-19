@@ -1,10 +1,10 @@
 // Гистограмма (SVG): распределение доходностей сделок. Столбцы по корзинам, цвет по знаку корзины (--neg / --pos; корзина, содержащая 0, — нейтральная --ref),
-// пунктирная линия нуля, подписи концов корзин по оси X, подсказка по hover/focus. Модель корзин — tabs/statsLogic.ts: histModel (чистая функция).
+// пунктирная линия нуля, подписи концов корзин по оси X, подсказка по hover/focus. Модель корзин — charts/histModel.ts: histModel (чистая функция).
 import { cssVar, h, observeWidth, svg } from "../ui/dom";
 import { int, num, pct } from "../ui/fmt";
 import { niceScale } from "./scale";
 import { chartTip } from "./tooltip";
-import type { HistModel } from "../tabs/statsLogic";
+import type { HistModel } from "./histModel";
 
 const TONE_VAR = { neg: "--neg", pos: "--pos", mixed: "--ref" } as const;
 export const TONE_WORD = { neg: "убыток", pos: "прибыль", mixed: "содержит 0" } as const;

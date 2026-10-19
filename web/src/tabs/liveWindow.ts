@@ -4,8 +4,8 @@
 // /api/stats?range=7d|all (то же, что вкладка «Статистика»); если его нет (404 на старом бэкенде / ошибка) — снимок с честной подписью.
 import type { Num, StatsResponse } from "../types";
 import { datetime, num, usd } from "../ui/fmt";
+import { ddmmyy } from "../ui/fmtTime";
 import { DAY_MS, rangeStart, sliceSeries, totalPl, utcDayStart, type PlToday, type Pt, type RangeKey } from "./liveCalc";
-import { ddmmyy } from "./statsLogic";
 
 /** Допуск «окно покрыто»: первая точка снимка может быть позже начала окна не больше чем на разрыв, который бэкенд считает паузой (15 мин). */
 export const COVER_TOL_MS = 15 * 60_000;
