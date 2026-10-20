@@ -1,6 +1,5 @@
 """Полосы тяжёлых заданий дашборда: Lane (семафор + свой пул потоков + правила очереди), `run_heavy` и ошибки API.
-Вынесено из api.py без изменения поведения. Подменяемые в тестах значения (_calc, _net, QUEUE_SLICE, WATCHDOG_FACTOR)
-читаются в api.py (там тонкая обёртка run_heavy) и передаются сюда параметрами — подмена api_mod.<имя> продолжает действовать."""
+Полосы (_calc, _net) и тайминги (QUEUE_SLICE, WATCHDOG_FACTOR) читаются как глобальные имена модуля в момент вызова."""
 from __future__ import annotations
 
 import asyncio
@@ -97,10 +96,6 @@ _net = Lane("net", NET_QUEUE_WAIT, supersede=False, abandon_limit=1)  # fetch/up
 NET_KINDS = {"fetch", "update"}
 
 
-def _lane_for(kind: str, calc: Lane, net: Lane) -> Lane:
-    return net if kind in NET_KINDS else calc
-
-
 _PATH_RE = re.compile(r"""(?:(?<!\w)[A-Za-z]:[\\/]|\\\\)[^\s'"<>|*?]*|(?<![\w/.:~-])/(?:[\w.\-~]+/)+[\w.\-~]+""")
 
 
@@ -116,7 +111,7 @@ def _err(status: int, code: str, msg: str, **extra):
     return HTTPException(status, detail={"code": code, "message": scrub_paths(msg), **extra})
 
 
-async def _acquire(lane: Lane, kind: str, my: int, queue_slice: float) -> asyncio.Semaphore:
+async def _acquire(lane: Lane, kind: str, my: int) -> asyncio.Semaphore:
     """Ждёт свободный слот не дольше lane.queue_wait. Раз в QUEUE_SLICE проверяет, не вытеснен ли запрос более новым
     и не подменил ли watchdog семафор (иначе ожидающие остались бы на старом, который держит зависший поток)."""
     t0 = time.monotonic()
@@ -124,7 +119,7 @@ async def _acquire(lane: Lane, kind: str, my: int, queue_slice: float) -> asynci
     while True:
         sem = lane.semaphore()
         try:
-            await asyncio.wait_for(sem.acquire(), min(max(end - time.monotonic(), 0.0), queue_slice))
+            await asyncio.wait_for(sem.acquire(), min(max(end - time.monotonic(), 0.0), QUEUE_SLICE))
             return sem
         except asyncio.TimeoutError:
             pass
@@ -136,17 +131,16 @@ async def _acquire(lane: Lane, kind: str, my: int, queue_slice: float) -> asynci
                        waited_s=round(waited, 1), queue_wait_s=lane.queue_wait)
 
 
-async def run_heavy(request: Request, kind: str, fn, timeout: float, *, calc: Lane, net: Lane, queue_slice: float,
-                    watchdog_factor: float):
+async def run_heavy(request: Request, kind: str, fn, timeout: float = HEAVY_TIMEOUT):
     """Выполняет fn() в потоке под семафором своей полосы. fn не должен менять общее состояние без блокировок.
     Таймаут отвечает клиенту 504, но слот освобождается только когда fn реально завершилась; если она не
     завершилась за WATCHDOG_FACTOR*timeout — watchdog подменяет семафор свежим (и пишет в лог)."""
-    lane, my = _lane_for(kind, calc, net), next(_ids)
+    lane, my = (_net if kind in NET_KINDS else _calc), next(_ids)
     if lane.closed:
         raise _err(503, "shutting_down", "сервер останавливается")
     if lane.supersede:
         lane.latest[kind] = my
-    sem = await _acquire(lane, kind, my, queue_slice)
+    sem = await _acquire(lane, kind, my)
     handed_off = False
     try:
         if lane.supersede and lane.latest.get(kind) != my:
@@ -168,15 +162,15 @@ async def run_heavy(request: Request, kind: str, fn, timeout: float, *, calc: La
                 return
             if lane.abandoned >= lane.abandon_limit:
                 log.error("%s/%s: задание не завершилось за %.0f с, но брошенных потоков уже %d — слот остаётся занятым",
-                          lane.name, kind, timeout * watchdog_factor, lane.abandoned)
+                          lane.name, kind, timeout * WATCHDOG_FACTOR, lane.abandoned)
                 return
             lane.abandoned += 1
             state["abandoned"] = True
             if lane.sem is sem:
                 lane.sem = asyncio.Semaphore(1)
             log.error("%s/%s: задание не завершилось за %.0f с (таймаут %.0f с) — семафор заменён, поток продолжает работать",
-                      lane.name, kind, timeout * watchdog_factor, timeout)
-        wd = loop.call_later(timeout * watchdog_factor, _watchdog)
+                      lane.name, kind, timeout * WATCHDOG_FACTOR, timeout)
+        wd = loop.call_later(timeout * WATCHDOG_FACTOR, _watchdog)
 
         def _done(f):
             lane.events.discard(cancel)

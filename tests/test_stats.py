@@ -12,10 +12,9 @@ import _stats_fixture as fx
 from _stats_fixture import add_trade, equity_points, golden_db, iso, make_db, ts
 from _synth import synth_market  # noqa: F401
 from tradebot.web import api, stats
-from tradebot.web.stats import Market
+from tradebot.web import stats_base, stats_equity, stats_io, stats_market, stats_replay, stats_series, stats_trades
 
 client = TestClient(api.app)
-REAL_LOAD_MARKET = stats.load_market      # автофикстура подменяет атрибут модуля; настоящая функция — здесь
 
 
 @pytest.fixture(autouse=True)
@@ -38,7 +37,7 @@ def F(t, side, qty, price, reason="бар", i=[0]):
 
 
 def rep(fills, stops=(), market=None, **kw):
-    return stats.replay(fills, [ts(s) for s in stops], market=market, **kw)
+    return stats_replay.replay(fills, [ts(s) for s in stops], market=market, **kw)
 
 
 def mk_market(start, hours, price=lambda i: 100.0, rates=None, funding_until=None, spread=0.001):
@@ -51,7 +50,7 @@ def mk_market(start, hours, price=lambda i: 100.0, rates=None, funding_until=Non
     fund = np.zeros(hours)
     for k, r in (rates or {}).items():
         fund[int((ts(k) - t0) // 3600)] = r
-    return Market(bt, o, h, lo, c, fund, ts(funding_until) if funding_until else None)
+    return stats_market.Market(bt, o, h, lo, c, fund, ts(funding_until) if funding_until else None)
 
 
 def run_compute(fills_rows, *, equity, now, rk="30d", events=(), kv=None, market=None):
@@ -104,7 +103,7 @@ def test_flip_is_split_into_close_and_open_at_same_price_and_time():
 
 
 def test_invalid_fills_are_dropped():
-    fills, bad = stats.clean_fills([{"id": 1, "ts": "2026-01-01T10:00:00+00:00", "side": "buy", "qty": 1, "price": 0, "reason": ""},
+    fills, bad = stats_replay.clean_fills([{"id": 1, "ts": "2026-01-01T10:00:00+00:00", "side": "buy", "qty": 1, "price": 0, "reason": ""},
                                     {"id": 2, "ts": "2026-01-01T10:00:00+00:00", "side": "buy", "qty": -1, "price": 5, "reason": ""},
                                     {"id": 3, "ts": "2026-01-01T10:00:00+00:00", "side": "hold", "qty": 1, "price": 5, "reason": ""},
                                     {"id": 4, "ts": "2026-01-01T10:00:00+00:00", "side": "buy", "qty": 1, "price": 5, "reason": ""}])
@@ -120,7 +119,7 @@ def test_stopout_event_closes_at_stop_level_when_candle_touched():
     mk = mk_market("2026-01-01T09:00:00+00:00", 10, price=lambda i: 100.0 if i < 4 else 94.5)
     r = rep([F("2026-01-01T10:00:14+00:00", "buy", 1, 100)], ["2026-01-01T14:30:00+00:00"], mk, stop_pct=0.05)
     (t,) = r["trades"]
-    assert t["reconstructed"] and t["reason"] == stats.STOP_REASON and t["exit_price"] == pytest.approx(95.0)
+    assert t["reconstructed"] and t["reason"] == stats_base.STOP_REASON and t["exit_price"] == pytest.approx(95.0)
     assert t["fills"][-1]["synthetic"] and t["fills"][-1]["basis"] == "stop_level" and t["fills"][-1]["id"] is None
     assert t["gross"] == pytest.approx(-5.0) and t["exit_ts"] == ts("2026-01-01T14:30:00+00:00")
     assert r["pos"] == 0 and r["open"] is None
@@ -253,7 +252,7 @@ def day_series(vals, start="2026-03-01T12:00:00+00:00"):
 
 def test_drawdown_roi_and_wallet_return():
     t, v = np.array([0, 3600, 7200, 10800], dtype="int64") + 1_700_000_000, np.array([100.0, 110.0, 99.0, 105.0])
-    m = stats.equity_metrics(t, v, t[0], t[-1])
+    m = stats_equity.equity_metrics(t, v, t[0], t[-1])
     assert m["max_drawdown_pct"] == pytest.approx(-10.0) and m["max_drawdown_peak_ts"] == t[1] and m["max_drawdown_trough_ts"] == t[2]
     # ROI счёта = Δ кошелька / кошелёк на начале окна (бот торгует на весь баланс, «выделенного капитала» нет)
     assert m["wallet_return_pct"] == pytest.approx(5.0)
@@ -263,12 +262,12 @@ def test_drawdown_roi_and_wallet_return():
 
 def test_eq_start_is_last_point_before_window_or_first_with_flag():
     t, v = np.array([100, 200, 300, 400], dtype="int64"), np.array([1.0, 2.0, 3.0, 4.0])
-    m = stats.equity_metrics(t, v, 250, 400)
+    m = stats_equity.equity_metrics(t, v, 250, 400)
     assert (m["eq_start"], m["eq_start_ts"], m["starts_before_data"]) == (2.0, 200, False)
-    m = stats.equity_metrics(t, v, 50, 400)
+    m = stats_equity.equity_metrics(t, v, 50, 400)
     assert (m["eq_start"], m["eq_start_ts"], m["starts_before_data"]) == (1.0, 100, True)
-    assert stats.equity_metrics(t, v, 350, 400)["points"] == 2
-    assert stats.equity_metrics(t, v, 450, 500) is None                 # в окне только одна точка
+    assert stats_equity.equity_metrics(t, v, 350, 400)["points"] == 2
+    assert stats_equity.equity_metrics(t, v, 450, 500) is None                 # в окне только одна точка
 
 
 def test_daily_returns_skip_missing_days_never_zero_fill():
@@ -276,7 +275,7 @@ def test_daily_returns_skip_missing_days_never_zero_fill():
     days = [0, 1, 3, 4]                                              # дня 2 нет
     t = np.array([t0 + 86400 * d for d in days], dtype="int64")
     v = np.array([100.0, 110.0, 99.0, 98.01])
-    m = stats.equity_metrics(t, v, t[0], t[-1])
+    m = stats_equity.equity_metrics(t, v, t[0], t[-1])
     assert m["daily_points"] == 2                                    # 0->1 и 3->4; 1->3 (пропуск дня) не доходность дня
     assert m["best_day"] == {"date": "2026-03-02", "ret_pct": pytest.approx(10.0)}
     assert m["worst_day"] == {"date": "2026-03-05", "ret_pct": pytest.approx(-1.0)}
@@ -286,7 +285,7 @@ def test_daily_return_uses_last_sample_of_each_utc_day():
     t0 = ts("2026-03-01T00:00:00+00:00")
     t = np.array([t0 + 3600, t0 + 80000, t0 + 86400 + 100, t0 + 86400 + 80000], dtype="int64")      # два дня, по 2 точки
     v = np.array([100.0, 110.0, 105.0, 121.0])
-    m = stats.equity_metrics(t, v, t[0], t[-1])
+    m = stats_equity.equity_metrics(t, v, t[0], t[-1])
     assert m["daily_points"] == 1 and m["best_day"]["ret_pct"] == pytest.approx(10.0)             # 121/110 - 1
 
 
@@ -297,13 +296,13 @@ def test_sharpe_sortino_gating_by_daily_points():
         for r in rng.normal(0.002, 0.01, ndays - 1):
             v.append(v[-1] * (1 + r))
         return day_series(v)
-    m13 = stats.equity_metrics(*series(14), 0, 10**12)         # 14 точек = 13 доходностей
+    m13 = stats_equity.equity_metrics(*series(14), 0, 10**12)         # 14 точек = 13 доходностей
     assert m13["daily_points"] == 13 and m13["sharpe"] is None and m13["sortino"] is None and m13["volatility_pct"] is not None
-    m14 = stats.equity_metrics(*series(15), 0, 10**12)
+    m14 = stats_equity.equity_metrics(*series(15), 0, 10**12)
     assert m14["daily_points"] == 14 and m14["sharpe"] is not None and m14["sortino"] is not None
     # только рост -> Sortino null (нет отрицательных дней), Sharpe есть
     up = day_series([100.0 * 1.01 ** i * (1 + 0.001 * (i % 3)) for i in range(16)])
-    mu = stats.equity_metrics(*up, 0, 10**12)
+    mu = stats_equity.equity_metrics(*up, 0, 10**12)
     assert mu["sharpe"] is not None and mu["sortino"] is None
 
 
@@ -314,20 +313,20 @@ def test_calmar_gating_days_and_drawdown():
         for r in rng.normal(0.001, 0.01, n - 1):
             v.append(v[-1] * (1 + r))
         return day_series(v)
-    assert stats.equity_metrics(*series(30), 0, 10**12)["calmar"] is None            # 29 доходностей
-    m = stats.equity_metrics(*series(32), 0, 10**12)
+    assert stats_equity.equity_metrics(*series(30), 0, 10**12)["calmar"] is None            # 29 доходностей
+    m = stats_equity.equity_metrics(*series(32), 0, 10**12)
     assert m["daily_points"] == 31 and m["max_drawdown_pct"] < 0 and m["calmar"] is not None
     mono = day_series([100.0 + i for i in range(40)])                                      # просадки нет
-    assert stats.equity_metrics(*mono, 0, 10**12)["calmar"] is None
+    assert stats_equity.equity_metrics(*mono, 0, 10**12)["calmar"] is None
 
 
 def test_equity_gaps_and_tail_gap():
     t0 = 1_700_000_000
     t = np.array([t0, t0 + 300, t0 + 600, t0 + 600 + 3600, t0 + 600 + 3900], dtype="int64")      # дыра 1 час
     v = np.ones(5)
-    m = stats.equity_metrics(t, v, t0, t[-1])
+    m = stats_equity.equity_metrics(t, v, t0, t[-1])
     assert m["gaps"] == {"count": 1, "total_s": 3600}
-    m = stats.equity_metrics(t, v, t0, t[-1] + 1800)                                         # + хвост: бот молчит 30 мин
+    m = stats_equity.equity_metrics(t, v, t0, t[-1] + 1800)                                         # + хвост: бот молчит 30 мин
     assert m["gaps"] == {"count": 2, "total_s": 3600 + 1800}
 
 
@@ -337,46 +336,46 @@ def test_downsample_is_bounded_and_keeps_extremes():
     v = 100 + np.sin(np.arange(n) / 50.0) * 5
     v[2222] = 150.0                                                  # одиночный выброс должен выжить в hi
     dd = v / np.maximum.accumulate(v) - 1
-    d = stats.downsample(t, v, dd)
-    assert len(d["equity"]["t"]) <= stats.EQ_POINTS_MAX and len(d["drawdown"]["dd_pct"]) == len(d["equity"]["t"])
+    d = stats_series.downsample(t, v, dd)
+    assert len(d["equity"]["t"]) <= stats_base.EQ_POINTS_MAX and len(d["drawdown"]["dd_pct"]) == len(d["equity"]["t"])
     assert max(d["equity"]["hi"]) == pytest.approx(150.0) and d["equity"]["t"][-1] == t[-1] and d["equity"]["v"][-1] == pytest.approx(v[-1], abs=1e-3)
     assert min(d["drawdown"]["dd_pct"]) == pytest.approx(dd.min() * 100, abs=1e-3)
-    raw = stats.downsample(t[:100], v[:100], dd[:100])
+    raw = stats_series.downsample(t[:100], v[:100], dd[:100])
     assert raw["equity"]["v"] == raw["equity"]["lo"] == raw["equity"]["hi"] and len(raw["equity"]["t"]) == 100
 
 
 # ---------------------------------------------------------------- корзины P/L по диапазону
 def test_bucket_kind_per_range():
-    assert {k: stats._bucket_kind(k) for k in stats.RANGE_SECONDS} == {
+    assert {k: stats_series._bucket_kind(k) for k in stats_base.RANGE_SECONDS} == {
         "1h": "5min", "1d": "hour", "3d": "day", "7d": "day", "30d": "day", "90d": "week", "180d": "week", "365d": "week",
         "730d": "month", "1095d": "month", "all": "month"}
 
 
 def test_bucket_starts_are_utc_aligned():
     wed = ts("2026-10-07T13:45:10+00:00")
-    assert iso(stats.bucket_start("5min", wed)) == "2026-10-07T13:45:00+00:00"
-    assert iso(stats.bucket_start("hour", wed)) == "2026-10-07T13:00:00+00:00"
-    assert iso(stats.bucket_start("day", wed)) == "2026-10-07T00:00:00+00:00"
-    assert iso(stats.bucket_start("week", wed)) == "2026-10-05T00:00:00+00:00"          # понедельник
-    assert iso(stats.bucket_start("week", ts("2026-10-11T23:59:59+00:00"))) == "2026-10-05T00:00:00+00:00"
-    assert iso(stats.bucket_start("month", ts("2026-10-31T23:00:00+00:00"))) == "2026-10-01T00:00:00+00:00"
+    assert iso(stats_series.bucket_start("5min", wed)) == "2026-10-07T13:45:00+00:00"
+    assert iso(stats_series.bucket_start("hour", wed)) == "2026-10-07T13:00:00+00:00"
+    assert iso(stats_series.bucket_start("day", wed)) == "2026-10-07T00:00:00+00:00"
+    assert iso(stats_series.bucket_start("week", wed)) == "2026-10-05T00:00:00+00:00"          # понедельник
+    assert iso(stats_series.bucket_start("week", ts("2026-10-11T23:59:59+00:00"))) == "2026-10-05T00:00:00+00:00"
+    assert iso(stats_series.bucket_start("month", ts("2026-10-31T23:00:00+00:00"))) == "2026-10-01T00:00:00+00:00"
 
 
 def test_pnl_buckets_are_contiguous_with_empty_buckets():
     trs = [{"exit_ts": ts("2026-10-01T10:00:00+00:00"), "net": 2.0}, {"exit_ts": ts("2026-10-01T11:00:00+00:00"), "net": -1.0},
            {"exit_ts": ts("2026-12-05T00:00:00+00:00"), "net": 5.0}]
-    rows = stats.pnl_buckets("month", trs, ts("2026-09-20T00:00:00+00:00"), ts("2026-12-20T00:00:00+00:00"))
+    rows = stats_series.pnl_buckets("month", trs, ts("2026-09-20T00:00:00+00:00"), ts("2026-12-20T00:00:00+00:00"))
     assert [iso(r["t"])[:7] for r in rows] == ["2026-09", "2026-10", "2026-11", "2026-12"]
     assert [(r["n"], r["net"]) for r in rows] == [(0, 0.0), (2, 1.0), (0, 0.0), (1, 5.0)] and rows[1]["wins"] == 1
-    rows = stats.pnl_buckets("5min", [{"exit_ts": 1000, "net": 1}], 0, 3600)
+    rows = stats_series.pnl_buckets("5min", [{"exit_ts": 1000, "net": 1}], 0, 3600)
     assert len(rows) == 13 and rows[3]["n"] == 1
 
 
 def test_histogram_bins():
-    h = stats.histogram([1.0, 2.0, 2.5, 9.0] * 10)
+    h = stats_series.histogram([1.0, 2.0, 2.5, 9.0] * 10)
     assert sum(h["counts"]) == 40 and len(h["edges"]) == len(h["counts"]) + 1 and h["edges"][0] == 1.0 and h["edges"][-1] == 9.0
-    assert stats.histogram([]) == {"edges": [], "counts": []}
-    same = stats.histogram([3.0, 3.0])
+    assert stats_series.histogram([]) == {"edges": [], "counts": []}
+    same = stats_series.histogram([3.0, 3.0])
     assert same["counts"] == [2] and same["edges"][0] < 3.0 < same["edges"][1]
 
 
@@ -386,7 +385,7 @@ def test_trade_metrics_values():
         return {"n": n, "net": net, "ret_pct": net, "gross": net + 0.2 if gross is None else gross, "fees": 0.2, "funding": 0.0, "hold_s": hold,
                 "side": side, "entry_notional": 100.0, "exit_notional": 100.0, "exit_ts": n}
     trs = [tr(1, 5.0), tr(2, -2.0, "short"), tr(3, -4.0), tr(4, 3.0), tr(5, 0.0), tr(6, 1.0, hold=7200)]
-    m = stats.trade_metrics(trs, [(0, 1800), (2000, 5000)], 0, 10000, None)
+    m = stats_trades.trade_metrics(trs, [(0, 1800), (2000, 5000)], 0, 10000, None)
     assert (m["trades"], m["wins"], m["losses"], m["breakeven"]) == (6, 3, 2, 1)
     assert m["win_rate_pct"] == 50.0 and m["avg_win"] == pytest.approx(3.0) and m["avg_loss"] == pytest.approx(-3.0)
     assert m["payoff_ratio"] == pytest.approx(1.0) and m["profit_factor"] == pytest.approx(9 / 6)
@@ -397,11 +396,11 @@ def test_trade_metrics_values():
     assert m["turnover"] == 1200 and m["fees_total"] == pytest.approx(1.2) and m["net_pnl"] == pytest.approx(3.0) and "net_pnl_pct_alloc" not in m
     assert m["fees_pct_of_gross_profit"] == pytest.approx(1.2 / (5.2 + 3.2 + 1.2 + 0.2) * 100, abs=0.01)
     assert m["buy_hold_pct"] is None
-    assert stats.trade_metrics([tr(1, 1.0)], [], 0, 10, None)["profit_factor"] is None          # без убытков
+    assert stats_trades.trade_metrics([tr(1, 1.0)], [], 0, 10, None)["profit_factor"] is None          # без убытков
     # суммы в долларах: Σ прибыльных и Σ убыточных Net (убыток — отрицательное число), вместе дают net_pnl
     assert m["profit_sum_usdt"] == pytest.approx(9.0) and m["loss_sum_usdt"] == pytest.approx(-6.0)
     assert m["profit_sum_usdt"] + m["loss_sum_usdt"] == pytest.approx(m["net_pnl"])
-    empty = stats.trade_metrics([], [], 0, 10, None)
+    empty = stats_trades.trade_metrics([], [], 0, 10, None)
     assert empty["profit_sum_usdt"] == 0 and empty["loss_sum_usdt"] == 0
 
 
@@ -458,16 +457,16 @@ def test_account_pct_reads_equity_before_short_window_start(tmp_path):
 
 
 def test_time_in_market_is_clipped_by_window():
-    m = stats.trade_metrics([], [(-500, 100), (900, 5000)], 0, 1000, None)
+    m = stats_trades.trade_metrics([], [(-500, 100), (900, 5000)], 0, 1000, None)
     assert m["time_in_market_pct"] == pytest.approx((100 + 100) / 1000 * 100)
 
 
 def test_buy_hold_from_candles():
     mk = mk_market("2026-01-01T00:00:00+00:00", 48, price=lambda i: 100.0 + i)
     start, end = ts("2026-01-01T05:00:00+00:00"), ts("2026-01-02T10:00:00+00:00")
-    m = stats.trade_metrics([], [], start, end, mk)
+    m = stats_trades.trade_metrics([], [], start, end, mk)
     assert m["buy_hold_pct"] == pytest.approx((mk.price_at(end) / mk.price_at(start) - 1) * 100, abs=0.01)
-    assert stats.trade_metrics([], [], start, ts("2026-01-05T00:00:00+00:00"), mk)["buy_hold_pct"] is None      # свечи устарели
+    assert stats_trades.trade_metrics([], [], start, ts("2026-01-05T00:00:00+00:00"), mk)["buy_hold_pct"] is None      # свечи устарели
 
 
 # ---------------------------------------------------------------- сверка с кошельком
@@ -548,12 +547,12 @@ def test_comparison_only_from_7d_and_never_for_all(tmp_path):
 # ---------------------------------------------------------------- золотая БД: сквозной
 def test_golden_db_end_to_end_all_ranges(tmp_path):
     p = golden_db(tmp_path / "g.db")
-    for rk in stats.RANGE_SECONDS:
+    for rk in stats_base.RANGE_SECONDS:
         out = stats.get_stats(rk, p, fx.NOW1)
         assert out["available"] and out["range"] == rk
         json.dumps(stats_clean(out), allow_nan=False)
         s = out["series"]
-        assert len(s["equity"]["t"]) <= stats.EQ_POINTS_MAX
+        assert len(s["equity"]["t"]) <= stats_base.EQ_POINTS_MAX
         assert len(s["equity"]["t"]) == len(s["equity"]["v"]) == len(s["drawdown"]["t"])
         assert out["trades"]["total"] == out["kpis"]["trades"] == len(out["trades"]["rows"])
         assert out["open_position"]["side"] == "long" and out["position_mismatch"] is None
@@ -561,7 +560,7 @@ def test_golden_db_end_to_end_all_ranges(tmp_path):
     assert allr["kpis"]["trades"] == 10 and sum(1 for r in allr["trades"]["rows"] if r["reconstructed"]) == 1
     assert allr["window"]["start"] == allr["equity"]["eq_start_ts"]
     assert sum(g["count"] for g in allr["breakdown"]["by_side"]) == 10
-    assert {g["key"] for g in allr["breakdown"]["by_reason"]} == {"бар", "закрытие вручную", stats.STOP_REASON}
+    assert {g["key"] for g in allr["breakdown"]["by_reason"]} == {"бар", "закрытие вручную", stats_base.STOP_REASON}
     assert sum(c["trades"] for c in allr["series"]["calendar"]) == 10 and sum(allr["series"]["histogram"]["counts"]) == 10
 
 
@@ -595,7 +594,7 @@ def test_api_status_codes_and_defaults(tmp_path, monkeypatch):
     golden_db(state.DB_PATH)
     j = client.get("/api/stats").json()
     assert j["available"] and j["range"] == "30d"
-    for rk in stats.RANGE_SECONDS:
+    for rk in stats_base.RANGE_SECONDS:
         r = client.get("/api/stats", params={"range": rk})
         assert r.status_code == 200 and r.headers["cache-control"] == "no-store", rk
         assert r.json()["range"] == rk
@@ -632,7 +631,7 @@ def test_reads_db_read_only_and_does_not_modify(tmp_path):
     stats.get_stats("30d", p, fx.NOW1)
     assert p.read_bytes() == before
     with pytest.raises(sqlite3.OperationalError):                              # соединение именно read-only
-        c = sqlite3.connect(stats._db_uri(p), uri=True)
+        c = sqlite3.connect(stats_io._db_uri(p), uri=True)
         c.execute("INSERT INTO kv(k,v) VALUES('x','1')")
 
 
@@ -640,7 +639,7 @@ def test_reads_db_read_only_and_does_not_modify(tmp_path):
 def test_cache_hits_and_invalidates_on_new_trade(tmp_path, monkeypatch):
     p = golden_db(tmp_path / "g.db")
     calls = []
-    real = stats.read_db
+    real = stats_io.read_db
     monkeypatch.setattr(stats, "read_db", lambda *a, **k: (calls.append(1), real(*a, **k))[1])
     a = stats.get_stats("30d", p, fx.NOW1)
     b = stats.get_stats("30d", p, fx.NOW1)
@@ -665,9 +664,9 @@ def test_cache_hits_and_invalidates_on_new_trade(tmp_path, monkeypatch):
 
 def test_cache_is_bounded(tmp_path):
     p = golden_db(tmp_path / "g.db")
-    for i in range(stats.CACHE_SIZE + 5):
+    for i in range(stats_base.CACHE_SIZE + 5):
         stats.get_stats("30d", p, fx.NOW1 + 60 * i)
-    assert len(stats._cache) == stats.CACHE_SIZE
+    assert len(stats._cache) == stats_base.CACHE_SIZE
 
 
 # ---------------------------------------------------------------- загрузка рынка
@@ -679,15 +678,15 @@ def test_load_market_returns_none_when_data_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(klines, "DATA_DIR", d)
     monkeypatch.setattr(service, "MARKET", d)
     service.invalidate_data()
-    m, err = REAL_LOAD_MARKET()
+    m, err = stats_io.load_market()
     assert m is None and err == "DataMissing"
 
 
 def test_load_market_reads_candles_and_funding_coverage(synth_market):
     from _synth import END
-    m, err = REAL_LOAD_MARKET()
-    assert err is None and isinstance(m, Market)
+    m, err = stats_io.load_market()
+    assert err is None and isinstance(m, stats_market.Market)
     assert m.candles_until == END.timestamp() + 3600                          # последняя свеча 00:00 закрывается в 01:00
     assert m.funding_until == (END + __import__("pandas").Timedelta(hours=8)).timestamp()
-    assert m.settle and all(t % stats.SETTLE_S == 0 for t in m.settle)
+    assert m.settle and all(t % stats_base.SETTLE_S == 0 for t in m.settle)
     assert m.price_at(END.timestamp() + 3600) is not None

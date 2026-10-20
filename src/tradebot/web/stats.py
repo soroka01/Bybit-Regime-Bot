@@ -65,22 +65,15 @@ from pathlib import Path
 
 import numpy as np
 
-# Реэкспорт: все прежние имена модуля остаются доступными как tradebot.web.stats.<имя> (тесты и API импортируют их оттуда).
-from tradebot.web.stats_base import (  # noqa: F401
-    ANN, BAR_S, CACHE_SIZE, CACHE_TTL_S, COMPARE_MIN_S, DEFAULT_RANGE, DEFAULT_STOP_PCT, DEFINITIONS, EPS_QTY, EQ_ENTRY_MAX_AGE_S,
-    EQ_LOOKBACK_S, EQ_POINTS_MAX, EXACT_MATCH_S, EXACT_QTY_TOL, FEW_TRADES, GAP_S, MAX_TRADE_ROWS, MIN_DAYS_CALMAR, MIN_DAYS_SHARPE,
-    PRICE_TOL_S, RANGE_SECONDS, SETTLE_S, STOP_NOTICE, STOP_REASON, SYMBOL, TAKER_FEE_EST, TF, _day, _num, _pct, _ts, iso,
-    parse_ts, reason_group)
-from tradebot.web.stats_market import Market, funding_between, market_from_df  # noqa: F401
-from tradebot.web.stats_replay import (  # noqa: F401
-    _Acc, _fill_rec, _finish, _reconstruct_exit, _rt_exact, _set_exact, apply_exact, clean_fills, replay, state_at)
-from tradebot.web.stats_equity import equity_at, equity_metrics, select_series  # noqa: F401
-from tradebot.web.stats_series import (  # noqa: F401
-    _bucket_edges, _bucket_kind, _next_bucket, bucket_start, downsample, histogram, pnl_buckets)
-from tradebot.web.stats_trades import (  # noqa: F401
-    COMPARE_EQ_KEYS, COMPARE_KEYS, _cmp_row, _compare, _finish_compare, _group_row, _reconcile, _row, _streaks, trade_metrics)
-from tradebot.web.stats_io import (  # noqa: F401
-    _db_uri, _eq_arrays, _market_sig, fingerprint, load_market, read_db)
+from tradebot.web.stats_base import (
+    CACHE_SIZE, CACHE_TTL_S, COMPARE_MIN_S, DEFAULT_STOP_PCT, DEFINITIONS, EPS_QTY, EQ_LOOKBACK_S, FEW_TRADES, MAX_TRADE_ROWS,
+    RANGE_SECONDS, STOP_NOTICE, SYMBOL, TAKER_FEE_EST, _day, _num, _ts)
+from tradebot.web.stats_equity import equity_at, equity_metrics
+from tradebot.web.stats_io import _db_uri, _market_sig, fingerprint, load_market, read_db
+from tradebot.web.stats_market import Market, funding_between
+from tradebot.web.stats_replay import apply_exact, clean_fills, replay
+from tradebot.web.stats_series import _bucket_kind, downsample, histogram, pnl_buckets
+from tradebot.web.stats_trades import _compare, _finish_compare, _group_row, _reconcile, _row, trade_metrics
 
 # ---------------------------------------------------------------- сборка ответа
 def unavailable(range_key: str, reason: str, message: str, now: float) -> dict:

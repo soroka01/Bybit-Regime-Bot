@@ -33,15 +33,14 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from tradebot.market import guard
 from tradebot.paths import WEB_DIST
-from tradebot.web import service, stats
+from tradebot.web import service, stats, stats_base
 from tradebot.core.legspec import draft_payload, leg_label, parse_leg_text, validate_leg
 from tradebot.web.schemas import (BacktestReq, CachedReq, FetchReq, LbItemReq, OptimizeReq, PortfolioReq, ProposalReq,
                                   SweepReq, Symbol, Timeframe)
 from tradebot.web.security import SameOriginGuard, SecurityHeaders
 from tradebot.web.serialize import clean
 from tradebot.web import lanes
-from tradebot.web.lanes import (FETCH_TIMEOUT, HEAVY_TIMEOUT, NET_KINDS, NET_QUEUE_WAIT, QUEUE_SLICE, QUEUE_WAIT,  # noqa: F401
-                                WATCHDOG_FACTOR, Lane, _calc, _net, _err)
+from tradebot.web.lanes import _err
 
 log = logging.getLogger("tradebot.web")
 
@@ -50,10 +49,10 @@ log = logging.getLogger("tradebot.web")
 async def lifespan(_app):
     """Старт: закрытые остановкой полосы получают свежие пулы. Остановка: идущим заданиям — флаг отмены, очередь пулов
     сбрасывается без ожидания (иначе остановка бота ждала бы докачку данных до 10 минут)."""
-    for lane in (_calc, _net):
+    for lane in (lanes._calc, lanes._net):
         lane.reopen()
     yield
-    for lane in (_calc, _net):
+    for lane in (lanes._calc, lanes._net):
         lane.shutdown()
 
 
@@ -87,12 +86,6 @@ app.add_middleware(SecurityHeaders)                       # внешний сл�
 
 _cache: OrderedDict[str, object] = OrderedDict()
 CACHE_SIZE = 64
-
-
-async def run_heavy(request: Request, kind: str, fn, timeout: float = HEAVY_TIMEOUT):
-    """Тонкая обёртка над lanes.run_heavy: подменяемые в тестах _calc/_net/QUEUE_SLICE/WATCHDOG_FACTOR читаются здесь."""
-    return await lanes.run_heavy(request, kind, fn, timeout, calc=_calc, net=_net, queue_slice=QUEUE_SLICE,
-                                 watchdog_factor=WATCHDOG_FACTOR)
 
 
 def _cache_get(key: str):
@@ -160,10 +153,10 @@ async def heavy_endpoint(request: Request, kind: str, req, compute, with_deadlin
         return _json(hit[1], "hit")                    # кэшируем уже закодированные байты — без повторной сериализации
 
     def job():
-        return clean(compute(req, service.Deadline(HEAVY_TIMEOUT)) if with_deadline else compute(req))
+        return clean(compute(req, service.Deadline(lanes.HEAVY_TIMEOUT)) if with_deadline else compute(req))
 
     try:
-        out = await run_heavy(request, kind, job)
+        out = await lanes.run_heavy(request, kind, job)
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
@@ -316,11 +309,11 @@ def api_bot_proposals(req: ProposalReq):
 
 
 @app.get("/api/stats")
-def api_stats(range_: str = Query(stats.DEFAULT_RANGE, alias="range")):
+def api_stats(range_: str = Query(stats_base.DEFAULT_RANGE, alias="range")):
     """Статистика РЕАЛЬНОЙ торговой истории бота (bot.db, только чтение): сделки, equity-метрики, ряды для графиков.
     Для допустимого range ответ всегда 200 (при отсутствии данных — available:false + reason). Неверный range -> 400."""
-    if range_ not in stats.RANGE_SECONDS:
-        raise _err(400, "bad_request", f"неизвестный диапазон «{range_}»: допустимо {', '.join(stats.RANGE_SECONDS)}")
+    if range_ not in stats_base.RANGE_SECONDS:
+        raise _err(400, "bad_request", f"неизвестный диапазон «{range_}»: допустимо {', '.join(stats_base.RANGE_SECONDS)}")
     headers = {"Cache-Control": "no-store"}
     try:
         from tradebot.trading import state  # ленивый импорт, как в /api/live
@@ -343,7 +336,7 @@ def api_data_status(symbol: Symbol = "BTCUSDT", tf: Timeframe = "1h"):
 async def api_data_update(request: Request, req: FetchReq):
     """Явная докачка новых свечей + деривативов (сеть, атомарная запись). Сбрасывает кэши расчётов."""
     try:
-        out = await run_heavy(request, "update", lambda: clean(service.update_data(req.symbol, req.tf)), FETCH_TIMEOUT)
+        out = await lanes.run_heavy(request, "update", lambda: clean(service.update_data(req.symbol, req.tf)), lanes.FETCH_TIMEOUT)
     except Exception as e:  # noqa: BLE001
         raise _fail(e, "update", (502, "update_failed", "не удалось обновить данные: "), upstream=True)
     _cache.clear()
@@ -354,7 +347,7 @@ async def api_data_update(request: Request, req: FetchReq):
 async def api_fetch(request: Request, req: FetchReq):
     """Явная загрузка данных с Bybit (публичный API, без ключей). Никогда не вызывается неявно."""
     try:
-        out = await run_heavy(request, "fetch", lambda: service.fetch_data(req.symbol, req.tf), FETCH_TIMEOUT)
+        out = await lanes.run_heavy(request, "fetch", lambda: service.fetch_data(req.symbol, req.tf), lanes.FETCH_TIMEOUT)
         _cache.clear()
         return out
     except Exception as e:  # noqa: BLE001

@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from _synth import synth_market  # noqa: F401
 from tradebot.market import klines
-from tradebot.web import api as api_mod, cache, service
+from tradebot.web import api as api_mod, cache, lanes, service
 from tradebot.web.api import app
 
 client = TestClient(app)
@@ -244,7 +244,7 @@ def test_backtest_and_portfolio_honour_deadline(synth_market):
 
 
 def test_expired_deadline_maps_to_504(synth_market, monkeypatch):
-    monkeypatch.setattr(api_mod, "HEAVY_TIMEOUT", -1.0)
+    monkeypatch.setattr(lanes, "HEAVY_TIMEOUT", -1.0)
     for url, body in (("/api/backtest", {"strategy": "EMA cross", "tf": "1h", "days": 60}),
                       ("/api/portfolio", {"legs": client.get("/api/meta").json()["legs"], "days": 60})):
         r = client.post(url, json=body)

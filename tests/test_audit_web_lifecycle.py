@@ -18,7 +18,8 @@ from fastapi.testclient import TestClient
 import _stats_fixture as fx
 from _synth import synth_market  # noqa: F401
 from tradebot.market import guard, klines
-from tradebot.web import api as api_mod, lanes, service, stats
+from tradebot.web import lanes, service, stats
+from tradebot.web import stats_base, stats_io
 from tradebot.web.api import app
 
 client = TestClient(app)
@@ -36,9 +37,9 @@ class FakeReq:
 def fresh_lanes(monkeypatch):
     calc = lanes.Lane("calc", queue_wait=0.3, supersede=True, abandon_limit=2)
     net = lanes.Lane("net", queue_wait=0.3, supersede=False, abandon_limit=1)
-    monkeypatch.setattr(api_mod, "_calc", calc)
-    monkeypatch.setattr(api_mod, "_net", net)
-    monkeypatch.setattr(api_mod, "QUEUE_SLICE", 0.05)
+    monkeypatch.setattr(lanes, "_calc", calc)
+    monkeypatch.setattr(lanes, "_net", net)
+    monkeypatch.setattr(lanes, "QUEUE_SLICE", 0.05)
     yield calc, net
     for ln in (calc, net):
         ln.pool.shutdown(wait=False, cancel_futures=True)
@@ -63,7 +64,7 @@ def test_lane_shutdown_cancels_running_job_and_drops_queue(fresh_lanes):
     started = threading.Event()
 
     async def go():
-        t = asyncio.create_task(api_mod.run_heavy(FakeReq(), "fetch", lambda: spin_until_cancelled(started), 30))
+        t = asyncio.create_task(lanes.run_heavy(FakeReq(), "fetch", lambda: spin_until_cancelled(started), 30))
         for _ in range(200):
             if started.is_set():
                 break
@@ -76,7 +77,7 @@ def test_lane_shutdown_cancels_running_job_and_drops_queue(fresh_lanes):
         assert time.monotonic() - t0 < 1.0, "отмена должна прервать «загрузку» сразу"
         assert net.closed and net.pool._shutdown and not net.events
         with pytest.raises(HTTPException) as e:                                    # новые задания после остановки не принимаются
-            await api_mod.run_heavy(FakeReq(), "fetch", lambda: 1)
+            await lanes.run_heavy(FakeReq(), "fetch", lambda: 1)
         assert e.value.status_code == 503 and e.value.detail["code"] == "shutting_down"
     run(go())
 
@@ -87,7 +88,7 @@ def test_lane_reopen_gives_fresh_pool(fresh_lanes):
     calc.shutdown()
     calc.reopen()
     assert calc.pool is not old and not calc.closed and calc.events == set()
-    assert run(api_mod.run_heavy(FakeReq(), "backtest", lambda: 7)) == 7
+    assert run(lanes.run_heavy(FakeReq(), "backtest", lambda: 7)) == 7
     calc.reopen()                                                                  # без остановки reopen ничего не делает
     assert calc.pool is not old
 
@@ -390,12 +391,12 @@ def test_first_and_last_trade_ts_use_min_max_by_time(sdb, monkeypatch, tmp_path)
 
 def _old_equity(db, q_start):
     """Прежний алгоритм (сравнение строк) — эталон для «нормальных» данных."""
-    q = stats.iso(q_start)
+    q = stats_base.iso(q_start)
     rows = db.execute("SELECT ts,v FROM equity WHERE ts >= ? ORDER BY rowid", (q,)).fetchall()
     b = db.execute("SELECT ts,v FROM equity WHERE ts < ? ORDER BY rowid DESC LIMIT 1", (q,)).fetchone()
     if b:
         rows.insert(0, b)
-    return stats._eq_arrays(rows)
+    return stats_io._eq_arrays(rows)
 
 
 @pytest.mark.parametrize("q_iso", ["2026-04-01T00:00:00+00:00", "2026-05-10T00:00:00+00:00", "2026-05-10T13:37:21+00:00",
@@ -406,10 +407,10 @@ def test_read_db_equity_matches_old_algorithm_on_normal_data(tmp_path, q_iso):
     fx.make_db(p, equity=eq)
     db = sqlite3.connect(p)
     q = fx.ts(q_iso)
-    t_new, v_new = stats.read_db(db, q)["eq_t"], stats.read_db(db, q)["eq_v"]
+    t_new, v_new = stats_io.read_db(db, q)["eq_t"], stats_io.read_db(db, q)["eq_v"]
     t_old, v_old = _old_equity(db, q)
     assert np.array_equal(t_new, t_old) and np.array_equal(v_new, v_old)
-    assert stats.read_db(db, None)["eq_t"].size == 700
+    assert stats_io.read_db(db, None)["eq_t"].size == 700
     db.close()
 
 
@@ -422,10 +423,10 @@ def test_read_db_equity_filters_by_parsed_time_not_string(tmp_path):
                           ("2026-06-01T08:00:00+00:00", 102.0)])
     db = sqlite3.connect(p)
     q = fx.ts("2026-06-01T07:30:00+00:00")
-    raw = stats.read_db(db, q)
+    raw = stats_io.read_db(db, q)
     assert raw["eq_t"].tolist() == [int(fx.ts("2026-06-01T07:00:00+00:00")), int(fx.ts("2026-06-01T08:00:00+00:00"))]
     assert raw["eq_v"].tolist() == [101.0, 102.0]                          # одна точка до окна (07:00Z) + точки внутри
-    raw0 = stats.read_db(db, fx.ts("2026-06-01T07:30:00+00:00") + 0.0)
+    raw0 = stats_io.read_db(db, fx.ts("2026-06-01T07:30:00+00:00") + 0.0)
     assert raw0["eq_t"].tolist() == raw["eq_t"].tolist()
     db.close()
 
@@ -434,21 +435,21 @@ def test_read_db_equity_takes_older_point_when_margin_is_empty(tmp_path):
     p = tmp_path / "gap.db"
     fx.make_db(p, equity=[("2026-05-10T00:00:00+00:00", 90.0), ("2026-06-01T08:00:00+00:00", 102.0)])
     db = sqlite3.connect(p)
-    raw = stats.read_db(db, fx.ts("2026-06-01T07:30:00+00:00"))
+    raw = stats_io.read_db(db, fx.ts("2026-06-01T07:30:00+00:00"))
     assert raw["eq_t"].tolist() == [int(fx.ts("2026-05-10T00:00:00+00:00")), int(fx.ts("2026-06-01T08:00:00+00:00"))]
     db.close()
 
 
 def test_eq_arrays_drops_unparseable_and_sorts():
     rows = [("2026-06-01T08:00:00+00:00", 2.0), ("мусор", 5.0), ("2026-06-01T07:00:00+00:00", 1.0), ("2026-06-01T06:00:00+02:00", None)]
-    t, v = stats._eq_arrays(rows)
+    t, v = stats_io._eq_arrays(rows)
     assert t.tolist() == [int(fx.ts("2026-06-01T04:00:00+00:00")), int(fx.ts("2026-06-01T07:00:00+00:00")),
                           int(fx.ts("2026-06-01T08:00:00+00:00"))]
     assert np.isnan(v[0]) and v[1:].tolist() == [1.0, 2.0]
-    assert stats._eq_arrays([])[0].size == 0 and stats._eq_arrays([("мусор", 1.0)])[0].size == 0
+    assert stats_io._eq_arrays([])[0].size == 0 and stats_io._eq_arrays([("мусор", 1.0)])[0].size == 0
     # быстрый путь (формат бота) и медленный дают одно и то же
-    a, _ = stats._eq_arrays([("2026-06-01T08:00:00+00:00", 1.0)])
-    b, _ = stats._eq_arrays([("2026-06-01T08:00:00Z", 1.0)])
+    a, _ = stats_io._eq_arrays([("2026-06-01T08:00:00+00:00", 1.0)])
+    b, _ = stats_io._eq_arrays([("2026-06-01T08:00:00Z", 1.0)])
     assert a.tolist() == b.tolist()
 
 

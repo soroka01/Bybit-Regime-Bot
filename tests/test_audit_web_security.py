@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from _synth import synth_market  # noqa: F401
 from tradebot.market import derivs, klines
-from tradebot.web import api as api_mod, schemas, service, stats
+from tradebot.web import api as api_mod, schemas, service, stats_io
 from tradebot.web.api import app
 
 client = TestClient(app)
@@ -298,7 +298,7 @@ def test_db_uri_quotes_the_path(tmp_path, name):
     c.execute("INSERT INTO t VALUES (42)")
     c.commit()
     c.close()
-    uri = stats._db_uri(p)
+    uri = stats_io._db_uri(p)
     assert uri.startswith("file:") and uri.endswith("?mode=ro") and "?" not in uri[:-8] and "#" not in uri
     ro = sqlite3.connect(uri, uri=True)
     assert ro.execute("SELECT x FROM t").fetchone() == (42,)
@@ -310,5 +310,5 @@ def test_db_uri_quotes_the_path(tmp_path, name):
 def test_db_uri_encodes_query_and_fragment_characters():
     """«?» и «#» нельзя положить в имя папки на Windows, но на других ОС можно: они не должны обрезать путь URI."""
     from pathlib import Path
-    uri = stats._db_uri(Path("/data/a?b#c d/bot.db"))
+    uri = stats_io._db_uri(Path("/data/a?b#c d/bot.db"))
     assert uri == "file:/data/a%3Fb%23c%20d/bot.db?mode=ro"
