@@ -9,13 +9,13 @@ import pandas as pd
 from tradebot.core import overlays as ov
 from tradebot.core.engine import backtest, monthly_returns
 from tradebot.core.portfolio import BASE_TF, Leg, exposure
-from tradebot.core.strategies import Strategy
+from tradebot.core.strategies import Strategy, clean_params, param_specs
 from tradebot.market import klines
+from tradebot.web import data
 from tradebot.web import serialize as S
-from tradebot.web._facade import F
 from tradebot.web.common import Deadline
 from tradebot.web.data import DataEmpty
-from tradebot.web.meta import MAX_SWEEP_CELLS, PORTFOLIO_TFS
+from tradebot.web.meta import MAX_SWEEP_CELLS, PORTFOLIO_TFS, get_strategy
 from tradebot.web.schemas import BacktestReq, PortfolioReq, SweepReq
 
 
@@ -194,9 +194,9 @@ def _package(sub: pd.DataFrame, res, extra: dict | None = None) -> dict:
 
 
 def run_backtest(req: BacktestReq, dl: Deadline | None = None) -> dict:
-    st = F.get_strategy(req.strategy)
-    df = F.get_df(req.symbol, req.tf)
-    params = F.clean_params(st, req.params)
+    st = get_strategy(req.strategy)
+    df = data.get_df(req.symbol, req.tf)
+    params = clean_params(st, req.params)
     sig = _signal(df, st, params, req.overlays, dl)   # на ПОЛНОЙ истории (прогрев индикаторов), затем срез периода
     mask = _slice(df, eff_days(req.tf, req.days))
     sub = df[mask]
@@ -214,14 +214,14 @@ def run_backtest(req: BacktestReq, dl: Deadline | None = None) -> dict:
 
 def run_sweep(req: SweepReq, dl: Deadline) -> dict:
     """2D-развёртка (x, y) либо 1D-профиль (y не задан): остальные параметры берутся из req.params."""
-    st = F.get_strategy(req.strategy)
-    specs = F.param_specs(st)
+    st = get_strategy(req.strategy)
+    specs = param_specs(st)
     if req.x.name not in specs or (req.y is not None and (req.y.name not in specs or req.y.name == req.x.name)):
         raise ValueError("нужно выбрать параметры стратегии (для 2D — два разных)")
     if req.y is not None and req.x.n * req.y.n > MAX_SWEEP_CELLS:
         raise ValueError(f"слишком много ячеек (максимум {MAX_SWEEP_CELLS})")
-    df = F.get_df(req.symbol, req.tf)
-    base = F.clean_params(st, req.params)
+    df = data.get_df(req.symbol, req.tf)
+    base = clean_params(st, req.params)
     mask = _slice(df, eff_days(req.tf, req.days))
     sub = df[mask]
     eff = apply_market(req)
@@ -267,15 +267,15 @@ def run_portfolio(req: PortfolioReq, dl: Deadline | None = None) -> dict:
     eff = apply_market(req)      # спот: long_only у КАЖДОЙ ноги (клип до суммирования), плечо 1x, без фандинга
     legs = []
     for l in req.legs:
-        st = F.get_strategy(l.strategy)
+        st = get_strategy(l.strategy)
         if l.tf not in PORTFOLIO_TFS:
             raise ValueError(f"таймфрейм ноги {l.tf!r} не поддерживается: допустимы {', '.join(PORTFOLIO_TFS)} "
                              f"(не короче базовой сетки {BASE_TF} и кратные ей)")
-        legs.append(Leg(l.strategy, l.tf, F.clean_params(st, l.params), l.weight, l.long_only or eff.long_only))
+        legs.append(Leg(l.strategy, l.tf, clean_params(st, l.params), l.weight, l.long_only or eff.long_only))
     keys = [l.key for l in legs]
     if len(set(keys)) != len(keys):
         raise ValueError("ноги должны различаться по паре стратегия@таймфрейм")
-    dfs = {tf: F.get_df(req.symbol, tf) for tf in {BASE_TF, *(l.tf for l in legs)}}
+    dfs = {tf: data.get_df(req.symbol, tf) for tf in {BASE_TF, *(l.tf for l in legs)}}
     if dl:
         dl.check()
     expo, sigs = exposure(legs, dfs)          # core: одним вызовом, внутри не прерывается

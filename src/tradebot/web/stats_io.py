@@ -9,6 +9,8 @@ from urllib.parse import quote
 
 import numpy as np
 
+from tradebot import paths
+from tradebot.web import data
 from tradebot.web.stats_base import SYMBOL, TF, iso, parse_ts
 from tradebot.web.stats_market import Market, market_from_df
 
@@ -103,10 +105,9 @@ def _eq_arrays(rows) -> tuple[np.ndarray, np.ndarray]:
 
 def load_market() -> tuple[Market | None, str | None]:
     """Часовые свечи + фандинг из локального кэша (без сети). Любая проблема -> (None, текст)."""
-    from tradebot.web._facade import F
     try:
-        df = F.get_df(SYMBOL, TF)
-        last = F._last_ts(F.MARKET / f"{SYMBOL}_funding.parquet")
+        df = data.get_df(SYMBOL, TF)
+        last = data._last_ts(paths.MARKET / f"{SYMBOL}_funding.parquet")
         fu = datetime.fromisoformat(last).timestamp() if last else None
         return market_from_df(df, fu), None
     except Exception as e:  # noqa: BLE001  DataMissing/DataEmpty/любой сбой чтения — статистика не падает
@@ -114,8 +115,7 @@ def load_market() -> tuple[Market | None, str | None]:
 
 
 def _market_sig() -> tuple:
-    from tradebot.web._facade import F
     try:
-        return tuple(p.stat().st_mtime_ns if p.exists() else None for p in F._files(SYMBOL, TF))
+        return tuple(p.stat().st_mtime_ns if p.exists() else None for p in data._files(SYMBOL, TF))
     except Exception:  # noqa: BLE001
         return ()

@@ -6,7 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from _synth import synth_market  # noqa: F401
-from tradebot.web import api as api_mod, cache, service
+from tradebot.web import api as api_mod, cache, data
+from tradebot import paths
 from tradebot.web.api import app
 
 client = TestClient(app)
@@ -111,8 +112,8 @@ def test_optimize_cache_hit_does_not_load_the_frame(synth_market, monkeypatch):
     assert first["from_cache"] is False
     api_mod._cache.clear()                                                         # память процесса сброшена, дисковый кэш остаётся
     loads = []
-    real = service.get_df
-    monkeypatch.setattr(service, "get_df", lambda *a, **k: loads.append(a) or real(*a, **k))
+    real = data.get_df
+    monkeypatch.setattr(data, "get_df", lambda *a, **k: loads.append(a) or real(*a, **k))
     second = client.post("/api/optimize", json=body).json()
     assert second["from_cache"] is True and loads == []
     first.pop("from_cache"), second.pop("from_cache")
@@ -127,8 +128,8 @@ def test_optimize_missing_data_is_still_409(monkeypatch, tmp_path):
     d = tmp_path / "empty"
     d.mkdir()
     monkeypatch.setattr(klines, "DATA_DIR", d)
-    monkeypatch.setattr(service, "MARKET", d)
-    service.invalidate_data()
-    service._info_cache.clear()
+    monkeypatch.setattr(paths, "MARKET", d)
+    data.invalidate_data()
+    data._info_cache.clear()
     r = client.post("/api/optimize", json={"tf": "1h", "strategy": "EMA cross", "days": 60})
     assert r.status_code == 409 and r.json()["detail"]["code"] == "data_missing"

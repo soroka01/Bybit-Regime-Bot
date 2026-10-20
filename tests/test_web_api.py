@@ -147,11 +147,12 @@ def fake_market(tmp_path, monkeypatch):
     import pandas as pd
 
     from tradebot.market import derivs, klines
-    from tradebot.web import api as api_mod, service
+    from tradebot.web import api as api_mod, data
+    from tradebot import paths
 
     monkeypatch.setattr(klines, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(service, "MARKET", tmp_path)
-    service.invalidate_data()
+    monkeypatch.setattr(paths, "MARKET", tmp_path)
+    data.invalidate_data()
     api_mod._cache.clear()
     step = pd.Timedelta(hours=1)
     expected = pd.Timestamp.now(tz="UTC").floor(step) - step

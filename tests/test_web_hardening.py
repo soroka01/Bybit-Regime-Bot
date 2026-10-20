@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from _synth import synth_market  # noqa: F401
 from tradebot.market import klines
-from tradebot.web import api as api_mod, cache, lanes, service
+from tradebot.web import api as api_mod, backtests, cache, common, data, lanes
 from tradebot.web.api import app
 
 client = TestClient(app)
@@ -16,7 +16,7 @@ JSON = {"content-type": "application/json"}
 def test_data_version_ignores_cache_dir_and_directories(synth_market, monkeypatch):
     market, res = synth_market
     monkeypatch.setattr(cache, "DB_PATH", res / "cache" / "web_cache.sqlite3")     # как в проде: БД внутри RESULTS
-    v0 = service.data_version()
+    v0 = data.data_version()
     assert v0
     key = cache.make_key("t", a=1)
     cache.put(key, {"x": 1}, kind="lb", symbol="BTCUSDT", tf="1h", strategy="s", data_sig="x")
@@ -24,24 +24,24 @@ def test_data_version_ignores_cache_dir_and_directories(synth_market, monkeypatc
     cache.get_many([key, "nope"])
     cache.stats()
     assert (res / "cache").is_dir()
-    assert service.data_version() == v0                                              # WAL/каталоги версию не меняют
+    assert data.data_version() == v0                                              # WAL/каталоги версию не меняют
     (res / "subdir").mkdir()
-    assert service.data_version() == v0
+    assert data.data_version() == v0
 
 
 def test_data_version_tracks_inputs(synth_market):
     market, res = synth_market
-    v0 = service.data_version()
+    v0 = data.data_version()
     p = klines._path("BTCUSDT", "1h")
     klines._atomic_parquet(pd.read_parquet(p).iloc[:-1], p)
-    v1 = service.data_version()
+    v1 = data.data_version()
     assert v1 != v0
     (res / "wf_BTCUSDT.csv").write_text("a\n1\n")
-    assert service.data_version() != v1
+    assert data.data_version() != v1
     (res / "other.txt").write_text("x")
-    v2 = service.data_version()
+    v2 = data.data_version()
     (res / "other.txt").write_text("y")
-    assert service.data_version() == v2                                              # посторонние файлы не важны
+    assert data.data_version() == v2                                              # посторонние файлы не важны
 
 
 def test_heavy_hit_survives_cache_access(synth_market, monkeypatch):
@@ -101,14 +101,14 @@ def test_empty_parquet_is_422_with_clear_message(synth_market):
 
 
 def test_slice_of_empty_frame_is_clean_error():
-    with pytest.raises(service.DataEmpty):
-        service._slice(pd.DataFrame({"close": []}, index=pd.DatetimeIndex([], tz="UTC")), 30)
+    with pytest.raises(data.DataEmpty):
+        backtests._slice(pd.DataFrame({"close": []}, index=pd.DatetimeIndex([], tz="UTC")), 30)
 
 
 def test_keyerror_is_mapped_with_context(monkeypatch):
     def boom(req, dl=None):
         raise KeyError("oi")
-    monkeypatch.setattr(service, "run_backtest", boom)
+    monkeypatch.setattr(backtests, "run_backtest", boom)
     r = client.post("/api/backtest", json={"strategy": "EMA cross"})
     assert r.status_code == 422
     msg = r.json()["detail"]["message"]
@@ -130,21 +130,21 @@ def test_fingerprint_deriv_strategies_cover_oi_and_lsr(synth_market):
     deriv = sorted({"Funding contrarian", "Long/short ratio contrarian", "OI trend", "OI flush"} |
                    {n for n, s in STRATEGIES.items() if s.derivative})
     assert len(deriv) >= 4
-    before = {n: service.data_fingerprint("BTCUSDT", "1h", n) for n in [*deriv, "EMA cross"]}
+    before = {n: data.data_fingerprint("BTCUSDT", "1h", n) for n in [*deriv, "EMA cross"]}
     _touch_series(market / "BTCUSDT_oi_1h.parquet")
-    mid = {n: service.data_fingerprint("BTCUSDT", "1h", n) for n in before}
+    mid = {n: data.data_fingerprint("BTCUSDT", "1h", n) for n in before}
     assert all(mid[n] != before[n] for n in deriv)                         # OI меняет отпечаток ВСЕХ деривативных
     assert mid["EMA cross"] == before["EMA cross"]                          # обычная — нет
     _touch_series(market / "BTCUSDT_lsr_1h.parquet")
-    after = {n: service.data_fingerprint("BTCUSDT", "1h", n) for n in before}
+    after = {n: data.data_fingerprint("BTCUSDT", "1h", n) for n in before}
     assert all(after[n] != mid[n] for n in deriv) and after["EMA cross"] == before["EMA cross"]
     _touch_series(market / "BTCUSDT_oi_4h.parquet")                         # другая гранулярность не влияет на 1h
-    assert service.data_fingerprint("BTCUSDT", "1h", "OI flush") == after["OI flush"]
+    assert data.data_fingerprint("BTCUSDT", "1h", "OI flush") == after["OI flush"]
 
 
 def test_derivative_flag_strategies_are_in_deriv_set():
     from tradebot.core.strategies import STRATEGIES
-    assert {n for n, s in STRATEGIES.items() if s.derivative} <= service.DERIV_STRATEGIES
+    assert {n for n, s in STRATEGIES.items() if s.derivative} <= data.DERIV_STRATEGIES
 
 
 # ---------------------------------------------------------------- B9/B10: кэш закодированных байтов
@@ -211,36 +211,36 @@ def test_gzip_and_etag():
 
 # ---------------------------------------------------------------- C6: LRU кадров
 def test_df_cache_is_lru_bounded(monkeypatch):
-    monkeypatch.setattr(service, "DF_CACHE_SIZE", 3)
-    service.invalidate_data()
-    with service._df_lock:
+    monkeypatch.setattr(data, "DF_CACHE_SIZE", 3)
+    data.invalidate_data()
+    with data._df_lock:
         for i in range(5):
-            service._df_put(("S", f"t{i}"), (i,), pd.DataFrame())
-        assert list(service._df_cache) == [("S", "t2"), ("S", "t3"), ("S", "t4")]
-    service.invalidate_data()
+            data._df_put(("S", f"t{i}"), (i,), pd.DataFrame())
+        assert list(data._df_cache) == [("S", "t2"), ("S", "t3"), ("S", "t4")]
+    data.invalidate_data()
 
 
 def test_get_df_hit_refreshes_lru(synth_market, monkeypatch):
-    monkeypatch.setattr(service, "DF_CACHE_SIZE", 2)
-    service.get_df("BTCUSDT", "1h")
-    service.get_df("BTCUSDT", "4h")
-    service.get_df("BTCUSDT", "1h")                        # 1h снова «свежий»
-    with service._df_lock:
-        service._df_put(("X", "y"), (0,), pd.DataFrame())
-        assert ("BTCUSDT", "1h") in service._df_cache and ("BTCUSDT", "4h") not in service._df_cache
-    service.invalidate_data()
+    monkeypatch.setattr(data, "DF_CACHE_SIZE", 2)
+    data.get_df("BTCUSDT", "1h")
+    data.get_df("BTCUSDT", "4h")
+    data.get_df("BTCUSDT", "1h")                        # 1h снова «свежий»
+    with data._df_lock:
+        data._df_put(("X", "y"), (0,), pd.DataFrame())
+        assert ("BTCUSDT", "1h") in data._df_cache and ("BTCUSDT", "4h") not in data._df_cache
+    data.invalidate_data()
 
 
 # ---------------------------------------------------------------- шаг 3 (c): Deadline в backtest/portfolio
 def test_backtest_and_portfolio_honour_deadline(synth_market):
     from tradebot.web.schemas import BacktestReq, PortfolioReq
-    expired = service.Deadline(-1)
+    expired = common.Deadline(-1)
     with pytest.raises(TimeoutError):
-        service.run_backtest(BacktestReq(strategy="EMA cross", tf="1h", days=60, overlays={"stop": 3.0}), expired)
+        backtests.run_backtest(BacktestReq(strategy="EMA cross", tf="1h", days=60, overlays={"stop": 3.0}), expired)
     legs = client.get("/api/meta").json()["legs"]
     with pytest.raises(TimeoutError):
-        service.run_portfolio(PortfolioReq(legs=legs, days=60), expired)
-    assert service.run_backtest(BacktestReq(strategy="EMA cross", tf="1h", days=60))["metrics"]      # без Deadline — как раньше
+        backtests.run_portfolio(PortfolioReq(legs=legs, days=60), expired)
+    assert backtests.run_backtest(BacktestReq(strategy="EMA cross", tf="1h", days=60))["metrics"]      # без Deadline — как раньше
 
 
 def test_expired_deadline_maps_to_504(synth_market, monkeypatch):

@@ -1,6 +1,5 @@
 """Данные рынка: файлы, кэш DataFrame в памяти (LRU по mtime), статус/докачка/загрузка (сеть — только явно),
-отпечатки данных для ключей кэша. Подменяемые в тестах имена (MARKET, RESULTS, _info_cache, …) читаются через фасад
-`service` в момент вызова (см. _facade.py)."""
+отпечатки данных для ключей кэша. Папки данных читаются как paths.MARKET / paths.RESULTS в момент вызова (тесты подменяют их)."""
 from __future__ import annotations
 
 import math
@@ -10,11 +9,15 @@ from collections import OrderedDict
 
 import pandas as pd
 
+from tradebot import paths
+from tradebot.core.strategies import STRATEGIES
 from tradebot.market import derivs, guard, klines
 from tradebot.web import cache
-from tradebot.web._facade import F
-from tradebot.web.meta import DERIV_STRATEGIES, TIMEFRAMES
 from tradebot.web.schemas import SYMBOLS
+
+# стратегии, которым нужны файлы деривативов (OI, L/S): исторические четыре + те, что помечены derivative=True
+DERIV_STRATEGIES = {"Funding contrarian", "Long/short ratio contrarian", "OI trend", "OI flush"}
+DERIV_STRATEGIES |= {n for n, s in STRATEGIES.items() if s.derivative}
 
 
 def fetch_estimate(tf: str) -> dict:
@@ -51,8 +54,8 @@ def check_sym_tf(symbol: str, tf: str) -> None:
 def _files(symbol: str, tf: str) -> list:
     check_sym_tf(symbol, tf)
     gran = derivs.granularity_for(klines.TIMEFRAMES[tf][1])
-    return [klines._path(symbol, tf), F.MARKET / f"{symbol}_funding.parquet",
-            F.MARKET / f"{symbol}_oi_{gran}.parquet", F.MARKET / f"{symbol}_lsr_{gran}.parquet"]
+    return [klines._path(symbol, tf), paths.MARKET / f"{symbol}_funding.parquet",
+            paths.MARKET / f"{symbol}_oi_{gran}.parquet", paths.MARKET / f"{symbol}_lsr_{gran}.parquet"]
 
 
 def available(symbol: str, tf: str) -> bool:
@@ -64,7 +67,7 @@ def data_version() -> str:
     Только обычные файлы: mtime каталогов (например RESULTS/cache при каждом открытии sqlite-WAL) меняется и
     без смены данных, что ломало бы попадания в кэш."""
     parts = []
-    for d, pat in ((F.MARKET, "*.parquet"), (F.RESULTS, "wf_*")):
+    for d, pat in ((paths.MARKET, "*.parquet"), (paths.RESULTS, "wf_*")):
         try:
             for p in sorted(d.glob(pat)):
                 try:
@@ -87,7 +90,7 @@ def _df_put(key, sig, df) -> None:
     """Под _df_lock: кладёт кадр и вытесняет самые давно использованные."""
     _df_cache[key] = (sig, df)
     _df_cache.move_to_end(key)
-    while len(_df_cache) > F.DF_CACHE_SIZE:
+    while len(_df_cache) > DF_CACHE_SIZE:
         _df_cache.popitem(last=False)
 
 
@@ -156,7 +159,7 @@ def _file_info(path) -> dict | None:
     except OSError:
         return None
     key = (st.st_mtime_ns, st.st_size)
-    hit = F._info_cache.get(path)
+    hit = _info_cache.get(path)
     if hit and hit[0] == key:
         return hit[1]
     try:
@@ -165,7 +168,7 @@ def _file_info(path) -> dict | None:
         return None
     info = {"rows": int(len(idx)), "first": idx[0].isoformat() if len(idx) else None,
             "last": idx[-1].isoformat() if len(idx) else None}
-    F._info_cache[path] = (key, info)
+    _info_cache[path] = (key, info)
     return info
 
 
@@ -194,7 +197,7 @@ def data_sig(symbol: str, tf: str) -> str:
 
 
 def purge_cache(symbol: str) -> int:
-    return cache.purge_stale(symbol, {tf: data_sig(symbol, tf) for tf in TIMEFRAMES})
+    return cache.purge_stale(symbol, {tf: data_sig(symbol, tf) for tf in klines.TIMEFRAMES})
 
 
 def _last_ts(path) -> str | None:
@@ -210,9 +213,9 @@ def data_status(symbol: str, tf: str, now: pd.Timestamp | None = None) -> dict:
     step = pd.Timedelta(minutes=klines.TIMEFRAMES[tf][1])
     gran = derivs.granularity_for(klines.TIMEFRAMES[tf][1])
     p = klines._path(symbol, tf)
-    derivs_info = {"funding": _last_ts(F.MARKET / f"{symbol}_funding.parquet"),
-                   "oi": _last_ts(F.MARKET / f"{symbol}_oi_{gran}.parquet"),
-                   "lsr": _last_ts(F.MARKET / f"{symbol}_lsr_{gran}.parquet"), "granularity": gran}
+    derivs_info = {"funding": _last_ts(paths.MARKET / f"{symbol}_funding.parquet"),
+                   "oi": _last_ts(paths.MARKET / f"{symbol}_oi_{gran}.parquet"),
+                   "lsr": _last_ts(paths.MARKET / f"{symbol}_lsr_{gran}.parquet"), "granularity": gran}
     out = {"symbol": symbol, "tf": tf, "exists": p.exists(), "now": now.isoformat(), "step_min": step.total_seconds() / 60,
            "derivs": derivs_info, "last": None, "first": None, "bars": 0, "behind_bars": None, "expected_last": None,
            "level": "bad"}
@@ -235,7 +238,7 @@ def update_data(symbol: str, tf: str) -> dict:
     """ЯВНАЯ докачка новых свечей и деривативов (сеть). Запись атомарная (klines._atomic_parquet внутри load/derivs)."""
     if symbol not in SYMBOLS or tf not in klines.TIMEFRAMES:
         raise ValueError("неизвестный символ или таймфрейм")
-    before = F.data_status(symbol, tf)
+    before = data_status(symbol, tf)
     eff = klines.effective_days(tf, 1095)
     with guard.patient():       # веб-докачка ждёт занятый файл терпеливо (бот в это время ждёт не дольше нескольких секунд)
         df = klines.load(symbol, tf, eff, refresh=True)
@@ -246,9 +249,9 @@ def update_data(symbol: str, tf: str) -> dict:
             raise
         except Exception as e:  # noqa: BLE001  свечи уже сохранены; деривативы можно докачать повторно
             warning = f"свечи обновлены, но деривативы не загрузились: {type(e).__name__}: {e}"
-    F.invalidate_data(symbol)
-    purged = F.purge_cache(symbol)
-    after = F.data_status(symbol, tf)
+    invalidate_data(symbol)
+    purged = purge_cache(symbol)
+    after = data_status(symbol, tf)
     added = max(0, after["bars"] - before["bars"])
     return {"added": added, "status": after, "before_last": before["last"], "warning": warning, "purged": purged}
 
@@ -261,7 +264,7 @@ def fetch_data(symbol: str, tf: str) -> dict:
     with guard.patient():
         df = klines.load(symbol, tf, eff, refresh=True)
         derivs.enrich(df, symbol, refresh=True, days=eff)
-    F.invalidate_data(symbol)
-    F.purge_cache(symbol)
+    invalidate_data(symbol)
+    purge_cache(symbol)
     return {"symbol": symbol, "tf": tf, "bars": int(len(df)), "start": df.index[0].isoformat(),
             "end": df.index[-1].isoformat()}

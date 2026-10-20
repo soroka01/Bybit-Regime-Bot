@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from tradebot import paths
 from tradebot.web import serialize as S
-from tradebot.web._facade import F
 from tradebot.web.meta import wf_levs
 from tradebot.web.schemas import SYMBOLS
 
@@ -40,18 +40,18 @@ def _wf_symbol(symbol: str) -> str:
 
 
 def wf_table(lev: int, symbol: str = "BTCUSDT") -> list[dict]:
-    p = F.RESULTS / f"wf_{_wf_symbol(symbol)}{_wf_tag(lev)}.csv"
+    p = paths.RESULTS / f"wf_{_wf_symbol(symbol)}{_wf_tag(lev)}.csv"
     df = _cached_file(p, pd.read_csv)
     return S.clean(df.rename(columns=lambda c: c[3:] if c.startswith("wf_") else c))
 
 
 def wf_windows(lev: int, symbol: str = "BTCUSDT") -> list[dict]:
-    p = F.RESULTS / f"wf_windows_{_wf_symbol(symbol)}{_wf_tag(lev)}.csv"
+    p = paths.RESULTS / f"wf_windows_{_wf_symbol(symbol)}{_wf_tag(lev)}.csv"
     return S.clean(_cached_file(p, pd.read_csv))
 
 
 def wf_curve(lev: int, tf: str, strategy: str, variant: str, symbol: str = "BTCUSDT") -> dict:
-    p = F.RESULTS / f"wf_curves_{_wf_symbol(symbol)}{_wf_tag(lev)}.pkl"
+    p = paths.RESULTS / f"wf_curves_{_wf_symbol(symbol)}{_wf_tag(lev)}.pkl"
     curves = _cached_file(p, pd.read_pickle)          # локальный файл, создан research.walkforward
     eq = curves.get((tf, strategy, variant))
     if eq is None:

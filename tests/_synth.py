@@ -35,15 +35,16 @@ def build_market(d) -> None:
 @pytest.fixture
 def synth_market(tmp_path, monkeypatch):
     """Подменяет MARKET/RESULTS на временные папки и строит синтетические данные. Возвращает (market_dir, results_dir)."""
-    from tradebot.web import api as api_mod, service
+    from tradebot.web import api as api_mod, data
+    from tradebot import paths
     d, res = tmp_path / "market", tmp_path / "results"
     d.mkdir()
     res.mkdir()
     monkeypatch.setattr(klines, "DATA_DIR", d)
-    monkeypatch.setattr(service, "MARKET", d)
-    monkeypatch.setattr(service, "RESULTS", res)
-    service.invalidate_data()
-    service._info_cache.clear()
+    monkeypatch.setattr(paths, "MARKET", d)
+    monkeypatch.setattr(paths, "RESULTS", res)
+    data.invalidate_data()
+    data._info_cache.clear()
     api_mod._cache.clear()
     build_market(d)
     return d, res

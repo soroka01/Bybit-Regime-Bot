@@ -33,13 +33,12 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from tradebot.market import guard
 from tradebot.paths import WEB_DIST
-from tradebot.web import service, stats, stats_base
+from tradebot.web import backtests, common, data, lanes, meta, research, stats, stats_base, wf
 from tradebot.core.legspec import draft_payload, leg_label, parse_leg_text, validate_leg
 from tradebot.web.schemas import (BacktestReq, CachedReq, FetchReq, LbItemReq, OptimizeReq, PortfolioReq, ProposalReq,
                                   SweepReq, Symbol, Timeframe)
 from tradebot.web.security import SameOriginGuard, SecurityHeaders
 from tradebot.web.serialize import clean
-from tradebot.web import lanes
 from tradebot.web.lanes import _err
 
 log = logging.getLogger("tradebot.web")
@@ -108,7 +107,7 @@ def _map_exc(e: Exception, upstream: bool = False):
         return e
     if isinstance(e, guard.Cancelled):
         return _err(503, "shutting_down", "сервер останавливается")
-    if isinstance(e, service.DataMissing):
+    if isinstance(e, data.DataMissing):
         return _err(409, "data_missing", str(e), symbol=e.symbol, tf=e.tf, missing=e.missing, estimate=e.estimate)
     if isinstance(e, sqlite3.Error):
         return _err(503, "db_error", "база данных временно недоступна")
@@ -146,14 +145,14 @@ def _json(body: bytes, cache: str) -> Response:
 
 
 async def heavy_endpoint(request: Request, kind: str, req, compute, with_deadline=False):
-    key = f"{kind}:{req.model_dump_json()}:{hashlib.md5(service.data_version().encode()).hexdigest()}"
+    key = f"{kind}:{req.model_dump_json()}:{hashlib.md5(data.data_version().encode()).hexdigest()}"
     use_mem = not getattr(req, "force", False)         # force = «пересчитать»: память процесса не используем
     hit = _cache_get(key) if use_mem else None
     if hit is not None:
         return _json(hit[1], "hit")                    # кэшируем уже закодированные байты — без повторной сериализации
 
     def job():
-        return clean(compute(req, service.Deadline(lanes.HEAVY_TIMEOUT)) if with_deadline else compute(req))
+        return clean(compute(req, common.Deadline(lanes.HEAVY_TIMEOUT)) if with_deadline else compute(req))
 
     try:
         out = await lanes.run_heavy(request, kind, job)
@@ -179,33 +178,33 @@ def etagged(request: Request, payload, max_age: int = 30):
 # ---------------------------------------------------------------- маршруты
 @app.get("/api/meta")
 def api_meta(request: Request):
-    return etagged(request, clean(service.meta()), max_age=5)
+    return etagged(request, clean(meta.meta()), max_age=5)
 
 
 @app.post("/api/backtest")
 async def api_backtest(request: Request, req: BacktestReq):
-    return await heavy_endpoint(request, "backtest", req, service.run_backtest, with_deadline=True)
+    return await heavy_endpoint(request, "backtest", req, backtests.run_backtest, with_deadline=True)
 
 
 @app.post("/api/sweep")
 async def api_sweep(request: Request, req: SweepReq):
-    return await heavy_endpoint(request, "sweep", req, service.run_sweep, with_deadline=True)
+    return await heavy_endpoint(request, "sweep", req, backtests.run_sweep, with_deadline=True)
 
 
 @app.post("/api/portfolio")
 async def api_portfolio(request: Request, req: PortfolioReq):
-    return await heavy_endpoint(request, "portfolio", req, service.run_portfolio, with_deadline=True)
+    return await heavy_endpoint(request, "portfolio", req, backtests.run_portfolio, with_deadline=True)
 
 
 @app.post("/api/optimize")
 async def api_optimize(request: Request, req: OptimizeReq):
-    return await heavy_endpoint(request, "optimize", req, service.run_optimize, with_deadline=True)
+    return await heavy_endpoint(request, "optimize", req, research.run_optimize, with_deadline=True)
 
 
 @app.get("/api/leaderboard/plan")
 def api_lb_plan(symbol: Symbol = "BTCUSDT", tf: Timeframe = "1h"):
     try:
-        return JSONResponse(service.lb_plan(symbol, tf), headers={"Cache-Control": "no-store"})
+        return JSONResponse(research.lb_plan(symbol, tf), headers={"Cache-Control": "no-store"})
     except Exception as e:  # noqa: BLE001
         raise _fail(e, "lb_plan")
 
@@ -214,14 +213,14 @@ def api_lb_plan(symbol: Symbol = "BTCUSDT", tf: Timeframe = "1h"):
 def api_lb_cached(req: CachedReq):
     """Мгновенный поиск готовых карточек в дисковом кэше. Без тяжёлого семафора и без вычислений."""
     try:
-        return JSONResponse(clean(service.lb_cached(req)), headers={"Cache-Control": "no-store"})
+        return JSONResponse(clean(research.lb_cached(req)), headers={"Cache-Control": "no-store"})
     except Exception as e:  # noqa: BLE001
         raise _fail(e, "lb_cached")
 
 
 @app.post("/api/leaderboard/item")
 async def api_lb_item(request: Request, req: LbItemReq):
-    return await heavy_endpoint(request, "leaderboard", req, service.run_lb_item, with_deadline=True)
+    return await heavy_endpoint(request, "leaderboard", req, research.run_lb_item, with_deadline=True)
 
 
 def _wf(request: Request, fn, *args):
@@ -235,17 +234,17 @@ def _wf(request: Request, fn, *args):
 
 @app.get("/api/walkforward")
 def api_wf(request: Request, lev: int = 1, symbol: Symbol = "BTCUSDT"):
-    return _wf(request, service.wf_table, lev, symbol)
+    return _wf(request, wf.wf_table, lev, symbol)
 
 
 @app.get("/api/walkforward/curve")
 def api_wf_curve(request: Request, tf: Timeframe, strategy: str, variant: str, lev: int = 1, symbol: Symbol = "BTCUSDT"):
-    return _wf(request, service.wf_curve, lev, tf, strategy, variant, symbol)
+    return _wf(request, wf.wf_curve, lev, tf, strategy, variant, symbol)
 
 
 @app.get("/api/walkforward/windows")
 def api_wf_windows(request: Request, lev: int = 1, symbol: Symbol = "BTCUSDT"):
-    return _wf(request, service.wf_windows, lev, symbol)
+    return _wf(request, wf.wf_windows, lev, symbol)
 
 
 _SECRET_HINTS = ("token", "secret", "password", "passwd", "signature", "api_key", "apikey", "api-key", "private")
@@ -327,7 +326,7 @@ def api_stats(range_: str = Query(stats_base.DEFAULT_RANGE, alias="range")):
 @app.get("/api/data/status")
 def api_data_status(symbol: Symbol = "BTCUSDT", tf: Timeframe = "1h"):
     try:
-        return JSONResponse(clean(service.data_status(symbol, tf)), headers={"Cache-Control": "no-store"})
+        return JSONResponse(clean(data.data_status(symbol, tf)), headers={"Cache-Control": "no-store"})
     except Exception as e:  # noqa: BLE001
         raise _fail(e, "data_status")
 
@@ -336,7 +335,7 @@ def api_data_status(symbol: Symbol = "BTCUSDT", tf: Timeframe = "1h"):
 async def api_data_update(request: Request, req: FetchReq):
     """Явная докачка новых свечей + деривативов (сеть, атомарная запись). Сбрасывает кэши расчётов."""
     try:
-        out = await lanes.run_heavy(request, "update", lambda: clean(service.update_data(req.symbol, req.tf)), lanes.FETCH_TIMEOUT)
+        out = await lanes.run_heavy(request, "update", lambda: clean(data.update_data(req.symbol, req.tf)), lanes.FETCH_TIMEOUT)
     except Exception as e:  # noqa: BLE001
         raise _fail(e, "update", (502, "update_failed", "не удалось обновить данные: "), upstream=True)
     _cache.clear()
@@ -347,7 +346,7 @@ async def api_data_update(request: Request, req: FetchReq):
 async def api_fetch(request: Request, req: FetchReq):
     """Явная загрузка данных с Bybit (публичный API, без ключей). Никогда не вызывается неявно."""
     try:
-        out = await lanes.run_heavy(request, "fetch", lambda: service.fetch_data(req.symbol, req.tf), lanes.FETCH_TIMEOUT)
+        out = await lanes.run_heavy(request, "fetch", lambda: data.fetch_data(req.symbol, req.tf), lanes.FETCH_TIMEOUT)
         _cache.clear()
         return out
     except Exception as e:  # noqa: BLE001

@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from _synth import synth_market  # noqa: F401
 from tradebot.core import engine
 from tradebot.core.engine import DEFAULT_PERP_FEE, MAINT_MARGIN_RATE, backtest, liquidation_threshold
-from tradebot.web import api as api_mod, schemas, service
+from tradebot.web import api as api_mod, data, schemas
 from tradebot.web.api import app
 
 client = TestClient(app)
@@ -143,13 +143,13 @@ SPOT_BT = {"strategy": "EMA cross", "tf": "1h", "days": 60, "params": {"fast": 1
 
 
 def _zero_funding(monkeypatch):
-    orig = service.get_df
+    orig = data.get_df
 
     def patched(symbol, tf):
         df = orig(symbol, tf).copy()
         df["funding"] = 0.0
         return df
-    monkeypatch.setattr(service, "get_df", patched)
+    monkeypatch.setattr(data, "get_df", patched)
     api_mod._cache.clear()           # ответы кэшируются по телу запроса — подмена данных кэш не инвалидирует
 
 
@@ -305,7 +305,7 @@ def test_ts_constants_match_server():
     mkt = (WEB_SRC / "market.ts").read_text(encoding="utf-8")
 
     def const(src, name):
-        m = re.search(rf"export const {name}\s*=\s*([0-9.]+)", src)
+        m = re.search(rf"(?:export )?const {name}\s*=\s*([0-9.]+)", src)
         assert m, name
         return float(m.group(1))
     assert const(lev, "MAX_LEVERAGE") == schemas.MAX_LEVERAGE

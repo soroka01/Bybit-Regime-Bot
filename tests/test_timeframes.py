@@ -7,7 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tradebot.market import derivs, klines
-from tradebot.web import service
+from tradebot.web import data
+from tradebot import paths
 from tradebot.web.api import app
 
 client = TestClient(app)
@@ -69,13 +70,13 @@ def test_weekly_alignment_helpers():
 ])
 def test_status_expected_bar_for_coarse_frames(tmp_path, monkeypatch, tf, last, behind, level):
     monkeypatch.setattr(klines, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(service, "MARKET", tmp_path)
+    monkeypatch.setattr(paths, "MARKET", tmp_path)
     step = pd.Timedelta(minutes=klines.TIMEFRAMES[tf][1])
     idx = pd.date_range(end=pd.Timestamp(last, tz=UTC), periods=30, freq=step).rename("ts")
     df = pd.DataFrame({"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0, "turnover": 1.0}, index=idx)
     klines._atomic_parquet(df, klines._path("BTCUSDT", tf))
     now = pd.Timestamp("2026-10-06 10:30", tz=UTC)
-    st = service.data_status("BTCUSDT", tf, now=now)
+    st = data.data_status("BTCUSDT", tf, now=now)
     assert st["behind_bars"] == behind and st["level"] == level
 
 
@@ -152,8 +153,8 @@ def test_meta_derives_from_timeframes():
 
 def test_new_frames_validate_and_report_missing_data_with_estimate(tmp_path, monkeypatch):
     monkeypatch.setattr(klines, "DATA_DIR", tmp_path)         # пустой кэш: 1m точно «не скачан»
-    monkeypatch.setattr(service, "MARKET", tmp_path)
-    service.invalidate_data()
+    monkeypatch.setattr(paths, "MARKET", tmp_path)
+    data.invalidate_data()
     r = client.post("/api/backtest", json={"strategy": "EMA cross", "tf": "1m", "symbol": "BTCUSDT", "days": 365})
     assert r.status_code == 409
     d = r.json()["detail"]

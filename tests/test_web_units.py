@@ -1,4 +1,4 @@
-"""Юнит-тесты чистых функций веба: даунсэмплинг, clean(), границы слайдеров, маркеры сделок, фасад service."""
+"""Юнит-тесты чистых функций веба: даунсэмплинг, clean(), границы слайдеров, маркеры сделок."""
 import json
 import subprocess
 import sys
@@ -9,9 +9,10 @@ import pandas as pd
 import pytest
 
 from _synth import synth_market  # noqa: F401
-from tradebot.core.strategies import Strategy
+from tradebot.core.strategies import Strategy, clean_params, param_specs
 from tradebot.web import serialize as S
-from tradebot.web import service
+from tradebot.web import backtests, data
+from tradebot import paths
 
 
 # ---------------------------------------------------------------- pick_indices / bucket_mean
@@ -94,7 +95,7 @@ def _strategy(grid, default):
 
 
 def _check_contains(st):
-    specs = service.param_specs(st)
+    specs = param_specs(st)
     for name, sp in specs.items():
         assert sp["min"] <= min(st.grid[name]) and sp["max"] >= max(st.grid[name]), (name, sp)
         assert sp["min"] <= sp["default"] <= sp["max"], (name, sp)
@@ -126,10 +127,10 @@ def test_param_specs_all_registered_strategies_are_consistent():
 
 def test_clean_params_clamps_and_rejects_garbage():
     st = _strategy({"n": [5, 10], "x": [1.0, 2.0]}, {"n": 5, "x": 1.0})
-    sp = service.param_specs(st)
-    out = service.clean_params(st, {"n": 10 ** 9, "x": float("nan")})
+    sp = param_specs(st)
+    out = clean_params(st, {"n": 10 ** 9, "x": float("nan")})
     assert out == {"n": sp["n"]["max"], "x": 1.0} and isinstance(out["n"], int) and isinstance(out["x"], float)
-    assert service.clean_params(st, {"n": -5, "x": "boom", "extra": 3}) == {"n": sp["n"]["min"], "x": 1.0}
+    assert clean_params(st, {"n": -5, "x": "boom", "extra": 3}) == {"n": sp["n"]["min"], "x": 1.0}
 
 
 # ---------------------------------------------------------------- _markers
@@ -150,13 +151,13 @@ def _fake_result(n_trades, open_last, n_bars=None):
 def test_markers_empty():
     sub, res = _fake_result(1, False)
     res.trades = res.trades.iloc[:0]
-    assert service._markers(sub, res) == {"entries": [], "exits": [], "truncated": False}
+    assert backtests._markers(sub, res) == {"entries": [], "exits": [], "truncated": False}
 
 
 @pytest.mark.parametrize("open_last", [False, True])
 def test_markers_without_truncation_pair_up(open_last):
     sub, res = _fake_result(10, open_last)
-    m = service._markers(sub, res, cap=50)
+    m = backtests._markers(sub, res, cap=50)
     assert m["truncated"] is False and len(m["entries"]) == 10 and len(m["exits"]) == (9 if open_last else 10)
     assert [e["side"] for e in m["exits"]] == [e["side"] for e in m["entries"]][:len(m["exits"])]
 
@@ -166,7 +167,7 @@ def test_markers_truncation_keeps_entries_and_exits_consistent(open_last):
     """Усечение по числу сделок: каждый оставшийся выход принадлежит сделке, чей вход тоже остался."""
     n, cap = 40, 12
     sub, res = _fake_result(n, open_last)
-    m = service._markers(sub, res, cap=cap)
+    m = backtests._markers(sub, res, cap=cap)
     assert m["truncated"] is True and len(m["entries"]) == cap
     assert len(m["exits"]) == (cap - 1 if open_last else cap)
     first_entry_t = m["entries"][0]["t"]
@@ -254,49 +255,39 @@ def test_pick_respects_cap_and_includes_extrema():
     assert {0, 49_999, int(price.argmax()), int(price.argmin()), int(eq.argmax()), int(dd.argmin())} <= set(pick.tolist())
 
 
-# ---------------------------------------------------------------- фасад service
+# ---------------------------------------------------------------- точки подмены между модулями веба
 
-def test_facade_reexports_everything():
-    for name in ("Deadline", "DataMissing", "DataEmpty", "run_backtest", "run_sweep", "run_portfolio", "run_optimize",
-                 "run_lb_item", "lb_cached", "lb_plan", "lb_key", "meta", "param_specs", "clean_params", "get_strategy",
-                 "get_df", "get_df_lite", "invalidate_data", "data_status", "update_data", "fetch_data", "data_version",
-                 "data_fingerprint", "data_sig", "purge_cache", "wf_table", "wf_windows", "wf_curve", "eff_days",
-                 "_optimize", "_signal", "_slice", "_markers", "_package", "_info_cache", "_df_cache", "MARKET", "RESULTS",
-                 "TIMEFRAMES", "DERIV_STRATEGIES", "WF_LEVS", "PORTFOLIO_TFS", "MAX_SWEEP_CELLS", "fetch_estimate"):
-        assert hasattr(service, name), name
-
-
-def test_facade_monkeypatch_reaches_submodules(synth_market, monkeypatch):
+def test_patched_data_functions_are_seen_by_other_web_modules(synth_market, monkeypatch):
     from tradebot.web.schemas import BacktestReq
     calls = []
-    real = service.get_df
-    monkeypatch.setattr(service, "get_df", lambda s, t: calls.append((s, t)) or real(s, t))
-    service.run_backtest(BacktestReq(strategy="EMA cross", tf="1h", days=60))
+    real = data.get_df
+    monkeypatch.setattr(data, "get_df", lambda s, t: calls.append((s, t)) or real(s, t))
+    backtests.run_backtest(BacktestReq(strategy="EMA cross", tf="1h", days=60))
     assert calls == [("BTCUSDT", "1h")]
     calls.clear()
-    monkeypatch.setattr(service, "invalidate_data", lambda symbol=None: calls.append(("inv", symbol)))
-    monkeypatch.setattr(service, "purge_cache", lambda symbol: calls.append(("purge", symbol)) or 0)
+    monkeypatch.setattr(data, "invalidate_data", lambda symbol=None: calls.append(("inv", symbol)))
+    monkeypatch.setattr(data, "purge_cache", lambda symbol: calls.append(("purge", symbol)) or 0)
     from tradebot.market import derivs, klines
     monkeypatch.setattr(klines, "load", lambda symbol, tf, days=1095, refresh=True: pd.read_parquet(klines._path(symbol, tf)))
     monkeypatch.setattr(derivs, "enrich", lambda df, *a, **k: df)
-    service.update_data("BTCUSDT", "1h")
+    data.update_data("BTCUSDT", "1h")
     assert ("inv", "BTCUSDT") in calls and ("purge", "BTCUSDT") in calls
 
 
-def test_facade_patched_info_cache_and_dirs_are_used(synth_market, monkeypatch, tmp_path):
+def test_patched_info_cache_and_market_dir_are_used(synth_market, monkeypatch, tmp_path):
     fresh = {}
-    monkeypatch.setattr(service, "_info_cache", fresh)
-    service.data_status("BTCUSDT", "1h")
+    monkeypatch.setattr(data, "_info_cache", fresh)
+    data.data_status("BTCUSDT", "1h")
     assert fresh                                           # _file_info положил записи в подменённый словарь
     other = tmp_path / "other_market"
     other.mkdir()
-    monkeypatch.setattr(service, "MARKET", other)
-    assert service.available("BTCUSDT", "1h") is False     # деривативные файлы ищутся в подменённой папке
+    monkeypatch.setattr(paths, "MARKET", other)
+    assert data.available("BTCUSDT", "1h") is False     # деривативные файлы ищутся в подменённой папке
 
 
 @pytest.mark.parametrize("first", ["tradebot.web.data", "tradebot.web.meta", "tradebot.web.backtests", "tradebot.web.research",
-                                   "tradebot.web.wf", "tradebot.web.common", "tradebot.web.service", "tradebot.web.api"])
+                                   "tradebot.web.wf", "tradebot.web.common", "tradebot.web.stats_io", "tradebot.web.api"])
 def test_import_order_independent(first):
-    code = f"import {first}; from tradebot.web import service, api; assert service.run_backtest and api.app"
+    code = f"import {first}; from tradebot.web import api, backtests; assert backtests.run_backtest and api.app"
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stderr[-800:]

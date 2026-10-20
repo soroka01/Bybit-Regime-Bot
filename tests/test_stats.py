@@ -672,12 +672,13 @@ def test_cache_is_bounded(tmp_path):
 # ---------------------------------------------------------------- загрузка рынка
 def test_load_market_returns_none_when_data_missing(tmp_path, monkeypatch):
     from tradebot.market import klines
-    from tradebot.web import service
+    from tradebot.web import data
+    from tradebot import paths
     d = tmp_path / "market"
     d.mkdir()
     monkeypatch.setattr(klines, "DATA_DIR", d)
-    monkeypatch.setattr(service, "MARKET", d)
-    service.invalidate_data()
+    monkeypatch.setattr(paths, "MARKET", d)
+    data.invalidate_data()
     m, err = stats_io.load_market()
     assert m is None and err == "DataMissing"
 

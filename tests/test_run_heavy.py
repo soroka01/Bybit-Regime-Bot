@@ -6,7 +6,7 @@ import time
 import pytest
 from fastapi import HTTPException
 
-from tradebot.web import api as api_mod, lanes as lanes_mod, service
+from tradebot.web import api as api_mod, backtests, lanes as lanes_mod
 
 
 class FakeReq:
@@ -270,7 +270,7 @@ def test_http_busy_body_contains_wait_info(lanes, monkeypatch):
     calc, _ = lanes
     calc.queue_wait = 0.1
     b = Blocker()
-    monkeypatch.setattr(service, "run_backtest", lambda req, dl=None: b())
+    monkeypatch.setattr(backtests, "run_backtest", lambda req, dl=None: b())
     client = TestClient(api_mod.app)
     import concurrent.futures as cf
     with cf.ThreadPoolExecutor(1) as ex:

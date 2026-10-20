@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 import _stats_fixture as fx
 from _synth import synth_market  # noqa: F401
 from tradebot.market import guard, klines
-from tradebot.web import lanes, service, stats
+from tradebot.web import backtests, data, lanes, research, stats, wf
 from tradebot.web import stats_base, stats_io
 from tradebot.web.api import app
 
@@ -177,7 +177,7 @@ def _abs_paths(text: str) -> bool:
 def test_internal_errors_have_no_absolute_paths(synth_market, monkeypatch):
     def boom(req, dl=None):
         raise PermissionError(13, "Отказано в доступе", "D:\\secret\\storage\\market\\BTCUSDT_1h.parquet")
-    monkeypatch.setattr(service, "run_backtest", boom)
+    monkeypatch.setattr(backtests, "run_backtest", boom)
     r = client.post("/api/backtest", json={"strategy": "EMA cross"})
     d = r.json()["detail"]
     assert r.status_code == 500 and d["code"] == "internal" and not _abs_paths(d["message"]), d
@@ -207,8 +207,8 @@ def test_update_and_fetch_errors_are_clean(synth_market, monkeypatch):
 def test_network_endpoints_status_mapping(synth_market, monkeypatch, exc, status, code):
     def fail(*a, **k):
         raise exc
-    monkeypatch.setattr(service, "update_data", fail)
-    monkeypatch.setattr(service, "fetch_data", fail)
+    monkeypatch.setattr(data, "update_data", fail)
+    monkeypatch.setattr(data, "fetch_data", fail)
     for url, default_code in (("/api/data/update", "update_failed"), ("/api/data/fetch", "fetch_failed")):
         r = client.post(url, json={"symbol": "BTCUSDT", "tf": "1h"})
         assert r.status_code == status, (url, r.status_code, r.text)
@@ -241,7 +241,7 @@ def test_proposals_heartbeat_db_error_does_not_lose_the_saved_proposal(tmp_path,
 def test_corrupt_wf_pickle_is_clean_error(synth_market, name, payload):
     _, res = synth_market
     (res / name).write_bytes(payload)
-    service._wf_cache.clear()
+    wf._wf_cache.clear()
     r = client.get("/api/walkforward/curve", params={"tf": "1h", "strategy": "s", "variant": "v"})
     d = r.json()["detail"]
     assert r.status_code == 500 and d["code"] == "bad_results" and not _abs_paths(d["message"]), (r.status_code, d)
@@ -251,7 +251,7 @@ def test_corrupt_wf_csv_is_clean_error(synth_market):
     _, res = synth_market
     (res / "wf_BTCUSDT.csv").write_bytes(b"")
     (res / "wf_windows_BTCUSDT.csv").write_text('a,b\n"unclosed,1\n2,3,4,5\n')
-    service._wf_cache.clear()
+    wf._wf_cache.clear()
     r = client.get("/api/walkforward")
     assert r.status_code == 500 and r.json()["detail"]["code"] == "bad_results"
 
@@ -263,7 +263,7 @@ def test_wf_missing_file_is_404_and_bad_lev_422(synth_market):
 
 
 def test_unknown_exceptions_map_to_500_with_log(synth_market, monkeypatch, caplog):
-    monkeypatch.setattr(service, "lb_plan", lambda s, t: (_ for _ in ()).throw(ZeroDivisionError("x")))
+    monkeypatch.setattr(research, "lb_plan", lambda s, t: (_ for _ in ()).throw(ZeroDivisionError("x")))
     with caplog.at_level("ERROR", logger="tradebot.web"):
         r = client.get("/api/leaderboard/plan")
     assert r.status_code == 500 and r.json()["detail"]["code"] == "internal"

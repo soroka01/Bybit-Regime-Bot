@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from _snap import check
 from _synth import NOW, synth_market  # noqa: F401
-from tradebot.web import service
+from tradebot.web import data
 from tradebot.web.api import app
 
 client = TestClient(app)
@@ -15,7 +15,7 @@ client = TestClient(app)
 
 @pytest.fixture
 def snap_market(synth_market, monkeypatch):  # noqa: F811
-    monkeypatch.setattr(service, "data_status", functools.partial(service.data_status, now=NOW))   # «сейчас» зафиксировано
+    monkeypatch.setattr(data, "data_status", functools.partial(data.data_status, now=NOW))   # «сейчас» зафиксировано
     return synth_market[0]
 
 

@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from _synth import synth_market  # noqa: F401
 from tradebot.market import derivs, klines
-from tradebot.web import api as api_mod, schemas, service, stats_io
+from tradebot.web import api as api_mod, data, research, schemas, stats_io
 from tradebot.web.api import app
 
 client = TestClient(app)
@@ -40,7 +40,6 @@ def no_disk(monkeypatch):
 def test_schema_symbol_literal_matches_symbols():
     from typing import get_args
     assert get_args(schemas.Symbol) == schemas.SYMBOLS
-    assert service.SYMBOLS == schemas.SYMBOLS
 
 
 def test_all_request_models_validate_symbol_and_tf():
@@ -125,19 +124,19 @@ def test_valid_values_still_work_on_every_endpoint(synth_market):
 def test_inner_path_builders_reject_hostile_values_directly(sym, no_disk):
     """Защита второго рубежа: даже минуя схемы (бот, скрипты) враждебное имя не попадает в путь и в stat/read_parquet."""
     with pytest.raises(ValueError):
-        service.data_fingerprint(sym, "1h", "EMA cross")
+        data.data_fingerprint(sym, "1h", "EMA cross")
     with pytest.raises(ValueError):
-        service.data_sig(sym, "1h")
+        data.data_sig(sym, "1h")
     with pytest.raises(ValueError):
-        service._files(sym, "1h")
+        data._files(sym, "1h")
     with pytest.raises(ValueError):
-        service.get_df(sym, "1h")
+        data.get_df(sym, "1h")
     with pytest.raises(ValueError):
-        service.get_df_lite(sym, "1h")
+        data.get_df_lite(sym, "1h")
     with pytest.raises(ValueError):
-        service.data_status(sym, "1h")
+        data.data_status(sym, "1h")
     with pytest.raises(ValueError):
-        service.lb_plan(sym, "1h")
+        research.lb_plan(sym, "1h")
     with pytest.raises(ValueError):
         klines._path(sym, "1h")
     with pytest.raises(ValueError):
@@ -146,15 +145,15 @@ def test_inner_path_builders_reject_hostile_values_directly(sym, no_disk):
 
 @pytest.mark.parametrize("tf", HOSTILE_TF)
 def test_inner_path_builders_reject_hostile_tf(tf, no_disk):
-    for fn in (lambda: service.data_fingerprint("BTCUSDT", tf, "EMA cross"), lambda: service.data_sig("BTCUSDT", tf),
-               lambda: service._files("BTCUSDT", tf), lambda: klines._path("BTCUSDT", tf), lambda: service.get_df("BTCUSDT", tf)):
+    for fn in (lambda: data.data_fingerprint("BTCUSDT", tf, "EMA cross"), lambda: data.data_sig("BTCUSDT", tf),
+               lambda: data._files("BTCUSDT", tf), lambda: klines._path("BTCUSDT", tf), lambda: data.get_df("BTCUSDT", tf)):
         with pytest.raises(ValueError):
             fn()
 
 
 def test_lb_item_and_fingerprint_never_see_hostile_values(synth_market, monkeypatch):
     calls = []
-    monkeypatch.setattr(service, "data_fingerprint", lambda *a, **k: calls.append(a) or "fp")
+    monkeypatch.setattr(data, "data_fingerprint", lambda *a, **k: calls.append(a) or "fp")
     for sym in HOSTILE:
         r = client.post("/api/leaderboard/item", json={"strategy": "EMA cross", "symbol": sym})
         assert r.status_code == 422

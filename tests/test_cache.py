@@ -7,7 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tradebot.market import klines
-from tradebot.web import api as api_mod, cache, service
+from tradebot.web import api as api_mod, cache, data, research
+from tradebot import paths
 from tradebot.web.api import app
 
 client = TestClient(app)
@@ -25,9 +26,9 @@ def market(tmp_path, monkeypatch):
     d = tmp_path / "market"
     d.mkdir()
     monkeypatch.setattr(klines, "DATA_DIR", d)
-    monkeypatch.setattr(service, "MARKET", d)
-    service.invalidate_data()
-    service._info_cache.clear()
+    monkeypatch.setattr(paths, "MARKET", d)
+    data.invalidate_data()
+    data._info_cache.clear()
     api_mod._cache.clear()
     end = pd.Timestamp.now(tz="UTC").floor("h") - pd.Timedelta(hours=1)
     klines._atomic_parquet(_bars(end, 1500), klines._path("BTCUSDT", "1h"))
@@ -40,13 +41,13 @@ def market(tmp_path, monkeypatch):
 @pytest.fixture
 def spy(monkeypatch):
     calls = {"n": 0}
-    real = service._optimize
+    real = research._optimize
 
     def counting(*a, **k):
         calls["n"] += 1
         return real(*a, **k)
 
-    monkeypatch.setattr(service, "_optimize", counting)
+    monkeypatch.setattr(research, "_optimize", counting)
     return calls
 
 
