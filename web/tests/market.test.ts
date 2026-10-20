@@ -22,16 +22,16 @@ describe("логика рынка", () => {
     expect(marketUi("perp")).toEqual({ levDisabled: false, longLocked: false });
   });
 
-  it("комиссия по умолчанию: перп 0.055 %, спот 0.10 %", () => {
-    expect(FEE_PCT).toEqual({ perp: 0.055, spot: 0.1 });
+  it("комиссия по умолчанию: перп 0.10 % (реальный taker аккаунта), спот 0.10 %", () => {
+    expect(FEE_PCT).toEqual({ perp: 0.1, spot: 0.1 });
   });
 
   it("смена рынка переключает комиссию на умолчание, пока её не правили", () => {
-    const s: MarketFields = { market: "perp", fee: 0.055, feeTouched: false };
+    const s: MarketFields = { market: "perp", fee: 0.055, feeTouched: false };      // 0.055 — устаревшее значение, не правленное пользователем
     expect(switchMarket(s, "spot")).toBe(true);
     expect(s).toEqual({ market: "spot", fee: 0.1, feeTouched: false });
-    expect(switchMarket(s, "perp")).toBe(true);
-    expect(s.fee).toBe(0.055);
+    expect(switchMarket(s, "perp")).toBe(false);                                     // умолчания перпа и спота совпадают (0.10): поле не меняется
+    expect(s.fee).toBe(0.1);
   });
 
   it("правленная вручную комиссия не трогается", () => {

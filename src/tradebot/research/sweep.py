@@ -16,7 +16,7 @@ import pandas as pd
 
 from tradebot.market import derivs
 from tradebot.market import klines as data
-from tradebot.core.engine import backtest
+from tradebot.core.engine import DEFAULT_PERP_FEE, backtest
 from tradebot.core.strategies import STRATEGIES
 from tradebot.paths import RESULTS
 
@@ -33,7 +33,7 @@ def split(df: pd.DataFrame, frac: float = IS_FRAC):
 
 def score(m: dict) -> float:
     """Критерий выбора параметров на IS: Calmar, с отсевом редких сделок."""
-    if not m or m["trades"] < MIN_TRADES:
+    if not m or m["trades"] < MIN_TRADES or m.get("calmar") is None:     # calmar=None: выборка слишком короткая
         return -1e9
     return m["calmar"]
 
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     ap.add_argument("--tfs", nargs="+", default=["15m", "1h", "4h"])
     ap.add_argument("--lev", type=float, default=1.0)
     ap.add_argument("--long-only", action="store_true")
-    ap.add_argument("--fee", type=float, default=0.00055)
+    ap.add_argument("--fee", type=float, default=DEFAULT_PERP_FEE)
     ap.add_argument("--slip", type=float, default=0.0002)
     ap.add_argument("--days", type=int, default=1095)
     a = ap.parse_args()

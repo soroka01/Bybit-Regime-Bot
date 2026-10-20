@@ -6,7 +6,7 @@ import type { Meta } from "../src/types";
 
 const meta = {
   symbols: ["BTCUSDT"], leaderboard_tfs: ["1h"], klines_available: { BTCUSDT: ["1h"] }, history_days: { "1h": 1095 },
-  fetch_estimate: {}, defaults: { fee: 0.00055, slippage: 0.0001, days: 365, leverage: 1 },
+  fetch_estimate: {}, defaults: { fee: 0.001, slippage: 0.0001, days: 365, leverage: 1 },
 } as unknown as Meta;
 
 const plan = {

@@ -122,7 +122,7 @@ const meta = {
   timeframes: ["1h"], symbols: ["BTCUSDT"], available: { BTCUSDT: ["1h"] }, klines_available: { BTCUSDT: ["1h"] },
   leaderboard_tfs: ["1h"], portfolio_tfs: ["1h", "4h"], base_tf: "1h", timeframe_minutes: { "1h": 60 }, history_days: { "1h": 1095 },
   fetch_estimate: {}, walkforward_levs: [1],
-  defaults: { fee: 0.00055, slippage: 0.0002, days: 365, leverage: 1 }, overlay_defaults: { htf: 50, stop: 3 },
+  defaults: { fee: 0.001, slippage: 0.0002, days: 365, leverage: 1 }, overlay_defaults: { htf: 50, stop: 3 },
   legs: [
     { strategy: "EMA cross", tf: "1h", params: { fast: 12 }, weight: 0.5, long_only: false },
     { strategy: "EMA cross", tf: "4h", params: { fast: 20 }, weight: 0.25, long_only: true },

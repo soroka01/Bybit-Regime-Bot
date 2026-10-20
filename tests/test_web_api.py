@@ -27,7 +27,7 @@ def test_meta():
     assert {"EMA cross", "OI flush", "Funding contrarian"} <= names
     p = next(s for s in m["strategies"] if s["name"] == "EMA cross")["params"]["fast"]
     assert p["min"] < p["default"] < p["max"] and p["kind"] == "int"
-    assert m["defaults"]["fee"] == 0.00055
+    assert m["defaults"]["fee"] == 0.001
     assert client.get("/api/meta", headers={"If-None-Match": r.headers["etag"]}).status_code == 304
 
 

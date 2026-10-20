@@ -43,7 +43,7 @@ export function warningChips(ws: readonly StatsWarning[] | undefined): WarnChip[
 }
 
 // ---------------------------------------------------------------- комиссия
-export const BACKTEST_TAKER = 0.00055;
+export const BACKTEST_TAKER = 0.001;   // = core.engine.DEFAULT_PERP_FEE (проверяется tests/test_leverage_market.py)
 const fmtRate = (r: number): string => `${num(r * 100, r * 100 < 0.1 ? 3 : 2)}%`;
 /** Информационная заметка, если реальная ставка тейкера отличается от ставки бэктестов; иначе null. */
 export function feeNote(taker: Num | undefined): string | null {

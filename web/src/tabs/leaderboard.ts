@@ -117,7 +117,7 @@ export function createLeaderboard(meta: Meta): Tab {
     onChange: (v) => { if (isMarket(v)) { S.market = v; applyMarketUi(); void markDirty(); } },
   });
   const marketNoteEl = h("p", { class: "muted small market-note" });
-  /** Спот: плечо 1× и «только лонг» заблокированы; комиссия рейтинга — 0,10 % (спот) вместо 0,055 % (перп). */
+  /** Спот: плечо 1× и «только лонг» заблокированы; комиссия рейтинга — 0,10 % (спот) вместо перпового умолчания. */
   function applyMarketUi() {
     const ui = marketUi(S.market);
     levS.setDisabled(ui.levDisabled);

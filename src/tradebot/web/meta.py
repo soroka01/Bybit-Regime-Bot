@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 
+from tradebot.core.engine import DEFAULT_PERP_FEE
 from tradebot.core.portfolio import BASE_TF, DEFAULT_LEGS
 from tradebot.core.strategies import STRATEGIES, Strategy, _nice_step, clean_params, param_specs  # noqa: F401  (перенесены в core: их же использует бот)
 from tradebot.market import klines
@@ -55,5 +56,5 @@ def meta() -> dict:
             "fetch_estimate": {t: F.fetch_estimate(t) for t in TIMEFRAMES},
             "portfolio_tfs": list(PORTFOLIO_TFS),
             "base_tf": BASE_TF, "walkforward_levs": wf,
-            "defaults": {"fee": 0.00055, "slippage": 0.0002, "days": 365, "leverage": 1.0},
+            "defaults": {"fee": DEFAULT_PERP_FEE, "slippage": 0.0002, "days": 365, "leverage": 1.0},
             "legs": legs, "overlay_defaults": {"htf": 50, "stop": 3.0}}

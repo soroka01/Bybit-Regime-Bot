@@ -164,6 +164,14 @@ describe("вкладка «Статистика»: богатый ответ", (
     expect(na.getAttribute("title")).toContain("«Всё»");
   });
 
+  it("заметка о комиссии появляется, только если taker счёта отличается от умолчания бэктестов", async () => {
+    const r = richStats();
+    r.config = { ...r.config!, taker_fee_est: 0.0015 };
+    stub(() => json(200, r));
+    const tab = await mount();
+    expect(q(tab.el, ".st-fee-note").textContent).toContain("Реальная комиссия счёта 0,15% против 0,10% в бэктестах");
+  });
+
   it("карточки: позиция, лонг/шорт, причины закрытия, издержки (заметка о комиссии), сверка", async () => {
     stub(() => json(200, richStats()));
     const tab = await mount();
@@ -177,7 +185,7 @@ describe("вкладка «Статистика»: богатый ответ", (
     const reasons = qa(tab.el, ".st-rt tbody tr");
     expect(reasons.map((r) => r.querySelector("td")!.textContent)).toEqual(expect.arrayContaining(["бар", "закрытие вручную"]));
     expect(q(tab.el, ".st-rt tbody").textContent).toContain("оценка");
-    expect(q(tab.el, ".st-fee-note").textContent).toContain("Реальная комиссия счёта 0,10% против 0,055% в бэктестах");
+    expect(tab.el.querySelector(".st-fee-note")).toBeNull();                          // taker счёта 0,10% = умолчание бэктестов: заметки нет
     expect(q(tab.el, ".st-costs").textContent).toContain("0,10%");
     const recon = q(tab.el, ".st-recon");
     expect(recon.textContent).toContain("Δ кошелька");

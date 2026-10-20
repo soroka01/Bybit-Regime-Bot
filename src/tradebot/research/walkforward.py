@@ -15,7 +15,7 @@ import pandas as pd
 from tradebot.market import klines as data
 from tradebot.market import derivs
 from tradebot.core import overlays
-from tradebot.core.engine import BYBIT_TAKER_FEE, Result, _trades, backtest, metrics, minutes_of
+from tradebot.core.engine import DEFAULT_PERP_FEE, Result, _trades, backtest, metrics, minutes_of
 from tradebot.core.strategies import STRATEGIES
 from tradebot.paths import RESULTS
 
@@ -72,7 +72,7 @@ def run(symbol, tfs, lev, long_only, fee, slip):
                 bar = bar[~bar.index.duplicated()]; pos = pos[~pos.index.duplicated()]
                 eq = (1 + bar).cumprod()
                 res = Result(eq, df["close"].reindex(bar.index) / df["close"].reindex(bar.index).iloc[0], pos, bar,
-                             _trades(pos, bar, bar.index))
+                             _trades(pos, bar, bar.index, (fee + slip) * lev))
                 res.metrics = metrics(res, minutes_of(df.index))
                 wr = [w["test_return"] for w in win_rows[-len(wins):]]
                 summary.append({"tf": tf, "strategy": st.name, "variant": vname,
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     ap.add_argument("--tfs", nargs="+", default=["4h", "1h"])
     ap.add_argument("--lev", type=float, default=1.0)
     ap.add_argument("--long-only", action="store_true")
-    ap.add_argument("--fee", type=float, default=BYBIT_TAKER_FEE)
+    ap.add_argument("--fee", type=float, default=DEFAULT_PERP_FEE)
     ap.add_argument("--slip", type=float, default=0.0002)
     ap.add_argument("--tag", default="")
     a = ap.parse_args()

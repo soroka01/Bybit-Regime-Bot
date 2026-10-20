@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from _synth import synth_market  # noqa: F401
 from tradebot.core import engine
-from tradebot.core.engine import MAINT_MARGIN_RATE, backtest, liquidation_threshold
+from tradebot.core.engine import DEFAULT_PERP_FEE, MAINT_MARGIN_RATE, backtest, liquidation_threshold
 from tradebot.web import api as api_mod, schemas, service
 from tradebot.web.api import app
 
@@ -187,8 +187,8 @@ def test_spot_fee_default_and_explicit(synth_market):
     assert explicit["equity"] != default_fee["equity"]
     explicit_same = post("/api/backtest", {**SPOT_BT, "market": "spot", "fee": 0.001})
     assert explicit_same["equity"] == default_fee["equity"]
-    assert schemas.SPOT_FEE == 0.001 and schemas.PERP_FEE == 0.00055
-    assert schemas.BacktestReq(strategy="x").fee == 0.00055                    # перп: умолчание прежнее
+    assert schemas.SPOT_FEE == 0.001 and schemas.PERP_FEE == 0.001 == DEFAULT_PERP_FEE
+    assert schemas.BacktestReq(strategy="x").fee == DEFAULT_PERP_FEE           # перп: реальный taker аккаунта 0.1 %
 
 
 def test_spot_request_is_canonical_for_cache_keys():
@@ -205,7 +205,7 @@ def test_apply_market_helper():
     e = apply_market(schemas.BacktestReq(strategy="x", market="spot", leverage=50))
     assert (e.market, e.leverage, e.long_only, e.fee, e.drop_funding) == ("spot", 1.0, True, 0.001, True)
     e = apply_market(schemas.BacktestReq(strategy="x", leverage=50, long_only=False))
-    assert (e.market, e.leverage, e.long_only, e.fee, e.drop_funding) == ("perp", 50.0, False, 0.00055, False)
+    assert (e.market, e.leverage, e.long_only, e.fee, e.drop_funding) == ("perp", 50.0, False, 0.001, False)
     assert e.echo() == {}
     df = pd.DataFrame({"close": [1.0, 2.0], "funding": [0.1, 0.1]})
     assert "funding" not in apply_market(schemas.BacktestReq(strategy="x", market="spot")).bt_df(df)
@@ -314,5 +314,7 @@ def test_ts_constants_match_server():
     assert const(lev, "MIN_LEVERAGE") == 1
     fee = re.search(r"FEE_PCT[^=]*=\s*\{\s*perp:\s*([0-9.]+),\s*spot:\s*([0-9.]+)", mkt)
     assert fee and float(fee.group(1)) / 100 == pytest.approx(schemas.PERP_FEE) and float(fee.group(2)) / 100 == pytest.approx(schemas.SPOT_FEE)
+    sw = (WEB_SRC / "tabs" / "statsWarnings.ts").read_text(encoding="utf-8")
+    assert const(sw, "BACKTEST_TAKER") == pytest.approx(DEFAULT_PERP_FEE)      # заметка «бэктесты оптимистичны» сверяется с тем же умолчанием
     from tradebot.trading.config import MAX_LEVERAGE as BOT
     assert schemas.BOT_MAX_LEVERAGE == BOT == 3          # потолок живого бота не менялся

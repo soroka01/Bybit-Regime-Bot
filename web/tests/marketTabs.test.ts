@@ -28,7 +28,7 @@ const meta = {
   timeframes: ["1h"], symbols: ["BTCUSDT"], available: { BTCUSDT: ["1h"] }, klines_available: { BTCUSDT: ["1h"] },
   leaderboard_tfs: ["1h"], portfolio_tfs: ["1h", "4h"], base_tf: "1h", timeframe_minutes: { "1h": 60 }, history_days: { "1h": 1095 },
   fetch_estimate: {}, walkforward_levs: [1],
-  defaults: { fee: 0.00055, slippage: 0.0002, days: 365, leverage: 1 }, overlay_defaults: { htf: 50, stop: 3 },
+  defaults: { fee: 0.001, slippage: 0.0002, days: 365, leverage: 1 }, overlay_defaults: { htf: 50, stop: 3 },
   legs: [{ strategy: "EMA cross", tf: "1h", params: { fast: 12 }, weight: 0.5, long_only: false }],
 } as unknown as Meta;
 
@@ -66,7 +66,7 @@ describe("Лаборатория: рынок", () => {
     const tab = createLab(meta);
     tab.show();
     await vi.advanceTimersByTimeAsync(10); await flush();
-    expect(last(calls, "/api/backtest")).toMatchObject({ market: "perp", leverage: 20, long_only: false, fee: 0.00055 });
+    expect(last(calls, "/api/backtest")).toMatchObject({ market: "perp", leverage: 20, long_only: false, fee: 0.001 });
     expect(numBox(tab.el, "Плечо").disabled).toBe(false);
 
     seg(tab.el, "Спот").click();
@@ -81,10 +81,10 @@ describe("Лаборатория: рынок", () => {
 
     seg(tab.el, "Деривативы (перп)").click();            // обратно: прежние плечо и лонг, комиссия по умолчанию перпа
     await vi.advanceTimersByTimeAsync(400); await flush();
-    expect(last(calls, "/api/backtest")).toMatchObject({ market: "perp", leverage: 20, long_only: false, fee: 0.00055 });
+    expect(last(calls, "/api/backtest")).toMatchObject({ market: "perp", leverage: 20, long_only: false, fee: 0.001 });
     expect(numBox(tab.el, "Плечо").disabled).toBe(false);
     expect(toggleOf(tab.el, "Только лонг").disabled).toBe(false);
-    expect(numBox(tab.el, "Комиссия").value).toBe("0.055");
+    expect(numBox(tab.el, "Комиссия").value).toBe("0.100");
   });
 
   it("комиссия, правленная вручную, при смене рынка не меняется", async () => {
@@ -140,7 +140,7 @@ describe("Рейтинг: рынок", () => {
     const tab = createLeaderboard(meta);
     tab.show();
     await flush();
-    expect(last(calls, "/cached")).toMatchObject({ market: "perp", leverage: 20, long_only: false, fee: 0.00055 });
+    expect(last(calls, "/cached")).toMatchObject({ market: "perp", leverage: 20, long_only: false, fee: 0.001 });
     expect(tab.el.textContent).toContain("бот ограничен 3×");
     seg(tab.el, "Спот").click();
     await vi.advanceTimersByTimeAsync(10); await flush();
