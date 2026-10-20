@@ -18,17 +18,17 @@ NOW = datetime(2026, 10, 20, 12, 0, 0, tzinfo=timezone.utc)
 ENV = {"TELEGRAM_BOT_TOKEN": "123456:SECRETTOKEN", "TELEGRAM_OWNER_ID": "42"}
 
 
-def iso(sec_ago: float) -> str:
-    return (NOW - timedelta(seconds=sec_ago)).isoformat(timespec="seconds")
+def iso(sec_ago: float, now: datetime = NOW) -> str:
+    return (now - timedelta(seconds=sec_ago)).isoformat(timespec="seconds")
 
 
-def mkdb(tmp_path, hb=None, mon=None):
+def mkdb(tmp_path, hb=None, mon=None, now: datetime = NOW):
     p = tmp_path / "bot.db"
     st = Store(p)
     if hb is not None:
-        st.set("heartbeat", iso(hb))
+        st.set("heartbeat", iso(hb, now))
     if mon is not None:
-        st.set("monitor_ok_ts", iso(mon))
+        st.set("monitor_ok_ts", iso(mon, now))
     st.close()
     return p
 
@@ -183,7 +183,8 @@ def test_main_without_credentials_exits_4_and_prints_no_secret(monkeypatch, caps
 
 def test_main_once_prints_status_without_secrets(monkeypatch, capsys, tmp_path):
     monkeypatch.setattr(wd, "read_env", lambda *_: dict(ENV))
-    monkeypatch.setattr(wd, "DB_PATH", mkdb(tmp_path, hb=10, mon=10))
+    # main() берёт настоящее время, поэтому пульсы в БД считаются от него, а не от фиксированного NOW
+    monkeypatch.setattr(wd, "DB_PATH", mkdb(tmp_path, hb=10, mon=10, now=datetime.now(timezone.utc)))
     monkeypatch.setattr(wd, "STATE_PATH", tmp_path / "w.json")
     monkeypatch.setattr(wd, "send_telegram", lambda *a: pytest.fail("при норме ничего не отправляется"))
     assert wd.main(["--once"]) == 0
