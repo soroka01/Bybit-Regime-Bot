@@ -5,6 +5,8 @@
 небольшой LRU-кэш (готовые байты ответа) по телу запроса и версии файлов данных.
 Сетевые задания (fetch/update) идут в отдельной полосе со своим семафором и пулом — с расчётами не пересекаются.
 Сеть используется только в POST /api/data/fetch|update (явная команда пользователя).
+Защита: web/security.py (Sec-Fetch-Site, Origin==Host, JSON-тело, защитные заголовки) + разрешённые Host.
+При остановке приложения (lifespan) полосы отменяют идущие задания и сбрасывают очередь пулов (web/lanes.py).
 """
 from __future__ import annotations
 
@@ -13,22 +15,29 @@ import hashlib
 import json
 import logging
 import math
+import os
+import pickle
+import sqlite3
 import time
 from collections import OrderedDict
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from pandas.errors import EmptyDataError, ParserError
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from tradebot.market import guard
 from tradebot.paths import WEB_DIST
 from tradebot.web import service, stats
 from tradebot.core.legspec import draft_payload, leg_label, parse_leg_text, validate_leg
 from tradebot.web.schemas import (BacktestReq, CachedReq, FetchReq, LbItemReq, OptimizeReq, PortfolioReq, ProposalReq,
-                                  SweepReq)
+                                  SweepReq, Symbol, Timeframe)
+from tradebot.web.security import SameOriginGuard, SecurityHeaders
 from tradebot.web.serialize import clean
 from tradebot.web import lanes
 from tradebot.web.lanes import (FETCH_TIMEOUT, HEAVY_TIMEOUT, NET_KINDS, NET_QUEUE_WAIT, QUEUE_SLICE, QUEUE_WAIT,  # noqa: F401
@@ -36,8 +45,23 @@ from tradebot.web.lanes import (FETCH_TIMEOUT, HEAVY_TIMEOUT, NET_KINDS, NET_QUE
 
 log = logging.getLogger("tradebot.web")
 
-app = FastAPI(title="tradebot dashboard", docs_url=None, redoc_url=None, openapi_url=None)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]", "testserver"])
+
+@asynccontextmanager
+async def lifespan(_app):
+    """Старт: закрытые остановкой полосы получают свежие пулы. Остановка: идущим заданиям — флаг отмены, очередь пулов
+    сбрасывается без ожидания (иначе остановка бота ждала бы докачку данных до 10 минут)."""
+    for lane in (_calc, _net):
+        lane.reopen()
+    yield
+    for lane in (_calc, _net):
+        lane.shutdown()
+
+
+app = FastAPI(title="tradebot dashboard", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "[::1]"]
+if os.environ.get("TRADEBOT_ALLOW_TESTSERVER") == "1":      # Host TestClient; ставит только tests/conftest.py
+    ALLOWED_HOSTS.append("testserver")
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
 
 def _finite(o):
@@ -56,28 +80,9 @@ async def validation_error(request: Request, exc: RequestValidationError):
     return JSONResponse({"detail": _finite(jsonable_encoder(exc.errors()))}, status_code=422)
 
 
-class SameOriginGuard:
-    """Чистый ASGI-middleware (без BaseHTTPMiddleware): запрещает кросс-сайтовые POST (защита от CSRF/DNS-rebinding
-    при открытой странице в браузере). Origin обязан совпадать с Host для любых методов, кроме GET/HEAD/OPTIONS."""
-    SAFE = ("GET", "HEAD", "OPTIONS")
-
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] == "http" and scope["method"] not in self.SAFE:
-            h = dict(scope["headers"])
-            origin = h.get(b"origin")
-            if origin:
-                host = h.get(b"host")
-                if origin.decode("latin-1").split("://", 1)[-1] != (host.decode("latin-1") if host is not None else None):
-                    await JSONResponse({"detail": "cross-origin запрещён"}, status_code=403)(scope, receive, send)
-                    return
-        await self.app(scope, receive, send)
-
-
 app.add_middleware(SameOriginGuard)
-app.add_middleware(GZipMiddleware, minimum_size=2000)     # внешний слой: сжимает и ответы guard/статику
+app.add_middleware(GZipMiddleware, minimum_size=2000)     # сжимает и ответы guard/статику
+app.add_middleware(SecurityHeaders)                       # внешний слой: защитные заголовки на ВСЕХ ответах (и на 400 от TrustedHost)
 
 
 _cache: OrderedDict[str, object] = OrderedDict()
@@ -102,9 +107,22 @@ def _cache_put(key: str, val):
         _cache.popitem(last=False)
 
 
-def _map_exc(e: Exception):
+# ---------------------------------------------------------------- единый маппинг исключений -> HTTP
+def _map_exc(e: Exception, upstream: bool = False):
+    """Исключение -> HTTPException (или None, если не знаем). upstream=True — эндпоинты, ходящие в сеть (fetch/update):
+    там KeyError/TimeoutError — сбой ответа биржи (-> 502 снаружи), а не ошибка запроса клиента."""
+    if isinstance(e, HTTPException):
+        return e
+    if isinstance(e, guard.Cancelled):
+        return _err(503, "shutting_down", "сервер останавливается")
     if isinstance(e, service.DataMissing):
         return _err(409, "data_missing", str(e), symbol=e.symbol, tf=e.tf, missing=e.missing, estimate=e.estimate)
+    if isinstance(e, sqlite3.Error):
+        return _err(503, "db_error", "база данных временно недоступна")
+    if isinstance(e, (EOFError, pickle.PickleError, EmptyDataError, ParserError)):    # битый pkl/csv результатов
+        return _err(500, "bad_results", f"файл результатов повреждён ({type(e).__name__})")
+    if upstream:
+        return _err(422, "bad_request", str(e)) if isinstance(e, ValueError) else None
     if isinstance(e, TimeoutError):
         return _err(504, "timeout", str(e))
     if isinstance(e, KeyError):      # str(KeyError) = "'col'" — без контекста; пишем понятное сообщение
@@ -112,6 +130,17 @@ def _map_exc(e: Exception):
     if isinstance(e, ValueError):
         return _err(422, "bad_request", str(e))
     return None
+
+
+def _fail(e: Exception, what: str, fallback: tuple[int, str, str] | None = None, upstream: bool = False) -> HTTPException:
+    """Единая обработка ошибок эндпоинтов: известное исключение -> свой статус; иначе пишем трассировку в лог и отдаём
+    fallback=(статус, код, префикс сообщения) либо 500 internal. Сообщения очищаются от абсолютных путей (lanes._err)."""
+    mapped = _map_exc(e, upstream)
+    if mapped is not None:
+        return mapped
+    log.exception("%s failed", what)
+    status, code, prefix = fallback or (500, "internal", "")
+    return _err(status, code, f"{prefix}{type(e).__name__}: {e}")
 
 
 def _encode(obj) -> bytes:
@@ -138,11 +167,7 @@ async def heavy_endpoint(request: Request, kind: str, req, compute, with_deadlin
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
-        mapped = _map_exc(e)
-        if mapped:
-            raise mapped
-        log.exception("%s failed", kind)
-        raise _err(500, "internal", f"{type(e).__name__}: {e}")
+        raise _fail(e, kind)
     body = _encode(out)
     if use_mem:       # при повторе из памяти ответ «из кэша»: для карточек/подбора поле from_cache = True
         _cache_put(key, (body, _encode({**out, "from_cache": True}) if isinstance(out, dict) and "from_cache" in out else body))
@@ -185,11 +210,11 @@ async def api_optimize(request: Request, req: OptimizeReq):
 
 
 @app.get("/api/leaderboard/plan")
-def api_lb_plan(symbol: str = "BTCUSDT", tf: str = "1h"):
+def api_lb_plan(symbol: Symbol = "BTCUSDT", tf: Timeframe = "1h"):
     try:
         return JSONResponse(service.lb_plan(symbol, tf), headers={"Cache-Control": "no-store"})
-    except ValueError as e:
-        raise _err(422, "bad_request", str(e))
+    except Exception as e:  # noqa: BLE001
+        raise _fail(e, "lb_plan")
 
 
 @app.post("/api/leaderboard/cached")
@@ -197,8 +222,8 @@ def api_lb_cached(req: CachedReq):
     """Мгновенный поиск готовых карточек в дисковом кэше. Без тяжёлого семафора и без вычислений."""
     try:
         return JSONResponse(clean(service.lb_cached(req)), headers={"Cache-Control": "no-store"})
-    except ValueError as e:
-        raise _err(422, "bad_request", str(e))
+    except Exception as e:  # noqa: BLE001
+        raise _fail(e, "lb_cached")
 
 
 @app.post("/api/leaderboard/item")
@@ -211,22 +236,22 @@ def _wf(request: Request, fn, *args):
         return etagged(request, fn(*args), max_age=60)
     except FileNotFoundError as e:
         raise _err(404, "no_results", f"нет файла результатов walk-forward: {e}")
-    except (ValueError, KeyError) as e:
-        raise _err(422, "bad_request", str(e))
+    except Exception as e:  # noqa: BLE001
+        raise _fail(e, "walkforward")
 
 
 @app.get("/api/walkforward")
-def api_wf(request: Request, lev: int = 1, symbol: str = "BTCUSDT"):
+def api_wf(request: Request, lev: int = 1, symbol: Symbol = "BTCUSDT"):
     return _wf(request, service.wf_table, lev, symbol)
 
 
 @app.get("/api/walkforward/curve")
-def api_wf_curve(request: Request, tf: str, strategy: str, variant: str, lev: int = 1, symbol: str = "BTCUSDT"):
+def api_wf_curve(request: Request, tf: Timeframe, strategy: str, variant: str, lev: int = 1, symbol: Symbol = "BTCUSDT"):
     return _wf(request, service.wf_curve, lev, tf, strategy, variant, symbol)
 
 
 @app.get("/api/walkforward/windows")
-def api_wf_windows(request: Request, lev: int = 1, symbol: str = "BTCUSDT"):
+def api_wf_windows(request: Request, lev: int = 1, symbol: Symbol = "BTCUSDT"):
     return _wf(request, service.wf_windows, lev, symbol)
 
 
@@ -281,7 +306,12 @@ def api_bot_proposals(req: ProposalReq):
         ids = state.submit_proposals(payloads)
     except state.ProposalError as e:
         raise _err(429 if e.code == "too_many" else 409, e.code, str(e))
-    age = state.heartbeat_age()
+    except sqlite3.Error as e:      # база бота занята/повреждена: чистый 503 вместо необработанного 500
+        raise _fail(e, "proposals")
+    try:
+        age = state.heartbeat_age()
+    except sqlite3.Error:           # предложение уже записано; «жив ли бот» узнать не удалось — не пугаем ошибкой
+        age = None
     return JSONResponse({"ok": True, "added": len(ids), "errors": errors, "bot_alive": age is not None and age < BOT_ALIVE_S}, headers=headers)
 
 
@@ -302,11 +332,11 @@ def api_stats(range_: str = Query(stats.DEFAULT_RANGE, alias="range")):
 
 
 @app.get("/api/data/status")
-def api_data_status(symbol: str = "BTCUSDT", tf: str = "1h"):
+def api_data_status(symbol: Symbol = "BTCUSDT", tf: Timeframe = "1h"):
     try:
         return JSONResponse(clean(service.data_status(symbol, tf)), headers={"Cache-Control": "no-store"})
-    except ValueError as e:
-        raise _err(422, "bad_request", str(e))
+    except Exception as e:  # noqa: BLE001
+        raise _fail(e, "data_status")
 
 
 @app.post("/api/data/update")
@@ -314,12 +344,8 @@ async def api_data_update(request: Request, req: FetchReq):
     """Явная докачка новых свечей + деривативов (сеть, атомарная запись). Сбрасывает кэши расчётов."""
     try:
         out = await run_heavy(request, "update", lambda: clean(service.update_data(req.symbol, req.tf)), FETCH_TIMEOUT)
-    except HTTPException:
-        raise
-    except ValueError as e:
-        raise _err(422, "bad_request", str(e))
     except Exception as e:  # noqa: BLE001
-        raise _err(502, "update_failed", f"не удалось обновить данные: {type(e).__name__}: {e}")
+        raise _fail(e, "update", (502, "update_failed", "не удалось обновить данные: "), upstream=True)
     _cache.clear()
     return out
 
@@ -331,12 +357,8 @@ async def api_fetch(request: Request, req: FetchReq):
         out = await run_heavy(request, "fetch", lambda: service.fetch_data(req.symbol, req.tf), FETCH_TIMEOUT)
         _cache.clear()
         return out
-    except HTTPException:
-        raise
-    except ValueError as e:
-        raise _err(422, "bad_request", str(e))
     except Exception as e:  # noqa: BLE001
-        raise _err(502, "fetch_failed", f"{type(e).__name__}: {e}")
+        raise _fail(e, "fetch", (502, "fetch_failed", ""), upstream=True)
 
 
 # ---------------------------------------------------------------- статика (web/dist)
@@ -349,8 +371,12 @@ def static(path: str):
     if path.startswith("api/"):
         raise HTTPException(404)
     root = Path(WEB_DIST).resolve()
-    f = (root / (path or "index.html")).resolve()
-    if root in f.parents and f.is_file():
+    try:
+        f = (root / (path or "index.html")).resolve()
+        inside = root in f.parents and f.is_file()
+    except (ValueError, OSError):          # NUL-байт в пути, слишком длинное имя, недопустимые символы Windows
+        raise HTTPException(404)
+    if inside:
         headers = {"Cache-Control": "no-cache"}
         return FileResponse(f, headers=headers)
     index = root / "index.html"

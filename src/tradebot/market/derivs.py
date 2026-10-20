@@ -127,6 +127,7 @@ def _frame(rows, ts_key, col, src):
 
 def funding(symbol="BTCUSDT", days=1095, refresh=True) -> pd.Series:
     """Ставка фандинга на момент расчёта (каждые 8ч): положительная -> лонги платят шортам."""
+    data.check_symbol(symbol)
     def f(a, b):
         rows = _paginate("funding/history", {"category": "linear", "symbol": symbol, "limit": 200},
                          "fundingRateTimestamp", a, b)
@@ -135,6 +136,7 @@ def funding(symbol="BTCUSDT", days=1095, refresh=True) -> pd.Series:
 
 
 def open_interest(symbol="BTCUSDT", days=1095, interval="1h", refresh=True) -> pd.Series:
+    data.check_symbol(symbol)
     def f(a, b):
         rows = _paginate("open-interest", {"category": "linear", "symbol": symbol, "intervalTime": interval,
                                            "limit": 200}, "timestamp", a, b)
@@ -143,6 +145,7 @@ def open_interest(symbol="BTCUSDT", days=1095, interval="1h", refresh=True) -> p
 
 
 def long_short_ratio(symbol="BTCUSDT", days=1095, period="1h", refresh=True) -> pd.Series:
+    data.check_symbol(symbol)
     def f(a, b):
         rows = _paginate("account-ratio", {"category": "linear", "symbol": symbol, "period": period, "limit": 500},
                          "timestamp", a, b)

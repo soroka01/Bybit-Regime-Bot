@@ -1,16 +1,28 @@
 """Pydantic-модели запросов. Все числовые границы — жёсткие (защита от «убийственных» запросов)."""
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
+
+from tradebot.market.klines import TIMEFRAMES
 
 SYMBOLS = ("BTCUSDT", "ETHUSDT")
+Symbol = Literal["BTCUSDT", "ETHUSDT"]      # зеркало SYMBOLS (проверяется тестом): символ попадает в путь файла данных
 MAX_LEVERAGE = 100.0              # максимум Bybit для BTCUSDT; зеркало web/src/leverage.ts (проверяется тестом)
 BOT_MAX_LEVERAGE = 3.0            # живой бот ограничен 3x (trading.config.MAX_LEVERAGE) — здесь только для подсказок UI
 PERP_FEE = 0.00055                # taker деривативов (Bybit)
 SPOT_FEE = 0.0010                 # taker спота (Bybit)
 Market = Literal["perp", "spot"]
+
+
+def _check_tf(v: str) -> str:
+    if v not in TIMEFRAMES:
+        raise ValueError(f"неизвестный таймфрейм (допустимо: {', '.join(TIMEFRAMES)})")
+    return v
+
+
+Timeframe = Annotated[str, AfterValidator(_check_tf)]     # только ключи klines.TIMEFRAMES
 
 
 class _Base(BaseModel):
@@ -24,7 +36,7 @@ class Overlays(_Base):
 
 
 class _Common(_Base):
-    symbol: str = "BTCUSDT"
+    symbol: Symbol = "BTCUSDT"
     days: int = Field(365, ge=30, le=1095)
     fee: float = Field(PERP_FEE, ge=0, le=0.01)
     slippage: float = Field(0.0002, ge=0, le=0.01)
@@ -48,7 +60,7 @@ class _Common(_Base):
 
 
 class BacktestReq(_Common):
-    tf: str = "1h"
+    tf: Timeframe = "1h"
     strategy: str
     params: dict[str, float] = Field(default_factory=dict)
     long_only: bool = False
@@ -69,7 +81,7 @@ class SweepReq(BacktestReq):
 
 class LegReq(_Base):
     strategy: str
-    tf: str
+    tf: Timeframe
     params: dict[str, float] = Field(default_factory=dict)
     weight: float = Field(0.5, ge=0, le=3)
     long_only: bool = False
@@ -80,13 +92,13 @@ class PortfolioReq(_Common):
 
 
 class FetchReq(_Base):
-    symbol: str
-    tf: str
+    symbol: Symbol
+    tf: Timeframe
 
 
 class OptimizeReq(_Common):
     """Подбор ТОЛЬКО параметров стратегии; всё остальное — как выбрано пользователем."""
-    tf: str = "1h"
+    tf: Timeframe = "1h"
     strategy: str
     long_only: bool = False
     overlays: Overlays = Field(default_factory=Overlays)
@@ -95,7 +107,7 @@ class OptimizeReq(_Common):
 
 
 class LbItemReq(_Common):
-    tf: str = "1h"
+    tf: Timeframe = "1h"
     strategy: str
     long_only: bool = False
     variants: bool = False          # перебирать фильтры HTF/стоп (выбор по IS)
@@ -104,7 +116,7 @@ class LbItemReq(_Common):
 
 class CachedReq(_Common):
     """Параметры рейтинга для поиска в дисковом кэше (без вычислений)."""
-    tf: str = "1h"
+    tf: Timeframe = "1h"
     long_only: bool = False
     variants: bool = False
 

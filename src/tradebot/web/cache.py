@@ -21,20 +21,28 @@ log = logging.getLogger("tradebot.web.cache")
 DB_PATH = RESULTS / "cache" / "web_cache.sqlite3"
 MAX_ENTRIES = 2000
 MAX_BYTES = 200 * 1024 * 1024
-_CODE_FILES = ("optimize.py", "engine.py", "strategies.py", "overlays.py", "indicators.py")   # core/*
+# Файлы (относительно пакета tradebot), от которых зависит содержимое сохранённых результатов: движок/оптимизатор/стратегии/индикаторы,
+# нормализация рынка и подготовка данных (деривативы), упаковка результата и схемы запросов. Правка любого — новый ключ кэша.
+_CODE_FILES = (
+    "core/optimize.py", "core/engine.py", "core/strategies.py", "core/overlays.py", "core/indicators.py", "core/portfolio.py",
+    "market/klines.py", "market/derivs.py",
+    "web/backtests.py", "web/research.py", "web/meta.py", "web/data.py", "web/serialize.py", "web/schemas.py",
+)
 _lock = threading.Lock()
 
 
 @functools.lru_cache(maxsize=1)
 def code_hash() -> str:
-    """Хэш исходников оптимизатора/движка/стратегий: правка кода автоматически инвалидирует кэш."""
-    base = Path(optimize.__file__).parent
+    """Хэш исходников, влияющих на результаты (_CODE_FILES): правка кода автоматически инвалидирует кэш. Окончания строк
+    нормализованы (CRLF == LF): смена autocrlf кэш не сбрасывает."""
+    base = Path(optimize.__file__).parent.parent
     h = hashlib.sha256(str(optimize.CACHE_VERSION).encode())
     for name in _CODE_FILES:
+        h.update(name.encode())
         try:
-            h.update((base / name).read_bytes())
+            h.update((base / name).read_bytes().replace(b"\r\n", b"\n"))
         except OSError:
-            h.update(name.encode())
+            h.update(b"?")
     return h.hexdigest()[:16]
 
 
@@ -71,6 +79,16 @@ def _quarantine() -> None:
             pass
 
 
+_CORRUPT_CODES = (getattr(sqlite3, "SQLITE_CORRUPT", 11), getattr(sqlite3, "SQLITE_NOTADB", 26))
+
+
+def _is_corrupt(e: sqlite3.DatabaseError) -> bool:
+    """Файл БД действительно испорчен (malformed / not a database), а не просто занят или нет места: только тогда его откладывают
+    в сторону. Занятая БД (locked/busy), полный диск, ошибки ввода-вывода — временные, кэш при них НЕ теряем."""
+    code = getattr(e, "sqlite_errorcode", None)
+    return code is not None and (code & 0xFF) in _CORRUPT_CODES
+
+
 def _run(fn, default=None):
     with _lock:
         for attempt in (0, 1):
@@ -80,8 +98,11 @@ def _run(fn, default=None):
                     return fn(con)
                 finally:
                     con.close()
-            except sqlite3.DatabaseError as e:      # «not a database», malformed и т.п.
-                log.warning("cache DB problem (%s) — reset", e)
+            except sqlite3.DatabaseError as e:      # «not a database», malformed — сброс; locked/full/IO — просто промах
+                if not _is_corrupt(e):
+                    log.warning("cache DB error (%s) — пропуск без сброса", e)
+                    return default
+                log.warning("cache DB corrupt (%s) — reset", e)
                 _quarantine()
             except Exception as e:  # noqa: BLE001
                 log.warning("cache error: %s", e)

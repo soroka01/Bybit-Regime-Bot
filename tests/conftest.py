@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("TRADEBOT_ALLOW_TESTSERVER", "1")   # Host `testserver` у TestClient: только в тестах (web/api.py читает при импорте)
+
 import httpx
 import pytest
 import requests

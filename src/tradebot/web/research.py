@@ -27,7 +27,6 @@ def _optimize(df, st: Strategy, o: Overlays, req, criterion: str, top: int, dl: 
 
 def run_optimize(req: OptimizeReq, dl: Deadline) -> dict:
     st = F.get_strategy(req.strategy)
-    df = F.get_df(req.symbol, req.tf)
     key = cache.make_key("opt", symbol=req.symbol, tf=req.tf, days=F.eff_days(req.tf, req.days), strategy=st.name,
                          long_only=req.long_only, overlays=[req.overlays.htf, req.overlays.stop], leverage=req.leverage,
                          fee=req.fee, slip=req.slippage, criterion=req.criterion, top=req.top, market=req.market,
@@ -35,6 +34,7 @@ def run_optimize(req: OptimizeReq, dl: Deadline) -> dict:
     hit = cache.get(key)
     if hit is not None:
         return {**hit, "from_cache": True}
+    df = F.get_df(req.symbol, req.tf)       # кадр читается только при промахе кэша (ключ — по отпечатку файлов, без загрузки данных)
     out = F._optimize(df, st, req.overlays, req, req.criterion, req.top, dl)
     out["param_specs"] = F.param_specs(st)
     out["days_effective"] = F.eff_days(req.tf, req.days)
