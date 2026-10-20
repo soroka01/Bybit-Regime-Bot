@@ -12,7 +12,8 @@ from aiogram.exceptions import TelegramBadRequest
 from tradebot.core.legspec import parse_leg_text, validate_leg
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram import texts as tx
-from tradebot.telegram.handlers import Controller, build_router
+from tradebot.telegram.handlers import Controller
+from tradebot.telegram.router import build_router
 from tradebot.telegram.panel import Panel
 from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
@@ -306,9 +307,3 @@ def test_leg_add_confirm_states_data_time_of_cached_check(tmp_path, monkeypatch)
     expected = tx.local(pd.Timestamp(FRESH).to_pydatetime() + pd.Timedelta(hours=1), c.tz, c.clock())
     assert "Подтвердить" in s.markup.inline_keyboard[0][0].text
     assert f"по данным на {expected}" in s.text and re.search(r"\d\d:\d\d", expected)
-
-
-def test_dead_code_removed():
-    from tradebot.telegram import handlers, legflow, texts
-    assert not hasattr(handlers, "DASHBOARD_URL") and not hasattr(handlers, "LEVEL_ICON") and not hasattr(texts, "pct")
-    assert not hasattr(legflow, "p0") and not hasattr(Controller, "settings_screen_toast")

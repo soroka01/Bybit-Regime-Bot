@@ -11,7 +11,8 @@ from tradebot.telegram import keyboards as kb
 from tradebot.telegram import panel as panel_mod
 from tradebot.telegram import texts as tx
 from tradebot.telegram.texts import fit_html, strip_html
-from tradebot.telegram.handlers import Controller, build_router
+from tradebot.telegram.handlers import Controller
+from tradebot.telegram.router import build_router
 from tradebot.telegram.middleware import OwnerOnly
 from tradebot.telegram.notify import Notifier
 from tradebot.telegram.panel import Panel, Screen
@@ -941,7 +942,7 @@ def test_home_dashboard_layout(tmp_path):
 
 
 def test_onboarding_mentions_whole_balance_and_reserve():
-    from tradebot.telegram.handlers import ONBOARDING
+    from tradebot.telegram.common import ONBOARDING
     assert "всего баланса счёта" in ONBOARDING and "технический резерв 3%" in ONBOARDING and "апитал" not in ONBOARDING
 
 

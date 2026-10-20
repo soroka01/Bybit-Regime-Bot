@@ -11,6 +11,7 @@ import pytest
 
 from tradebot.telegram import messages as M
 from tradebot.telegram import texts as tx
+from tradebot.telegram.common import ONBOARDING
 from tradebot.telegram.handlers import Controller
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram.notify import Notifier
@@ -683,8 +684,7 @@ def test_no_environment_words_on_any_screen(tmp_path):
     for d in ("h", "pos", "sg", "tx:0"):
         t = asyncio.run(c.handle(kb.parse_cb(d))).text
         assert "🔴" not in t and "🟢" not in t, d
-    ob = __import__("tradebot.telegram.handlers", fromlist=["ONBOARDING"]).ONBOARDING
-    assert not ENV_WORDS.search(ob)
+    assert not ENV_WORDS.search(ONBOARDING)
     assert all(not ENV_WORDS.search(b.text) for d in ("h", "pos", "set") for row in asyncio.run(c.handle(kb.parse_cb(d))).markup.inline_keyboard for b in row)
 
 

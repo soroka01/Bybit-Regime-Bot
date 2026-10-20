@@ -3,9 +3,10 @@ from __future__ import annotations
 
 from aiogram import Bot, Dispatcher
 
-from tradebot.telegram.handlers import Controller, build_router
+from tradebot.telegram.handlers import Controller
 from tradebot.telegram.middleware import OwnerOnly
 from tradebot.telegram.panel import Panel
+from tradebot.telegram.router import build_router
 
 
 def build(token: str, owner_id: int, ctl: Controller) -> tuple[Bot, Dispatcher, Panel]:

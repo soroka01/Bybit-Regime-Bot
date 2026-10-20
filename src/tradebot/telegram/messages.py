@@ -12,7 +12,6 @@ from __future__ import annotations
 import inspect
 
 from tradebot.telegram import texts as tx
-from tradebot.telegram.texts import sig_icon, sig_word  # noqa: F401  (реэкспорт: единые слова/иконки сигнала)
 
 MINUS = "−"
 ARROW = {"long": "⬆️", "short": "⬇️"}
@@ -103,7 +102,7 @@ def leg_label(key: str) -> str:
 
 
 def sig_change(label: str, prev: float | None, new: float | None) -> str:
-    return f"{leg_label(label)}: {sig_word(prev)} → {sig_word(new)}"
+    return f"{leg_label(label)}: {tx.sig_word(prev)} → {tx.sig_word(new)}"
 
 
 def reason_human(raw: str | None) -> str:

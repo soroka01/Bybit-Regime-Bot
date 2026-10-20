@@ -13,7 +13,8 @@ from tradebot.core.legspec import draft_payload, parse_leg_text, validate_leg
 from tradebot.core.portfolio import DEFAULT_LEGS, Leg
 from tradebot.core.strategies import STRATEGIES, Strategy
 from tradebot.telegram import keyboards as kb
-from tradebot.telegram.handlers import Controller, build_router
+from tradebot.telegram.handlers import Controller
+from tradebot.telegram.router import build_router
 from tradebot.telegram.panel import Panel
 from tradebot.telegram.proposals import ProposalWatcher
 from tradebot.trading import legcheck

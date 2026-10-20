@@ -12,7 +12,6 @@ from tradebot.web import data
 from tradebot.web.schemas import SYMBOLS
 
 TIMEFRAMES = list(klines.TIMEFRAMES)
-WF_LEVS = {1: ""}      # историческое имя; полный список плеч определяет wf_levs() по файлам wf_<SYMBOL>[_lev<N>].csv
 _WF_FILE = re.compile(r"^wf_BTCUSDT(?:_lev(\d{1,3}))?\.csv$")
 MAX_SWEEP_CELLS = 400
 PORTFOLIO_TFS = [t for t, (_, m) in klines.TIMEFRAMES.items() if m >= 60 and m % 60 == 0]
