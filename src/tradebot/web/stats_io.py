@@ -68,7 +68,7 @@ def read_db(db: sqlite3.Connection, q_start: float | None) -> dict:
             t, v = t[k - 1:], v[k - 1:]
     first = db.execute("SELECT ts FROM equity ORDER BY rowid LIMIT 1").fetchone()
     kv = {}
-    for k in ("position", "env", "heartbeat", "s_leverage", "s_stop_pct"):
+    for k in ("position", "heartbeat", "s_leverage", "s_stop_pct"):
         r = db.execute("SELECT v FROM kv WHERE k=?", (k,)).fetchone()
         try:
             kv[k] = json.loads(r[0]) if r else None

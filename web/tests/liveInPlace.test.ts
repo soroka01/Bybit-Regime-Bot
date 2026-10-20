@@ -25,7 +25,7 @@ const leg = { key: "a", strategy: "EMA cross", tf: "1h", params: {}, long_only: 
 
 function snap(over: Partial<LiveSnapshot> = {}): LiveSnapshot {
   return {
-    available: true, env: "mainnet", enabled: true, killed: false, latch: false, equity: 150, peak_equity: 160,
+    available: true, enabled: true, killed: false, latch: false, equity: 150, peak_equity: 160,
     position: null, target_exposure: 0, last_bar: iso(NOW - H), heartbeat: iso(NOW - 30_000),
     settings: { stop_pct: 0.05, leverage: 2, max_leverage: 10, kill_dd: 0.25, kill_daily: 0.15 }, legs: [leg], trades: orders(30),
     equity_history: history, events: [{ ts: iso(NOW - 5 * MIN), level: "info", text: "старт" }],

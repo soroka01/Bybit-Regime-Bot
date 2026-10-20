@@ -77,7 +77,6 @@ describe("вкладка «Статистика»: готовые данные",
     expect(qa(tab.el, ".st-hero .st-tile")).toHaveLength(8);
     expect(q(tab.el, ".st-tile.kpi-roi").textContent).toContain("ROI счёта");
     expect(tab.el.textContent).not.toMatch(/выделенн/i);
-    expect(q(tab.el, ".st-env").textContent).toBe("");                              // рабочая среда (mainnet) не рекламируется
     expect(q(tab.el, ".st-few").textContent).toContain("Мало сделок (2 из 10");
     expect(q(tab.el, ".st-window").textContent).toContain("25.05.2026 – 01.06.2026");
     expect(qa(tab.el, ".st-trades tbody tr")).toHaveLength(2);
@@ -586,15 +585,4 @@ describe("вкладка «Статистика»: деньги — главно
     expect(clean(q(tab.el, ".st-pos-pct")!.textContent)).toMatch(/^\+0,03% счёта$/);
   });
 
-  it("среда: mainnet скрыта; testnet — предупреждающий бейдж", async () => {
-    stub(() => json(200, richStats()));
-    expect(q((await mount()).el, ".st-env").textContent).toBe("");
-    const t = richStats();
-    t.config = { ...t.config!, env: "testnet" };
-    stub(() => json(200, t));
-    document.body.replaceChildren();
-    const tab = await mount();
-    expect(clean(q(tab.el, ".st-env")!.textContent)).toContain("TESTNET");
-    expect(q(tab.el, ".st-env .badge.warn")).not.toBeNull();
-  });
 });

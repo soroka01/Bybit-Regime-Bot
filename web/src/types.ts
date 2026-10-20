@@ -208,9 +208,6 @@ export interface Curve {
 export interface LiveSnapshot {
   available: boolean;
   reason?: string;
-  env?: string;
-  paper?: boolean;
-  paper_plan?: unknown;
   enabled?: boolean;
   killed?: boolean;
   kill_reason?: string | null;
@@ -370,7 +367,7 @@ export type StatsRange = "1h" | "1d" | "3d" | "7d" | "30d" | "90d" | "180d" | "3
 
 export type StatsWarningCode =
   | "starts_before_data" | "few_trades" | "funding_stale" | "candles_missing" | "position_mismatch"
-  | "reconstructed_trades" | "env_mixed" | "equity_gaps" | "bad_fills";
+  | "reconstructed_trades" | "equity_gaps" | "bad_fills";
 
 /** Машинный код + русский текст; дополнительные поля зависят от кода (count, trades, total_s, …). */
 export interface StatsWarning {
@@ -384,7 +381,6 @@ export interface StatsWarning {
   funding_coverage_until?: Num;
   candles_until?: Num;
   error?: string | null;
-  environments?: string[];
   replayed?: StatsPositionSide | null;
   actual?: StatsPositionSide | null;
 }
@@ -403,7 +399,6 @@ export interface StatsWindow {
 
 export interface StatsConfig {
   symbol: string;
-  env: string | null;
   /** Оценочная ставка тейкера (0.001 = 0.1 %). */
   taker_fee_est: number;
   leverage: number;
@@ -419,7 +414,6 @@ export interface StatsData {
   candles_until: Num;
   fills: number;
   round_trips: number;
-  environments: string[];
 }
 
 export interface StatsDay { date: string; ret_pct: Num }

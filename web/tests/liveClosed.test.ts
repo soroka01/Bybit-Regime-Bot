@@ -24,7 +24,7 @@ const H = 3_600_000;
 const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
 
 const snap = (over: Partial<LiveSnapshot> = {}): LiveSnapshot => ({
-  available: true, env: "mainnet", enabled: true, killed: false, latch: false, equity: 1000, peak_equity: 1010,
+  available: true, enabled: true, killed: false, latch: false, equity: 1000, peak_equity: 1010,
   position: null, target_exposure: 0, last_bar: iso(NOW - H), heartbeat: iso(NOW - 30_000),
   settings: { stop_pct: 0.05, leverage: 2, max_leverage: 10, kill_dd: 0.25, kill_daily: 0.15 }, legs: [], trades: [],
   equity_history: [[iso(NOW - 2 * H), 990], [iso(NOW), 1000]], events: [], ...over,
@@ -290,16 +290,9 @@ describe("вкладка «Бот (live)»: сторона и среда без 
     expect(clean(q(tab.el, ".lv-pos-pct")!.textContent)).toBe("−1,20% счёта");
   });
 
-  it("герой: MAINNET не показывается; TESTNET и PAPER — заметные предупреждения", async () => {
-    const t1 = await mount(snap({ env: "mainnet" }), () => json(200, stats(ROWS)));
+  it("герой: слов MAINNET / TESTNET / PAPER нет (бот работает только на основной сети)", async () => {
+    const t1 = await mount(snap({}), () => json(200, stats(ROWS)));
     expect(t1.el.textContent).not.toMatch(/MAINNET|TESTNET|PAPER/);
-    t1.hide(); document.body.replaceChildren();
-    const t2 = await mount(snap({ env: "testnet" }), () => json(200, stats(ROWS)));
-    expect(clean(q(t2.el, ".lv-pills")!.textContent)).toContain("TESTNET · не реальные деньги");
-    expect(q(t2.el, ".lv-pills .badge.warn")).not.toBeNull();
-    t2.hide(); document.body.replaceChildren();
-    const t3 = await mount(snap({ env: "mainnet", paper: true }), () => json(200, stats(ROWS)));
-    expect(clean(q(t3.el, ".lv-pills")!.textContent)).toContain("PAPER · без ордеров");
   });
 
   it("цель и сигналы: направление без цветов P/L (классы вклада и значения без pos/neg)", async () => {

@@ -668,8 +668,8 @@ def read_snapshot(path: Path | str = DB_PATH) -> dict:
                      "weight": float(eff[l.key][0]), "enabled": bool(eff[l.key][1]),
                      "signal": sg[0] if sg else None, "updated": sg[1] if sg else None})
     snap = {
-        "env": kv("env", "testnet"), "enabled": bool(s["enabled"]), "killed": bool(kv("killed", False)),
-        "paper": bool(kv("paper", False)), "paper_plan": kv("paper_plan"), "kill_reason": kv("kill_reason"), "latch": bool(kv("latch", False)),
+        "enabled": bool(s["enabled"]), "killed": bool(kv("killed", False)), "kill_reason": kv("kill_reason"),
+        "latch": bool(kv("latch", False)),
         "equity": kv("equity"), "peak_equity": kv("peak_equity"), "position": kv("position"),
         "target_exposure": kv("target_exposure"), "last_bar": kv("last_bar"), "heartbeat": kv("heartbeat"),
         "settings": {"leverage": float(s["leverage"]), "max_leverage": MAX_LEVERAGE, "stop_pct": float(s["stop_pct"]),

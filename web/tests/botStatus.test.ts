@@ -7,7 +7,7 @@ import { botStatusPill, publishLive } from "../src/ui/botStatus";
 const NOW = Date.parse("2026-10-08T12:00:00Z");
 const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
 const snap = (over: Partial<LiveSnapshot> = {}): LiveSnapshot => ({
-  available: true, env: "mainnet", enabled: true, killed: false, equity: 1000, peak_equity: 1000, heartbeat: new Date(NOW - 20_000).toISOString(),
+  available: true, enabled: true, killed: false, equity: 1000, peak_equity: 1000, heartbeat: new Date(NOW - 20_000).toISOString(),
   position: null, ...over,
 });
 const json = (s: unknown) => new Response(JSON.stringify(s), { status: 200, headers: { "Content-Type": "application/json" } });

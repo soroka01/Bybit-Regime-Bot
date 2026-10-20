@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 // Цветовая семантика: сторона (лонг/шорт, покупка/продажа) — только слова и нейтральная рамка; --pos/--neg — только прибыль/убыток.
-// Правила показа среды: рабочую среду (mainnet) не рекламируем, предупреждаем только о testnet / paper. Плашка статуса бота в шапке.
+// Плашка статуса бота в шапке: среды и режима запуска на сайте нет (бот работает только на основной сети).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveSnapshot } from "../src/types";
-import { envBadge, envFlag } from "../src/ui/env";
 import { orderBadge, SIDE_GLYPH, SIDE_WORD, sideBadge } from "../src/ui/side";
 
 // Чтение исходников: vitest подменяет импорты .css пустышкой, а типов node в проекте нет — берём fs через process.getBuiltinModule (cwd = web/).
@@ -82,28 +81,11 @@ describe("исходники: сторона не красится цветам�
   });
 });
 
-describe("среда: правила показа", () => {
-  it("mainnet / live без paper — ничего (не рекламируем); пустая или неизвестная среда — тоже", () => {
-    for (const env of ["mainnet", "MAINNET", "live", "", null, undefined, "prod", "?"]) expect(envFlag(env, false), String(env)).toBeNull();
-    expect(envFlag("mainnet")).toBeNull();
-    expect(envBadge("mainnet", false)).toBeNull();
-  });
-  it("testnet — заметное предупреждение; paper — предупреждение и поверх любой среды", () => {
-    expect(envFlag("testnet")!.text).toBe("TESTNET · не реальные деньги");
-    expect(envFlag(" TestNet ")!.text).toContain("TESTNET");
-    expect(envFlag("mainnet", true)!.text).toBe("PAPER · без ордеров");
-    expect(envFlag("testnet", true)!.text).toBe("PAPER · без ордеров");
-    const b = envBadge("testnet", false)!;
-    expect(b.classList.contains("badge") && b.classList.contains("warn")).toBe(true);
-    expect(b.getAttribute("title")).toContain("тестовой сети");
-  });
-});
-
-describe("плашка статуса бота: среда и позиция", () => {
+describe("плашка статуса бота: позиция", () => {
   const NOW = Date.parse("2026-10-08T12:00:00Z");
   let pill: HTMLElement;
   const snap = (over: Partial<LiveSnapshot> = {}): LiveSnapshot => ({
-    available: true, env: "mainnet", enabled: true, killed: false, equity: 1000, peak_equity: 1000, heartbeat: new Date(NOW - 20_000).toISOString(),
+    available: true, enabled: true, killed: false, equity: 1000, peak_equity: 1000, heartbeat: new Date(NOW - 20_000).toISOString(),
     position: null, ...over,
   });
   async function paint(s: LiveSnapshot) {
@@ -117,20 +99,12 @@ describe("плашка статуса бота: среда и позиция", (
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(NOW); document.body.replaceChildren(); });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-  it("mainnet: слова MAINNET/TESTNET/PAPER нет ни в тексте, ни в подписи", async () => {
+  it("слов MAINNET/TESTNET/PAPER нет ни в тексте, ни в подписи", async () => {
     const p = await paint(snap());
     expect(p.hidden).toBe(false);
     expect(clean(p.textContent)).toBe("Торговля вкл");
     expect(p.querySelector(".bp-env")).toBeNull();
     expect(p.getAttribute("aria-label")).not.toMatch(/MAINNET|TESTNET|PAPER/);
-  });
-  it("testnet и paper: заметная плашка среды и пометка в подписи", async () => {
-    const t = await paint(snap({ env: "testnet" }));
-    expect(clean(t.querySelector(".bp-env")!.textContent)).toBe("TESTNET");
-    expect(t.getAttribute("aria-label")).toContain("ВНИМАНИЕ: TESTNET");
-    document.body.replaceChildren();
-    const pp = await paint(snap({ env: "mainnet", paper: true }));
-    expect(clean(pp.querySelector(".bp-env")!.textContent)).toBe("PAPER");
   });
   it("позиция: сторона словом без цвета P/L, результат в $ и % счёта отдельным чипом по знаку", async () => {
     const p = await paint(snap({ position: { side: "Buy", qty: 0.003, entry: 100000, upnl: -4.5, mark: 98500 } }));

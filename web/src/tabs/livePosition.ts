@@ -47,7 +47,6 @@ export function positionCard(s: LiveSnapshot): HTMLElement {
   const head = (right?: HTMLElement | null) => h("header", { class: "card-head" }, h("h3", { text: "Позиция" }), right ?? null);
   if (!v) {
     const t = s.target_exposure;
-    const plan = s.paper ? (s.paper_plan as { target?: number; price?: number; side?: string; qty?: number; stop?: number } | null) : null;
     const next = t == null ? "Целевая экспозиция неизвестна — бот определит её на ближайшем закрытии свечи."
       : Math.abs(t) < 1e-9 ? "Целевая экспозиция 0: бот остаётся вне рынка, пока сигналы не изменятся."
         : s.latch ? `Цель — ${t > 0 ? "лонг" : "шорт"} ${num(Math.abs(t), 2)}×, но включена защёлка (latch): бот войдёт, только когда сигнал изменится.`
@@ -57,8 +56,7 @@ export function positionCard(s: LiveSnapshot): HTMLElement {
       h("div", { class: "lv-flat" },
         h("div", { class: "empty-icon", "aria-hidden": "true" }, icon("flat", 22)),
         h("p", { class: "strong", text: "Позиции нет — бот вне рынка" }),
-        h("p", { class: "muted", text: next }),
-        plan && plan.side ? h("p", { class: "muted small lv-plan", text: `Бумажный план: ${plan.side === "long" ? "лонг" : "шорт"} ${num(plan.qty, 4)} BTC по ${num(plan.price, 2)}${plan.stop ? `, стоп ${num(plan.stop, 2)}` : ""}` }) : null));
+        h("p", { class: "muted", text: next })));
   }
   const tone = toneOf(v.upnl, 0.005);
   const sd = v.long ? "long" : "short";

@@ -2,7 +2,6 @@
 import { sparkline } from "../charts/sparkline";
 import type { LiveSnapshot } from "../types";
 import { h } from "../ui/dom";
-import { envBadge } from "../ui/env";
 import { datetime, parseTime, pct, spct, susd, toneOf, usd } from "../ui/fmt";
 import { icon } from "../ui/icons";
 import { badge, deltaChip, sectionLabel } from "../ui/kit";
@@ -53,7 +52,6 @@ export function heroCard(s: LiveSnapshot, eq: readonly Pt[], now: number, range:
     s.heartbeat ? tk("age", s.heartbeat) : "нет данных");
 
   const pills = h("div", { class: "badges lv-pills", role: "list", "aria-label": "Статус бота" },
-    envBadge(s.env, s.paper),       // рабочая среда (mainnet) не рекламируется: только testnet / paper
     s.killed ? badge("Аварийная остановка", "bad", { glyph: "✕" })
       : s.enabled ? badge("Торговля включена", "ok", { live: true }) : badge("Торговля выключена", "off"),
     s.killed ? null : badge("Kill-switch: не сработал", "ok", { glyph: "✓", title: "Лимиты просадки и дневного убытка не превышены" }),

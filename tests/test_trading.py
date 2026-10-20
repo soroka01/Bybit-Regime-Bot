@@ -264,9 +264,9 @@ def test_snapshot_shape_and_leg_validation(tmp_path):
     st.add_equity(1000.0)
     st.add_event("info", "x")
     snap = read_snapshot(p)
-    assert set(snap) == {"env", "enabled", "killed", "kill_reason", "latch", "equity", "peak_equity", "position",
+    assert set(snap) == {"enabled", "killed", "kill_reason", "latch", "equity", "peak_equity", "position",
                          "target_exposure", "last_bar", "heartbeat", "settings", "legs", "trades", "equity_history",
-                         "events", "paper", "paper_plan"}
+                         "events"}
     assert set(snap["settings"]) == {"leverage", "max_leverage", "stop_pct", "kill_dd", "kill_daily"}
     assert snap["legs"][0]["signal"] == 1.0 and snap["equity_history"][0][1] == 1000.0
     import json; json.dumps(snap)

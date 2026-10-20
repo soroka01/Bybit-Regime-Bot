@@ -31,7 +31,7 @@ const iso = (ms: number) => new Date(ms).toISOString();
 const N = 2000;
 const history = (n = N): [string, number][] => Array.from({ length: n }, (_, i) => [iso(NOW - (n - 1 - i) * 5 * MIN), 162.6 + (3.45 * i) / (n - 1)]);
 const snap = (over: Partial<LiveSnapshot> = {}): LiveSnapshot => ({
-  available: true, env: "mainnet", enabled: true, killed: false, latch: false, equity: 166.05, peak_equity: 167,
+  available: true, enabled: true, killed: false, latch: false, equity: 166.05, peak_equity: 167,
   position: null, target_exposure: 0, last_bar: iso(NOW - 3_600_000), heartbeat: iso(NOW - 30_000),
   settings: { stop_pct: 0.05, leverage: 2, max_leverage: 10, kill_dd: 0.25, kill_daily: 0.15 }, legs: [], trades: [], equity_history: history(), events: [], ...over,
 });

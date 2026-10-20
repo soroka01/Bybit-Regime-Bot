@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import math
-import re
 from datetime import datetime, timezone
 
 
@@ -37,7 +36,6 @@ STOP_REASON = "стоп (реконструкция)"
 SYMBOL, TF = "BTCUSDT", "1h"
 CACHE_SIZE = 32
 CACHE_TTL_S = 60                   # ключ кэша включает минуту: «сейчас» в окне не стареет дольше минуты
-_ENV_RE = re.compile(r"Среда ордеров:\s*(\w+)", re.I)
 
 
 DEFINITIONS: dict[str, str] = {

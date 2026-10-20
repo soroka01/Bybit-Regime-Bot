@@ -26,7 +26,7 @@ const SAFE = { stop_pct: 0.05, leverage: 2, max_leverage: 10, kill_dd: 0.25, kil
 
 function snap(over: Partial<LiveSnapshot> = {}): LiveSnapshot {
   return {
-    available: true, env: "mainnet", enabled: true, killed: false, latch: false, equity: 150, peak_equity: 160,
+    available: true, enabled: true, killed: false, latch: false, equity: 150, peak_equity: 160,
     position: null, target_exposure: 0, last_bar: iso(NOW - H), heartbeat: iso(NOW - 30_000),
     settings: { ...SAFE }, legs: [leg("a", 1, true)], trades: [], equity_history: history, events: [],
     ...over,

@@ -68,9 +68,6 @@
 .bot-pill:hover { text-decoration: none; color: var(--fg); border-color: var(--border-strong); background: var(--surface-2); }
 .bot-pill:active { transform: scale(.98); }
 .bot-pill .sep { width: 1px; height: 12px; background: var(--border-strong); }
-.bot-pill .bp-env { font-weight: 700; letter-spacing: .05em; font-size: var(--fs-11); }
-/* показывается только при testnet / paper (ошибка конфигурации): заметная плашка */
-.bot-pill .bp-env.warn { color: var(--warn); padding: 1px 7px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--warn) 16%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); }
 .bot-pill .bp-pos { font-family: var(--font-mono); font-size: var(--fs-11); }
 .bot-pill .bp-pnl { font-weight: 600; }
 .bot-pill .bp-pct { font-size: var(--fs-11); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -78,7 +75,6 @@
 .bot-pill.off { color: var(--fg-muted); }
 @media (max-width: 1320px) { .bot-pill .bp-trade, .bot-pill .bp-pct, .bot-pill .sep:not(.s2):not(.s3) { display: none; } }
 @media (max-width: 1180px) { .bot-pill .bp-pos, .bot-pill .sep.s2 { display: none; } }
-@media (max-width: 1560px) { .bot-pill:has(.bp-env) .bp-trade, .bot-pill:has(.bp-env) .sep:not(.s2):not(.s3) { display: none; } }   /* с плашкой testnet/paper шапка не должна теснить вкладки */
 @media (max-width: 760px) { .bot-pill .bp-pnl, .bot-pill .sep { display: none; } .bot-pill { padding: 0 10px 0 9px; } }
 
 .jobs { display: inline-flex; align-items: center; gap: 8px; color: var(--fg-muted); font-size: var(--fs-12); padding: 0 var(--sp-2); }

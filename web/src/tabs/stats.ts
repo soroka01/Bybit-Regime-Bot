@@ -4,7 +4,6 @@ import { api, asApiError, type ApiError } from "../api";
 import { persisted } from "../state";
 import type { Meta, StatsRange, StatsResponse } from "../types";
 import { h } from "../ui/dom";
-import { envBadge } from "../ui/env";
 import { icon } from "../ui/icons";
 import { setLoading, skeletonChart, skeletonTile } from "../ui/kit";
 import { createStatsCharts, isEqUnit, type EqUnit } from "./statsCharts";
@@ -39,12 +38,10 @@ export function createStats(_meta: Meta): Tab {
   let ctl: AbortController | null = null;
   let visible = false;
   let seq = 0;
-  let env: string | null = null;
 
   // ---------- шапка (строится один раз)
   const updated = h("span", { class: "muted small st-updated", "aria-live": "off" });
   const refreshBtn = h("button", { class: "btn ghost icon-btn sm", type: "button", "aria-label": "Обновить сейчас", "data-tip": "Обновить сейчас", "data-tip-pos": "left", onClick: () => void load() }, icon("refresh", 15));
-  const envSlot = h("span", { class: "st-env" });
   const chips = new Map<StatsRange, HTMLButtonElement>();
   const rangeBar = h("div", { class: "st-ranges", role: "group", "aria-label": "Период статистики" });
   for (const r of STATS_RANGES) {
@@ -58,7 +55,7 @@ export function createStats(_meta: Meta): Tab {
     h("div", { class: "page-head" },
       h("div", { class: "page-head-text" }, h("h2", { class: "page-title", text: "Статистика" }), h("p", { class: "page-sub", text: SUB })),
       h("div", { class: "page-actions" }, updated, refreshBtn)),
-    h("div", { class: "st-toolbar" }, rangeBar, envSlot),
+    h("div", { class: "st-toolbar" }, rangeBar),
     windowSlot, qualitySlot);
 
   const content = h("div", { class: "st-content" });
@@ -98,7 +95,6 @@ export function createStats(_meta: Meta): Tab {
 
   function paintHead() {
     for (const [k, b] of chips) b.setAttribute("aria-pressed", String(k === S.range));
-    envSlot.replaceChildren(envBadge(env) ?? "");
     const ok = !!res?.available && res.range === S.range;
     windowSlot.replaceChildren(ok ? windowLine(res!) ?? "" : "");
     qualitySlot.replaceChildren(ok ? qualityBlock(res!) : "");
@@ -116,7 +112,6 @@ export function createStats(_meta: Meta): Tab {
   function render() {
     const state = selectState({ res, err });
     const stale = err && res?.available && state.kind === "error" ? err : null;
-    if (res?.config?.env) env = res.config.env;
     paintHead();
     switch (state.kind) {
       case "loading": content.replaceChildren(skeleton()); return;

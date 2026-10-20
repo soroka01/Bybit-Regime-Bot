@@ -42,7 +42,7 @@ export function richStats(over: Partial<StatsResponse> = {}): StatsResponse {
   Object.assign(out, {
     range: "90d", computed_at: RICH_NOW,
     window: { start: t0, effective_start: t0, end: RICH_NOW, start_date: "2026-03-03", end_date: "2026-06-01", length_s: 90 * DAY },
-    config: { symbol: "BTCUSDT", env: "mainnet", taker_fee_est: 0.001, leverage: 2, stop_pct: 0.05 },
+    config: { symbol: "BTCUSDT", taker_fee_est: 0.001, leverage: 2, stop_pct: 0.05 },
     equity: { ...g.equity!, eq_start: eqV[0]!, eq_end: eqV[119]!, delta: 190, wallet_return_pct: 19, max_drawdown_pct: -4.2, sharpe: 1.3, sortino: 2.1, calmar: 3.5, starts_before_data: false, daily_points: 90 },
     kpis: {
       ...g.kpis!, trades: rows.length, wins: wins.length, losses: losses.length, breakeven: 0, win_rate_pct: (wins.length / rows.length) * 100, profit_factor: 1.4,

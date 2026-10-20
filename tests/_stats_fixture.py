@@ -85,11 +85,11 @@ def golden_db(path: Path) -> Path:
     last_h = SCALE * PLAN[-1][0]
     equity = equity_points(D0, 960 * 6 + 7, 160.0, 0.0003, lambda i: 3.0 * math.sin(i / 220.0), every_s=600)
     equity = [e for i, e in enumerate(equity) if not 1800 <= i <= 1920]        # бот не работал 20 часов (раз в 10 минут); ряд кончается в NOW1
-    events = [(iso(t0 + 1800), "info", "Бот запущен. Среда ордеров: MAINNET, сигналы: mainnet. Торговля: ВКЛЮЧЕНА. Меню: /start"),
-              (iso(t0 + 3600 * SCALE * STOP_EVENT_H + 60), "error", "[MAINNET] Позиция исчезла (стоп/ликвидация). Защёлка: не вхожу заново, "
+    events = [(iso(t0 + 1800), "info", "Бот запущен ✅ · счёт 160.00 $ · торговля включена · позиции нет"),
+              (iso(t0 + 3600 * SCALE * STOP_EVENT_H + 60), "error", "Позиция исчезла (стоп/ликвидация). Защёлка: не вхожу заново, "
                                                                  "пока целевая экспозиция не изменится.")]
     kv = {"position": {"side": "long", "qty": 1.0, "entry": px(last_h), "upnl": 1.5, "mark": px(960)},
-          "s_leverage": 2.0, "s_stop_pct": 0.05, "env": "mainnet", "heartbeat": iso(NOW1 - 60)}
+          "s_leverage": 2.0, "s_stop_pct": 0.05, "heartbeat": iso(NOW1 - 60)}
     return make_db(path, trades=trades, equity=equity, events=events, kv=kv, roundtrips=golden_roundtrips(t0))
 
 

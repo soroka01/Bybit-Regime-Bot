@@ -508,20 +508,15 @@ def test_reconciliation_when_flat_at_start():
 
 
 # ---------------------------------------------------------------- предупреждения
-def test_warnings_env_mixed_and_data_flags():
+def test_warnings_data_flags():
     rows = [{"id": 1, "ts": "2026-02-01T10:00:00+00:00", "side": "buy", "qty": 1, "price": 100.0, "reason": "бар"},
             {"id": 2, "ts": "2026-02-01T12:00:00+00:00", "side": "sell", "qty": 1, "price": 110.0, "reason": "бар"},
             {"id": 3, "ts": "2026-02-01T12:30:00+00:00", "side": "sell", "qty": 1, "price": 0, "reason": "бар"}]
     eq = equity_points("2026-02-01T00:00:00+00:00", 30, 500, every_s=3600)
-    start = lambda env: f"Бот запущен. Среда ордеров: {env}, сигналы: mainnet. Торговля: ВКЛЮЧЕНА."
-    ev = [("2026-01-01T00:00:00+00:00", start("TESTNET")), ("2026-02-01T08:00:00+00:00", start("MAINNET"))]
-    out = run_compute(rows, equity=eq, now=ts("2026-02-02T06:00:00+00:00"), rk="3d", events=ev)
+    out = run_compute(rows, equity=eq, now=ts("2026-02-02T06:00:00+00:00"), rk="3d")
     codes = {w["code"] for w in out["warnings"]}
-    assert "env_mixed" not in codes                                       # тестнет-запуск был ДО первых данных
     assert {"few_trades", "candles_missing", "bad_fills"} <= codes and "equity_gaps" in codes       # хвост 5 ч без точек
-    ev.append(("2026-02-01T09:00:00+00:00", start("TESTNET")))
-    out = run_compute(rows, equity=eq, now=ts("2026-02-02T06:00:00+00:00"), rk="3d", events=ev)
-    assert "env_mixed" in {w["code"] for w in out["warnings"]} and out["data"]["environments"] == ["MAINNET", "TESTNET"]
+    assert "env_mixed" not in codes and "environments" not in out["data"] and "env" not in out["config"]
 
 
 def test_warning_starts_before_data_and_funding_stale():

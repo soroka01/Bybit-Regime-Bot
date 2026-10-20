@@ -97,7 +97,7 @@ def test_live_fallback(monkeypatch):
     monkeypatch.setattr(pkg, "state", mod, raising=False)
     assert client.get("/api/live").json()["available"] is False
 
-    mod.read_snapshot = lambda: {"env": "testnet", "api_key": "SECRET", "legs": [{"key": "a@1h"}], "x": float("nan")}
+    mod.read_snapshot = lambda: {"enabled": True, "api_key": "SECRET", "legs": [{"key": "a@1h"}], "x": float("nan")}
     j = client.get("/api/live").json()
     assert j["available"] is True and "api_key" not in j and j["legs"][0]["key"] == "a@1h" and j["x"] is None
 

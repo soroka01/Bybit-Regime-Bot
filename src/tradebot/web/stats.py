@@ -69,7 +69,7 @@ import numpy as np
 from tradebot.web.stats_base import (  # noqa: F401
     ANN, BAR_S, CACHE_SIZE, CACHE_TTL_S, COMPARE_MIN_S, DEFAULT_RANGE, DEFAULT_STOP_PCT, DEFINITIONS, EPS_QTY, EQ_ENTRY_MAX_AGE_S,
     EQ_LOOKBACK_S, EQ_POINTS_MAX, EXACT_MATCH_S, EXACT_QTY_TOL, FEW_TRADES, GAP_S, MAX_TRADE_ROWS, MIN_DAYS_CALMAR, MIN_DAYS_SHARPE,
-    PRICE_TOL_S, RANGE_SECONDS, SETTLE_S, STOP_NOTICE, STOP_REASON, SYMBOL, TAKER_FEE_EST, TF, _ENV_RE, _day, _num, _pct, _ts, iso,
+    PRICE_TOL_S, RANGE_SECONDS, SETTLE_S, STOP_NOTICE, STOP_REASON, SYMBOL, TAKER_FEE_EST, TF, _day, _num, _pct, _ts, iso,
     parse_ts, reason_group)
 from tradebot.web.stats_market import Market, funding_between, market_from_df  # noqa: F401
 from tradebot.web.stats_replay import (  # noqa: F401
@@ -196,19 +196,17 @@ def compute_stats(range_key: str, now: float, *, fill_rows: list[dict], event_ro
     rows = [_row(x, equity_at(eq_t, eq_v, x["entry_ts"])) for x in wt[-MAX_TRADE_ROWS:]]
 
     # --- предупреждения
-    env_set = sorted({m.group(1).upper() for e in event_rows if (_ts(e["ts"]) or 0) >= first_data and "Бот запущен" in str(e.get("text", ""))
-                      for m in [_ENV_RE.search(str(e.get("text", "")))] if m})
-    warnings = _warnings(range_key, em, wt, trades, mismatch, open_pos, bad, env_set, market, market_error, now, start, end)
+    warnings = _warnings(range_key, em, wt, trades, mismatch, open_pos, bad, market, market_error, now, start, end)
 
     return {
         "available": True, "range": range_key, "computed_at": int(now),
         "window": {"start": int(start), "effective_start": int(eff), "end": int(end), "start_date": _day(start), "end_date": _day(end),
                    "length_s": int(end - start)},
-        "config": {"symbol": SYMBOL, "env": kv.get("env"), "taker_fee_est": TAKER_FEE_EST, "leverage": lev, "stop_pct": stop_pct},
+        "config": {"symbol": SYMBOL, "taker_fee_est": TAKER_FEE_EST, "leverage": lev, "stop_pct": stop_pct},
         "data": {"first_trade_ts": int(first_fill_ts), "last_trade_ts": int(last_fill_ts), "first_equity_ts": int(eq_first_ts) if eq_first_ts is not None else None,
                  "funding_coverage_until": int(market.funding_until) if market and market.funding_until else None,
                  "candles_until": int(market.candles_until) if market and market.candles_until else None,
-                 "fills": len(fills), "round_trips": len(trades), "environments": env_set},
+                 "fills": len(fills), "round_trips": len(trades)},
         "equity": {k: v for k, v in em.items()},
         "kpis": km,
         "open_position": open_pos,
@@ -226,7 +224,7 @@ def compute_stats(range_key: str, now: float, *, fill_rows: list[dict], event_ro
     }
 
 
-def _warnings(range_key, em, wt, trades, mismatch, open_pos, bad, env_set, market, market_error, now, start, end) -> list[dict]:
+def _warnings(range_key, em, wt, trades, mismatch, open_pos, bad, market, market_error, now, start, end) -> list[dict]:
     w: list[dict] = []
     if em["starts_before_data"]:
         w.append(_warn("starts_before_data", "Данные equity начинаются позже начала окна: ROI считается от первой точки.",
@@ -252,9 +250,6 @@ def _warnings(range_key, em, wt, trades, mismatch, open_pos, bad, env_set, marke
     if rc:
         w.append(_warn("reconstructed_trades", f"{rc} сделок реконструированы по событию «Позиция исчезла» (стоп/ликвидация): "
                        "цена выхода — оценка.", count=rc))
-    if len(env_set) > 1:
-        w.append(_warn("env_mixed", "В журнале есть запуски в разных средах (" + ", ".join(env_set) + "): данные могут быть смешаны.",
-                       environments=env_set))
     g = em["gaps"]
     if g["count"]:
         w.append(_warn("equity_gaps", f"В окне есть разрывы equity > 15 мин (бот не работал): {g['count']} шт., всего "

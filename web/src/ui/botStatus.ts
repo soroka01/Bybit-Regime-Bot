@@ -3,7 +3,6 @@
 import { api, asApiError } from "../api";
 import type { LiveSnapshot } from "../types";
 import { h } from "./dom";
-import { envFlag } from "./env";
 import { num, spct, usd } from "./fmt";
 import { heartbeatState, isLongSide } from "./heartbeat";
 import { glyph } from "./kit";
@@ -37,8 +36,6 @@ export function botStatusPill(): HTMLElement {
       return;
     }
     const stale = heartbeatState(s.heartbeat, Date.now()).tone !== "ok";
-    const flag = envFlag(s.env, s.paper);       // рабочую среду (mainnet) не показываем; предупреждение — только testnet / paper
-    const envText = s.paper ? "PAPER" : "TESTNET";
     const tradeText = s.killed ? "Аварийная остановка" : s.enabled ? "Торговля вкл" : "Торговля выкл";
     const dot = s.killed ? "bad" : stale ? "warn" : s.enabled ? "ok" : "";
     const pos = s.position;
@@ -46,8 +43,6 @@ export function botStatusPill(): HTMLElement {
     const long = !!pos && isLongSide(pos.side);
     const parts: (HTMLElement | null)[] = [
       h("i", { class: `dot ${dot}`, "aria-hidden": "true" }),
-      flag ? h("span", { class: "bp-env warn", text: envText, title: flag.title }) : null,
-      flag ? h("i", { class: "sep", "aria-hidden": "true" }) : null,
       h("span", { class: "bp-trade", text: stale && !s.killed ? "Нет сигнала жизни" : tradeText }),
     ];
     if (pos && pos.qty) {
@@ -63,7 +58,7 @@ export function botStatusPill(): HTMLElement {
     }
     el.className = "bot-pill";
     el.replaceChildren(...parts.filter((p): p is HTMLElement => !!p));
-    const summary = ["Бот", flag ? `ВНИМАНИЕ: ${envText}` : "", tradeText, stale ? "нет сигнала жизни" : "", pos && pos.qty ? `позиция ${long ? "лонг" : "шорт"} ${num(pos.qty, 4)}, нереализованный результат ${usd(pos.upnl)}${acct != null ? ` (${spct(acct, 2)} счёта)` : ""}` : "позиции нет"].filter(Boolean).join(", ");
+    const summary = ["Бот", tradeText, stale ? "нет сигнала жизни" : "", pos && pos.qty ? `позиция ${long ? "лонг" : "шорт"} ${num(pos.qty, 4)}, нереализованный результат ${usd(pos.upnl)}${acct != null ? ` (${spct(acct, 2)} счёта)` : ""}` : "позиции нет"].filter(Boolean).join(", ");
     setLabel(summary + ". Открыть вкладку «Бот (live)»");
   };
 
