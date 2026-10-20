@@ -68,7 +68,11 @@ PATTERNS = [re.compile(p) for p in (
     r"tr:on", r"tr:on:y", r"tr:off", r"ke", r"ke:y",
     r"lg", r"lg:[0-9]", rf"lg:[0-9]:t{_Y}", rf"lg:[0-9]:w:(?:100|[1-9]?[0-9]){_Y}", rf"lg:eq{_Y}", rf"lg:[0-9]:rm{_Y}",
     r"ad", r"ad:[0-9]{1,6}", r"ad:[0-9]{1,6}:x", rf"ad:[0-9]{{1,6}}:w:(?:100|[1-9]?[0-9]){_Y}", rf"ad:[0-9]{{1,6}}:eq{_Y}",
-    rf"lg:t:[0-9]{_Y}", rf"lg:w:[0-9]:[pm]{_Y}",       # старые (до экрана стратегии)
+    # Старые lg:t:<i> и lg:w:<i>:<p|m> (до экрана стратегии) оставлены намеренно: их может нести панель, не перерисованная с прошлых
+    # версий. Условие удаления: с релиза с экраном стратегии прошло >= 2 недель И панель пересоздавалась после старта бота
+    # (mark_idle_on_start перерисовывает её на каждом запуске) — тогда убрать эти два шаблона, ветки "t"/"w" в
+    # leg_changes._leg_changes/_leg_index/_is_leg_change и тест test_old_leg_callbacks_still_work_and_show_detail.
+    rf"lg:t:[0-9]{_Y}", rf"lg:w:[0-9]:[pm]{_Y}",
     r"lv", rf"lv:s:{_LEV}", rf"lv:s:{_LEV}:y",
     r"sl", rf"sl:s:{_alt(STOP_PRESETS)}{_Y}", rf"sl:a:[pm]1{_Y}",
     r"rk", rf"rk:dd:s:{_alt(DD_PRESETS)}{_Y}", rf"rk:da:s:{_alt(DAILY_PRESETS)}{_Y}",

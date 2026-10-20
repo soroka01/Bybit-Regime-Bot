@@ -6,6 +6,8 @@ from tradebot.telegram.texts import esc
 from tradebot.trading.executor import SIZING_EQUITY_FRACTION
 
 ENV_MSG_STALE = "Подтверждение устарело"
+ENV_MSG_DONE = "Уже выполнено"          # повторный тап «Подтвердить» сразу после успешного
+EXECUTING_MSG = "Выполняю…"            # ранний ответ на callback для долгих подтверждённых действий
 STALE_BUTTON_MSG = "Эта кнопка больше не используется — обновил панель"
 PRESET_WEIGHTS = (0, 25, 50, 75, 100)
 TOAST_MAX = 200  # лимит Telegram на текст answerCallbackQuery

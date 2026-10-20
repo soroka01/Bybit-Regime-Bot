@@ -15,6 +15,7 @@ from tradebot.core.portfolio import Leg
 from tradebot.core.strategies import STRATEGIES
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram import texts as tx
+from tradebot.telegram.common import P
 from tradebot.telegram.panel import Screen
 from tradebot.telegram.texts import code, esc, it
 from tradebot.trading.legcheck import CheckError, check_leg
@@ -24,11 +25,6 @@ from tradebot.trading.state import MAX_LEGS, MAX_OPEN_PROPOSALS
 log = logging.getLogger("tg.legs")
 WEIGHT_PRESETS = (10, 25, 50, 75, 100)
 ERR_GONE = "предложение уже обработано или устарело"
-
-
-def p0(x: float) -> str:
-    """Доля -> целые проценты: 0.5 -> «50%»."""
-    return f"{round(x * 100)}%"
 
 
 def is_active(w: float, en: bool) -> bool:
@@ -99,6 +95,9 @@ class LegFlow:
             return payload
         leg = leg_from_payload(payload)
         try:
+            # G12 (замер не проводился): check_leg — pandas на потоке из пула; GIL он отпускает лишь частично, поэтому на время
+            # проверки (секунды) цикл событий aiogram/раннера может отвечать медленнее. Если на проде заметны задержки панели
+            # во время проверки — замерить perf_counter вокруг этого вызова и при необходимости вынести в отдельный процесс.
             chk = dataclasses.asdict(await asyncio.to_thread(check_leg, leg))
         except CheckError as e:
             chk = {"ok": False, "error": True, "msg": str(e)}
@@ -169,8 +168,8 @@ class LegFlow:
         if chk.get("ok"):
             info.append(f"✅ {esc(chk['msg'])}")
             sg = chk.get("signal")
-            d = tx.parse_iso(chk.get("last_bar"))
-            at = f" по {esc(tx.local(d + TF_DELTA[leg.tf].to_pytimedelta(), self.tz, self.clock()))}" if d is not None and leg.tf in TF_DELTA else ""
+            when = self._data_time(leg, chk)
+            at = f" по {esc(when)}" if when else ""
             info.append(f"📡 Сигнал{at}: {tx.sig_icon(sg)} {tx.sig_word(sg)}")
         elif chk:
             info.append(f"❌ {esc(chk.get('msg', 'проверка не пройдена'))}")
@@ -189,12 +188,12 @@ class LegFlow:
             warn.append("⚠️ Нужны данные OI/фандинга/LSR: если биржа их не отдаст, цель всего портфеля останется прежней (бот напишет об ошибке)")
         if cur:
             same = cur[0].params == leg.params and cur[0].long_only == leg.long_only
-            warn.append(it(f"Такая стратегия уже есть (вес {p0(cur[1])}{', параметры те же' if same else ''}): "
+            warn.append(it(f"Такая стратегия уже есть (вес {P(cur[1])}{', параметры те же' if same else ''}): "
                            f"новая запись заменит её параметры, ключ стратегии — «название · таймфрейм» — один."))
         secs.append(warn)
         can_add = bool(chk.get("ok"))
         if can_add:
-            secs.append([f"📏 Свободно {code(f'{cap}%')} " + it(f"(у других стратегий {p0(others_w)})")] +
+            secs.append([f"📏 Свободно {code(f'{cap}%')} " + it(f"(у других стратегий {P(others_w)})")] +
                         ([it("Места нет: выберите «Поровну со всеми» или добавьте без веса и уменьшите вес другой.")] if cap < WEIGHT_PRESETS[0] else []))
         cur_pct = round(cur[1] * 100) if cur else None
         presets = sorted({v for v in WEIGHT_PRESETS if v <= cap} | ({cur_pct} if cur_pct else set()))
@@ -223,19 +222,30 @@ class LegFlow:
         after = self._after_lines(leg, weight, others)
         old = before.get(leg.key)
         L = [f"<b>{'Заменить параметры стратегии?' if old else 'Добавить стратегию?'}</b>",
-             f"{kb.leg_icon(True, weight)} {esc(leg.strategy)} · {esc(leg.tf)}: <b>вес {p0(old[0]) if old else '0%'} → {p0(weight)}</b>"]
+             f"{kb.leg_icon(True, weight)} {esc(leg.strategy)} · {esc(leg.tf)}: <b>вес {P(old[0]) if old else '0%'} → {P(weight)}</b>"]
         for l, w, en in after:
             if l.key in others and abs(w - before[l.key][0]) > 1e-9:
-                L.append(f"{kb.leg_icon(en, w)} {esc(l.strategy)} · {esc(l.tf)}: вес {p0(before[l.key][0])} → <b>{p0(w)}</b>")
+                L.append(f"{kb.leg_icon(en, w)} {esc(l.strategy)} · {esc(l.tf)}: вес {P(before[l.key][0])} → <b>{P(w)}</b>")
         if old and not old[1]:
             L.append("• Стратегия сейчас <b>выключена</b> — после замены будет <b>включена</b>")
-        L.append(f"• Сумма весов <b>{p0(sum(w for _, w, en in cfg if en))} → {p0(sum(w for _, w, en in after if en))}</b>")
+        L.append(f"• Сумма весов <b>{P(sum(w for _, w, en in cfg if en))} → {P(sum(w for _, w, en in after if en))}</b>")
         g0, g1 = self._target(cfg), self._target(after, {leg.key: chk.get("signal")})
         L.append(f"• Цель сейчас <b>{tx.sn(g0)} → {tx.sn(g1)}</b>" if g0 is not None and g1 is not None else "• Цель: " + it("пересчитается"))
+        if (when := self._data_time(leg, chk)):
+            L.append(f"• Сигнал новой стратегии {tx.sig_icon(chk.get('signal'))} {tx.sig_word(chk.get('signal'))} — по данным на {esc(when)}")
+        if (stale := self._stale_note(leg, chk)):
+            L.append(stale)
         if (latch := self._latch_line(g0, g1)):
             L.append(latch)
         L.append(it("Позиция пересчитается при ближайшей сверке."))
         return L
+
+    def _data_time(self, leg: Leg, chk: dict) -> str | None:
+        """Время, по которому посчитан кэшированный сигнал проверки: закрытие последней свечи локальной истории."""
+        d = tx.parse_iso(chk.get("last_bar"))
+        if d is None or leg.tf not in TF_DELTA:
+            return None
+        return tx.local(d + TF_DELTA[leg.tf].to_pytimedelta(), self.tz, self.clock())
 
     async def _apply_add(self, pid: int, pct: int, eq: bool) -> Screen:
         row = self.st.proposal(pid)
@@ -253,7 +263,7 @@ class LegFlow:
         except ValueError:
             self.st.set_proposal(pid, row["status"])          # не потеряно: можно выбрать другой вес
             raise
-        self.st.add_event("info", f"{'Заменены параметры' if replaced else 'Добавлена стратегия'} {leg_label(leg)} (вес {p0(weight)})")
+        self.st.add_event("info", f"{'Заменены параметры' if replaced else 'Добавлена стратегия'} {leg_label(leg)} (вес {P(weight)})")
         self._catalog_changed()
         self.runner.trigger()
         i = next(k for k, (l, _, _) in enumerate(self.st.leg_cfg()) if l.key == leg.key)
@@ -297,8 +307,8 @@ class LegFlow:
         active_before = [x for x in cfg if is_active(x[1], x[2])]
         t0, t1 = sum(ww for _, ww, e in cfg if e), sum(ww for _, ww, e in after if e)
         g0, g1 = self._target(cfg), self._target(after)
-        L = ["<b>Удалить стратегию?</b>", f"🗑 {esc(leg.strategy)} · {esc(leg.tf)}: " + (f"<b>вес {p0(w)} → удалена</b>" if en else "<b>удалена</b>"),
-             f"• Сумма весов <b>{p0(t0)} → {p0(t1)}</b>"]
+        L = ["<b>Удалить стратегию?</b>", f"🗑 {esc(leg.strategy)} · {esc(leg.tf)}: " + (f"<b>вес {P(w)} → удалена</b>" if en else "<b>удалена</b>"),
+             f"• Сумма весов <b>{P(t0)} → {P(t1)}</b>"]
         L.append(f"• Цель сейчас <b>{tx.sn(g0)} → {tx.sn(g1)}</b>" if g0 is not None and g1 is not None else "• Цель: " + it("пересчитается"))
         if is_active(w, en) and len(active_before) == 1:
             L.append("⚠️ Это единственная работающая стратегия: цель станет 0, открытая позиция будет закрыта.")
@@ -313,7 +323,7 @@ class LegFlow:
         base = f"lg:{i}:rm"
         if p[-1] == "y":
             if not self._consume(base):
-                return self.home("Подтверждение устарело")
+                return self.home(self.stale_toast(base))
             if self.rm_target.pop(base, None) != leg.key:
                 raise ValueError("список стратегий изменился — откройте стратегию заново")
             self.st.remove_leg(leg.key)

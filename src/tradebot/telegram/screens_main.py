@@ -10,10 +10,10 @@ from tradebot.telegram import messages as M
 from tradebot.telegram import texts as tx
 from tradebot.telegram.common import P, VIEW_HOME, VIEW_POS, VIEW_SIGNALS
 from tradebot.telegram.legflow import is_active
+from tradebot.telegram.notify import ICONS
 from tradebot.telegram.panel import Screen
 from tradebot.telegram.texts import b, code, esc, it
 
-LEVEL_ICON = {"info": "ℹ️", "trade": "💱", "warn": "⚠️", "error": "🚨", "signal": "📈", "daily": "📅"}
 TRADES_DAYS = 7                  # окно итога на экране «Сделки»
 NOISE_EVENTS = ("Действую с опозданием", "Размер текущей позиции", "PAPER:", "Целевая экспозиция изменилась — защёлка снята",
                 "Сверка:")       # служебные строки старых версий: на экране «События» скрыты
@@ -180,7 +180,7 @@ class ScreensMain:
         L = []
         for r in rows[page * kb.PAGE_SIZE:(page + 1) * kb.PAGE_SIZE]:
             d = tx.parse_iso(r["ts"])
-            L.append(f"{LEVEL_ICON.get(r['level'], '•')} {code(tx.local(d, self.tz, now))} · {esc(tx.age(d, now))}")
+            L.append(f"{ICONS.get(r['level'], '•')} {code(tx.local(d, self.tz, now))} · {esc(tx.age(d, now))}")
             L.append(f"    {esc(tx.oneline(r['text'], 140))}")
         if not rows:
             L.append(it("Событий пока нет"))

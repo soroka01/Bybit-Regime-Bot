@@ -29,12 +29,6 @@ def sn(x: float | None, d: int = 2) -> str:
     return "—" if x is None else f"{x:+,.{d}f}".replace(",", " ")
 
 
-def pct(x: float | None, d: int = 1, sign: bool = False) -> str:
-    if x is None:
-        return "—"
-    return f"{x * 100:+.{d}f}%" if sign else f"{x * 100:.{d}f}%"
-
-
 def qty(x: float) -> str:
     return f"{x:.4f}".rstrip("0").rstrip(".") if x else "0"
 

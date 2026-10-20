@@ -74,6 +74,7 @@ class LegChanges:
             return [LegChange(i, l, w, en, each, en) for i, l, w, en in act]
         i = self._leg_index(p)
         leg, w, en = cfg[i]
+        # Ветки "t" и "w" ниже — для старых callback lg:t:<i>, lg:w:<i>:<p|m>; условие их удаления описано в keyboards.PATTERNS.
         if p[1] == "t":                                              # старый lg:t:<i>
             return [LegChange(i, leg, w, en, w, not en)]
         if p[1] == "w":                                              # старый lg:w:<i>:<p|m>

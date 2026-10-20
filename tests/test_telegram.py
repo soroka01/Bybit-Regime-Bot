@@ -157,7 +157,10 @@ def test_enable_needs_fresh_confirm(ctl):
     c.clk.t += 59
     h(c, "tr:on:y")
     assert st.settings()["enabled"] and trig
-    assert h(c, "tr:on:y").toast == "Подтверждение устарело"   # одноразовое
+    n_trig = len(trig)
+    assert h(c, "tr:on:y").toast == "Уже выполнено" and len(trig) == n_trig   # двойной тап: одноразовое, без повторного действия
+    c.clk.t += 6
+    assert h(c, "tr:on:y").toast == "Подтверждение устарело" and len(trig) == n_trig   # позже — обычное «устарело»
     st.set("killed", True)
     st.set_setting("enabled", False)
     assert h(c, "tr:on").toast.startswith("Отклонено") and not st.settings()["enabled"]

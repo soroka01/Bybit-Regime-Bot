@@ -30,7 +30,7 @@ class ScreensSettings:
         s = self.st.settings()
         return (f"{s['leverage']:g}x", f"{s['stop_pct'] * 100:.0f}%", f"{s['kill_dd'] * 100:.0f}% / {s['kill_daily'] * 100:.0f}%")
 
-    def settings_screen(self) -> Screen:
+    def settings_screen(self, toast: str | None = None) -> Screen:
         l, sp, r = self._settings_labels()
         eq = self.st.get("equity")
         acct = "💼 Торгуется весь баланс счёта" + (f": {code(tx.n(eq) + ' USDT')}" if eq is not None else "")
@@ -39,7 +39,7 @@ class ScreensSettings:
                 f"🚨 Риск-лимиты: {code(r)} " + it("(просадка / за сутки)"),
                 f"🧩 Стратегии: сумма весов {code(P(self._max_exposure()))}"]
         return Screen(self.compose(self.head("Настройки"), card, self._stop_risk_lines(), it("Нажмите параметр, чтобы изменить.")),
-                      kb.settings_menu(l, sp, r))
+                      kb.settings_menu(l, sp, r), toast)
 
     def _max_exposure(self) -> float:
         return sum(w for _, w, en in self.st.leg_cfg() if en)

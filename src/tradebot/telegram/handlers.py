@@ -12,24 +12,26 @@ from datetime import datetime, timezone
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram import messages as M
 from tradebot.telegram import texts as tx
-from tradebot.telegram.common import (ENV_MSG_STALE, ONBOARDING, PRESET_WEIGHTS, RESERVE_PCT, RETIRED_CAP_MSG,  # noqa: F401  (реэкспорт)
-                                      STALE_BUTTON_MSG, TOAST_MAX, WORK_PCT, P, kb_quote)
+from tradebot.telegram.common import ENV_MSG_STALE, ONBOARDING, RETIRED_CAP_MSG, STALE_BUTTON_MSG, TOAST_MAX  # noqa: F401  (реэкспорт)
 from tradebot.telegram.confirm import BACK, CONFIRM_TTL, GUARDED, Confirm  # noqa: F401  (реэкспорт)
 from tradebot.telegram.leg_changes import LegChange, LegChanges  # noqa: F401  (реэкспорт)
 from tradebot.telegram.legflow import LegFlow, is_active  # noqa: F401  (реэкспорт)
 from tradebot.telegram.panel import Panel, Screen  # noqa: F401  (реэкспорт)
 from tradebot.telegram.router import build_router  # noqa: F401  (реэкспорт)
 from tradebot.telegram.screens_legs import ScreensLegs
-from tradebot.telegram.screens_main import LEVEL_ICON, NOISE_EVENTS, TRADES_DAYS, ScreensMain, _deals  # noqa: F401  (реэкспорт)
+from tradebot.telegram.screens_main import ScreensMain
 from tradebot.telegram.screens_settings import ScreensSettings
 from tradebot.telegram.texts import esc, it
 from tradebot.trading import risk
-from tradebot.trading.config import DASHBOARD_URL, MAX_LEVERAGE
-from tradebot.trading.executor import SIZING_EQUITY_FRACTION, Executor  # noqa: F401  (реэкспорт)
+from tradebot.trading.config import MAX_LEVERAGE
+from tradebot.trading.executor import Executor
 from tradebot.trading.runner import Runner
 from tradebot.trading.state import NO_ORDERS_MSG, Store
 
+__all__ = ["Controller", "build_router", "ONBOARDING", "LegChange", "CONFIRM_TTL", "TOAST_MAX", "ENV_MSG_STALE", "RETIRED_CAP_MSG",
+           "STALE_BUTTON_MSG", "BACK", "GUARDED", "Panel", "Screen", "is_active"]
 log = logging.getLogger("tg")
+NO_ORDERS_ACTIONS = ("cl", "pn")        # ручное закрытие/паника без права на ордера: отказ до подтверждения
 
 
 class Controller(ScreensMain, ScreensSettings, ScreensLegs, LegChanges, Confirm, LegFlow):
@@ -42,6 +44,8 @@ class Controller(ScreensMain, ScreensSettings, ScreensLegs, LegChanges, Confirm,
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.mono = mono or time.monotonic
         self.pending: dict[str, float] = {}  # ключ действия -> срок годности подтверждения
+        self.done: dict[str, float] = {}     # ключ -> до какого момента повторный тап отвечает «Уже выполнено»
+        self.bound: dict[str, float | tuple] = {}  # ключ -> абсолютное значение, привязанное при взведении (шаги ±1%)
         self._lim: tuple[float, tuple[float, float, float | None] | None] | None = None
         self._init_legflow()
 
@@ -107,7 +111,7 @@ class Controller(ScreensMain, ScreensSettings, ScreensLegs, LegChanges, Confirm,
 
     async def _handle(self, p: tuple[str, ...]) -> Screen:
         st, a = self.st, p[0]
-        if self.paper and (p[:2] == ("tr", "on") or a == "ke"):
+        if self.paper and (p[:2] == ("tr", "on") or a == "ke" or a in NO_ORDERS_ACTIONS):
             raise ValueError(NO_ORDERS_MSG)
         if self._is_rm(p):
             return await self._handle_rm(p)
@@ -115,9 +119,10 @@ class Controller(ScreensMain, ScreensSettings, ScreensLegs, LegChanges, Confirm,
             await self.ensure_check(int(p[1]))          # текст подтверждения берёт сигнал и окно из проверки
         if p[-1] == "y":
             key = ":".join(p[:-1])
+            bound = self.bound.pop(key, None)                            # привязка живёт ровно одно подтверждение
             if not self._consume(key):
-                return self.home(ENV_MSG_STALE)
-            return await self._dispatch(p[:-1])
+                return self.home(self.stale_toast(key))
+            return await self._dispatch(p[:-1], bound)
         if self._needs_confirm(p):
             if a == "tr" and st.get("killed", False):
                 raise ValueError("сработал kill-switch: используйте «Снять блокировку»")
@@ -127,7 +132,7 @@ class Controller(ScreensMain, ScreensSettings, ScreensLegs, LegChanges, Confirm,
                 return await self._leg_result(p, "Без изменений")
             key = ":".join(p)
             screen = self._confirm_screen(key, p)                        # сначала проверка/текст, потом «взвод» подтверждения
-            self._arm(key)
+            self._arm(key, self._bound_value(p))
             return screen
         return await self._dispatch(p)
 
@@ -135,7 +140,20 @@ class Controller(ScreensMain, ScreensSettings, ScreensLegs, LegChanges, Confirm,
         i = self._leg_index(p)
         return await (self.legs_screen(toast) if i is None else self.leg_screen(i, toast))
 
-    async def _dispatch(self, p: tuple[str, ...]) -> Screen:
+    def _bound_value(self, p: tuple[str, ...]):
+        """Абсолютный результат шага (стоп / риск-лимит) на момент взведения: подтверждение применит ровно его."""
+        if p[0] == "sl" and len(p) >= 3:
+            return self._stop_new(p, self.st.settings())
+        if p[0] == "rk" and len(p) >= 3:
+            return self._risk_new(p, self.st.settings())[1]
+        return None
+
+    @staticmethod
+    def _no_orders(r: str) -> str | None:
+        """Ответ Executor вида «PAPER: …» (его текст не трогаем) -> общая формулировка режима без ордеров."""
+        return f"Не выполнено: {M.NO_ORDERS}" if r.startswith("PAPER") else None
+
+    async def _dispatch(self, p: tuple[str, ...], bound: float | tuple | None = None) -> Screen:
         st, a = self.st, p[0]
         s = st.settings()
         if a == "h":
@@ -192,14 +210,14 @@ class Controller(ScreensMain, ScreensSettings, ScreensLegs, LegChanges, Confirm,
         if a == "sl":
             if len(p) == 1:
                 return self.stop_screen()
-            st.set_setting("stop_pct", self._stop_new(p, s))
+            st.set_setting("stop_pct", bound if bound is not None else self._stop_new(p, s))
             self.runner.trigger()
             return self.stop_screen("Сохранено")
         if a == "rk":
             if len(p) == 1:
                 return self.risk_screen()
             key, new = self._risk_new(p, s)
-            st.set_setting(key, new)
+            st.set_setting(key, bound if bound is not None else new)
             return self.risk_screen("Сохранено")
         if a == "pk":
             eq = await self.ex.ex.equity()
@@ -207,21 +225,16 @@ class Controller(ScreensMain, ScreensSettings, ScreensLegs, LegChanges, Confirm,
             st.set("day_start_equity", eq)
             st.set("baseline_equity", eq)
             st.add_event("info", f"Пик эквити сброшен на {eq:.2f}")
-            return self.settings_screen_toast("Пик сброшен")
+            return self.settings_screen("Пик сброшен")
         if a == "cl":
             r = await self.ex.close_all("закрытие из Telegram")
-            return self.home(r)
+            return self.home(self._no_orders(r) or r)
         if a == "pn":
             r = await self.ex.panic()
-            return self.home(f"Паника: {r}")
+            return self.home(self._no_orders(r) or f"Паника: {r}")
         if a == "ke":
             return await self._reenable()
         raise ValueError("неизвестное действие")
-
-    def settings_screen_toast(self, toast: str) -> Screen:
-        s = self.settings_screen()
-        s.toast = toast
-        return s
 
     async def _reenable(self) -> Screen:
         st = self.st
