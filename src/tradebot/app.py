@@ -143,6 +143,8 @@ async def amain(env) -> None:
     # номер в orderLinkId не должен повториться даже на старой/восстановленной из копии БД (дубль принялся бы за «ордер уже есть»)
     store.seed_order_seq()
     notify = Notifier(store, env.owner_id)
+    if store.migration_error:         # копия перед миграцией БД не удалась: данные целы, бот на старой схеме, миграцию повторит следующий запуск
+        notify("warn", f"Миграция базы не выполнена: {store.migration_error}. Бот работает на старой схеме и повторит миграцию при следующем запуске.")
     client = BybitClient(MAINNET_URL, env.api_key, env.api_secret)
     executor = Executor(client, store, notify)
     feed = MarketFeed()

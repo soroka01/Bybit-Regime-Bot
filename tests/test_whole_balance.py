@@ -1,7 +1,6 @@
 """Торговля на ВЕСЬ баланс счёта (без «выделенного капитала»): размер от sizing_balance, удержание acted_qty, переворот,
 миграция, сбой чтения баланса, маржинальная модель DryRunExchange и разбор wallet-balance у BybitClient."""
 import asyncio
-import json
 import sqlite3
 from datetime import datetime, timezone
 
@@ -290,20 +289,26 @@ def test_flip_open_leg_failure_leaves_flat_alerts_once_keeps_acted(tmp_path, fai
 
 
 # ---------- старая БД с s_allocated_capital ----------
-def test_old_db_allocated_capital_is_ignored_and_untouched(tmp_path):
+def test_old_db_allocated_capital_is_removed_by_migration(tmp_path):
+    from tradebot.trading.state import SCHEMA
     p = tmp_path / "old.db"
-    st = Store(p)
-    st.set("s_allocated_capital", 160.0)                       # осталась от прежней версии
-    assert "allocated_capital" not in st.settings()
-    assert "allocated_capital" not in read_snapshot(p)["settings"]
+    db = sqlite3.connect(str(p))                               # БД прежней версии (user_version 0) с ключом от удалённой настройки
+    db.executescript(SCHEMA)
+    db.executemany("INSERT INTO kv(k, v) VALUES(?, ?)", [("s_allocated_capital", "160.0"), ("s_leverage", "2.0")])
+    db.commit()
+    db.close()
+    st = Store(p)                                              # открытие Store = миграция v1 (с копией bot_pre_v1.db)
+    assert st.get("s_allocated_capital") is None               # ключ удалён миграцией
+    assert "allocated_capital" not in st.settings() and "allocated_capital" not in read_snapshot(p)["settings"]
+    assert st.settings()["leverage"] == 2.0                    # остальные настройки целы
     with pytest.raises(ValueError):
         st.set_setting("allocated_capital", 200)
-    assert st.get("s_allocated_capital") == 160.0              # ключ в БД никто не трогает и не мигрирует
     db = sqlite3.connect(str(p))
-    assert json.loads(db.execute("SELECT v FROM kv WHERE k='s_allocated_capital'").fetchone()[0]) == 160.0
+    assert db.execute("SELECT COUNT(*) FROM kv WHERE k='s_allocated_capital'").fetchone()[0] == 0
     db.close()
-    st2 = Store(p)                                             # повторное открытие/старт: по-прежнему игнорируется
-    assert "allocated_capital" not in st2.settings() and st2.get("s_allocated_capital") == 160.0
+    assert (tmp_path / "backups" / "bot_pre_v1.db").exists()
+    st2 = Store(p)                                             # повторное открытие/старт: по-прежнему нет
+    assert "allocated_capital" not in st2.settings() and st2.get("s_allocated_capital") is None
 
 
 # ---------- DryRunExchange: маржа, комиссии, wallet vs equity ----------

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import logging
 import math
 import os
 import sqlite3
@@ -18,8 +19,11 @@ from tradebot.core.strategies import STRATEGIES
 from tradebot.paths import STATE, STORAGE
 from tradebot.trading.config import MAX_LEVERAGE
 
+log = logging.getLogger("state")
 DB_PATH = STATE / "bot.db"
 BACKUP_DIR = STORAGE / "backups" / "db"   # ежедневные копии bot.db (sqlite backup API): bot_YYYYMMDD.db
+PRE_V1_BACKUP = "bot_pre_v1.db"           # копия перед миграцией v1; НЕ подходит под шаблон bot_????????.db: её не считает
+                                          # backup_due() и не удаляет чистка старых копий
 BACKUP_KEEP = 14
 SIGNALS_KEEP_DAYS = 90                    # журнал сигналов старше — удаляется (последняя строка по каждому ключу остаётся всегда)
 EVENTS_KEEP_DAYS = 400                    # журнал событий старше — удаляется; trades/roundtrips/equity не чистятся
@@ -28,8 +32,12 @@ DEFAULTS = {
     "enabled": False, "leverage": 1.0, "stop_pct": 0.08,
     "kill_dd": 0.25, "kill_daily": 0.10, "legs": {}, "legs_catalog": None,
 }
-# Старая настройка s_allocated_capital («выделенный капитал») удалена: бот торгует всем балансом счёта. Ключ может лежать
-# в БД — settings()/read_snapshot итерируют DEFAULTS и его не читают; в БД его никто не стирает и не мигрирует.
+# Версия схемы БД = PRAGMA user_version. Новая БД создаётся сразу с последней версией; старая (0) мигрирует при открытии Store.
+SCHEMA_VERSION = 1
+# v1: ключи kv, которых больше никто не читает и не пишет (режим PAPER, среда, теневой P/L, «выделенный капитал»).
+# ВНИМАНИЕ: pending_stopouts (во множественном числе) - ЖИВОЙ ключ, его не трогать.
+LEGACY_KV_V1 = ("shadow", "s_allocated_capital", "paper", "paper_plan", "env")
+DATA_TABLES = ("kv", "signals", "trades", "equity", "events", "proposals", "roundtrips")
 MAX_LEGS = 10                 # индекс ноги в callback Telegram — одна цифра (keyboards.PATTERNS: lg:[0-9])
 MAX_OPEN_PROPOSALS = 5        # предложений «ждут решения» одновременно (защита от заспамленного бота)
 PROPOSAL_TTL_S = 24 * 3600    # старше — игнорируются
@@ -138,13 +146,74 @@ def validate_setting(key: str, value):
 
 
 class Store:
-    def __init__(self, path: Path | str = DB_PATH):
+    def __init__(self, path: Path | str = DB_PATH, backup_dir: Path | str | None = None):
         self.path = str(path)
         self._lock = threading.RLock()
+        self.migration_error: str | None = None      # миграция не выполнена (бот работает на старой схеме); app сообщит владельцу
+        self._backup_dir = Path(backup_dir) if backup_dir is not None else (
+            BACKUP_DIR if Path(path).resolve() == Path(DB_PATH).resolve() else Path(path).with_name("backups"))
         self._db = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None, timeout=10)
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.execute("PRAGMA synchronous=NORMAL")
+        self._open_schema()
+
+    # --- версия схемы и миграции ---
+    def _tables(self) -> set[str]:
+        return {r[0] for r in self._db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+
+    def _has_data(self, tables: set[str]) -> bool:
+        return any(self._db.execute(f"SELECT 1 FROM {t} LIMIT 1").fetchone() for t in DATA_TABLES if t in tables)
+
+    def _open_schema(self) -> None:
+        """Схема + версия. Новая (пустая) БД создаётся сразу в последней версии. БД версии 0 (прежняя или восстановленная из
+        старой копии) мигрирует: если в ней есть данные, СНАЧАЛА делается копия bot_pre_v1.db (sqlite backup API с отдельного
+        read-only соединения + quick_check). Копия не удалась -> миграция НЕ выполняется (версия остаётся 0, данные целы,
+        бот работает на старой схеме, migration_error заполнен); следующий запуск попробует снова."""
+        ver = int(self._db.execute("PRAGMA user_version").fetchone()[0])
+        tables = self._tables()
+        fresh = not tables
+        todo = ver < SCHEMA_VERSION and not fresh
+        if todo and self._has_data(tables):
+            try:
+                self._pre_migration_copy()
+            except Exception as e:
+                self.migration_error = f"копия перед миграцией не сделана ({type(e).__name__}: {e})"
+                log.warning("миграция БД v1 отложена: %s", self.migration_error)
+                todo = False
         self._db.executescript(SCHEMA)
+        if fresh:
+            self._db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+        elif todo:
+            self._migrate_v1()
+
+    def _pre_migration_copy(self) -> Path:
+        dest = self._backup_dir / PRE_V1_BACKUP
+        if dest.exists():          # повторная миграция (например, после восстановления старой копии): прежнюю страховку не затираем
+            dest = dest.with_name(f"bot_pre_v1_{datetime.now(timezone.utc):%Y%m%d_%H%M%S}.db")
+        out = self._snapshot_to(dest)
+        log.info("копия перед миграцией БД: %s", out)
+        return out
+
+    def _migrate_v1(self) -> None:
+        """v1 одной транзакцией: удаляются таблица shadow и устаревшие ключи kv, ставится user_version=1. Идемпотентно."""
+        db = self._db
+        db.execute("BEGIN IMMEDIATE")
+        try:
+            db.execute("DROP TABLE IF EXISTS shadow")
+            db.execute(f"DELETE FROM kv WHERE k IN ({','.join('?' * len(LEGACY_KV_V1))})", LEGACY_KV_V1)
+            db.execute("PRAGMA user_version=1")
+            db.execute("COMMIT")
+        except BaseException as e:
+            try:
+                db.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
+            if isinstance(e, sqlite3.Error):
+                self.migration_error = f"{type(e).__name__}: {e}"
+                log.warning("миграция БД v1 не выполнена: %s", self.migration_error)
+                return
+            raise
+        log.info("миграция БД v1 выполнена")
 
     def _x(self, sql: str, args=()):
         with self._lock:
@@ -478,8 +547,16 @@ class Store:
         копия под настоящим именем не появится. Остаются последние `keep` копий. Исключение при любом сбое."""
         now = now or datetime.now(timezone.utc)
         d = Path(backup_dir)
-        d.mkdir(parents=True, exist_ok=True)
-        dest = self.backup_file(d, now)
+        dest = self._snapshot_to(self.backup_file(d, now))
+        for old in sorted(d.glob("bot_????????.db"))[:-keep]:
+            old.unlink(missing_ok=True)
+        return dest
+
+    def _snapshot_to(self, dest: Path) -> Path:
+        """Согласованная копия bot.db в файл dest: sqlite3 backup API с ОТДЕЛЬНОГО read-only соединения (торговые записи не
+        блокируются), запись во временный файл, quick_check и только потом атомарное переименование - полурабочая копия под
+        настоящим именем не появится. Исключение при любом сбое."""
+        dest.parent.mkdir(parents=True, exist_ok=True)
         tmp = dest.with_name(dest.name + ".tmp")
         tmp.unlink(missing_ok=True)
         src = sqlite3.connect(f"file:{Path(self.path).as_posix()}?mode=ro", uri=True, timeout=30)
@@ -497,8 +574,6 @@ class Store:
         finally:
             src.close()
         os.replace(tmp, dest)
-        for old in sorted(d.glob("bot_????????.db"))[:-keep]:
-            old.unlink(missing_ok=True)
         return dest
 
     def purge(self, now: datetime | None = None) -> dict:
