@@ -50,8 +50,8 @@
 
 | Что | Разметка / класс | Хелпер |
 |---|---|---|
-| Карточка | `.card` > `.card-head` + тело + `.card-foot`; `.accent-edge` (цвет полосы — `--edge`), `.interactive` (подъём + рамка при hover) | `ui/card.ts: card(title, body, extra)` |
-| Плитка метрики | `.metric` > `.metric-top(.metric-label + .delta)` + `.metric-value[.pos/.neg]` + `.metric-sub`; сетка `.cards` | `ui/kit.ts: metricTile({label,value,tone,sub,hint})` |
+| Карточка | `.card` > `.card-head` + тело; `.accent-edge` (цвет полосы — `--edge`) | `ui/card.ts: card(title, body, extra)` |
+| Плитка метрики | `.metric` > `.metric-top(.metric-label + .delta)` + `.metric-value[.pos/.neg]` + `.metric-sub`; сетка `.cards` | `tabs/statsView.ts: kpiTile()` (плитки KPI вкладки «Статистика»), `ui/kit.ts: deltaChip()` |
 | Дельта-чип | `.delta[.pos/.neg]` со стрелкой ▲/▼ | `deltaChip(tone, text)`, `glyph(tone)` |
 | Кнопки | `.btn` [`.primary` `.ghost` `.danger`] [`.sm` `.lg`] [`.icon-btn`] [`.is-loading`]; состояния hover/active/disabled/focus | `setLoading(btn, on)` |
 | Поля | `select`, `.num-input`, `.search`, `input[type=range]` (заливка дорожки — `--fill`) | `ui/controls.ts: slider/select/toggle/segmented`, `syncRange(input)` |
@@ -59,13 +59,13 @@
 | Сегмент | `.segmented > button[aria-pressed]` | `segmented()` |
 | Бейдж / чип | `.badge.ok/warn/bad/info/off` (точка или знак `.has-glyph`), `.chip`, `.chip-param`, `.chip-btn` | `badge(text, tone, {glyph, live, title})` |
 | Баннер | `.banner` [`.warn` `.error` `.ok`] — иконка рисуется CSS-маской, разметка не нужна | `ui/banner.ts: errorBanner/showError` |
-| Таблица | `table.data` [`.zebra`], липкая шапка, `tr.clickable`, `tr[aria-selected=true]`, числа вправо (`td.left` — влево) | `ui/table.ts: dataTable()` |
+| Таблица | `table.data`, липкая шапка, `tr.clickable`, `tr[aria-selected=true]`, числа вправо (`td.left` — влево) | `ui/table.ts: dataTable()` |
 | Скелетоны | `.skeleton` + `.skel-tile/.skel-chart/.skel-line`; пересчёт — `.result.busy` (мерцание плиток) и `.busy-pill` со спиннером | `skeletonTile/skeletonChart/skeletonLines` |
 | Пустое состояние | `.empty-state[.big]` (иконка, заголовок, подсказка, действие) | `emptyState(title, hint, action, {big, icon})` |
 | Модальное окно | `dialog.modal` (подложка с blur, scale-in, `aria-labelledby`, возврат фокуса, Esc) | `ui/modal.ts: openModal(title)` |
 | Тост | стек снизу по центру, автоскрытие (ошибки — 5 с) | `ui/toast.ts: toast(text, "ok"\|"error"\|"info")` |
 | Подсказка | `[data-tip="…"]` (короткие; длинные — `title`), позиция `data-tip-pos="top\|left"` | — |
-| Прочее | `.kbd`/`kbd`, `.divider`, `.section-label`, `.progress[.indet] > .progress-fill`, `.page-head` | `kbd()`, `sectionLabel()`, `progressBar()`, `pageHead(title, sub, actions)` |
+| Прочее | `.kbd`/`kbd`, `.section-label`, `.progress[.indet] > .progress-fill`, `.page-head` | `kbd()`, `sectionLabel()`, `progressBar()`, `pageHead(title, sub, actions)` |
 | Иконки | inline SVG (штрих `currentColor`); добавлены `search swap pulse clock flat chevron arrow flask`; 2b: `reset layers percent gauge download plus trash bot check grid candles sliders` | `ui/icons.ts: icon(name, size)` |
 | Шкала лимита (фаза 2a) | `.meter[.ok/.warn/.bad]` > `.meter-fill` + `.meter-mark` (риски порогов); `role="meter"`, `aria-valuetext`; при warn/bad заливка штрихуется — смысл не держится на цвете | `ui/kit.ts: meterBar({label,value,max,tone,valueText,marks})` |
 | Сворачиваемый блок (2a) | `details.disclosure` > `summary` (+ `.disc-badge`) + `.disc-body`; состояние в `localStorage["tb.disc.<key>"]`, первый визит — `defaultOpen` | `ui/kit.ts: disclosure(title, body, {key, defaultOpen, badge})` |
