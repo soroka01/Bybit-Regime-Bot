@@ -171,29 +171,6 @@ def warn_gaps(label: str, gaps: list) -> None:
                 label, len(gaps), sig[3], gaps[0][0].isoformat(), gaps[-1][1].isoformat())
 
 
-def repair_gaps(symbol: str, tf: str) -> int:
-    """ЯВНАЯ починка: докачивает недостающие бары внутри файла (сеть!). Возвращает число добавленных баров. Бот и веб сами
-    её не вызывают — только ручной/диагностический запуск."""
-    p = _path(symbol, tf)
-    minutes = TIMEFRAMES[tf][1]
-    with guard.locked(p) as got:
-        if not got:
-            raise guard.LockTimeout(f"{p.name} занят другим обновлением")
-        if not p.exists():
-            return 0
-        df = _read_parquet(p).sort_index()
-        parts = [df]
-        step = pd.Timedelta(minutes=minutes)
-        for a, b, _ in find_gaps(df.index, minutes):
-            parts.append(_fetch_range(symbol, tf, a.value // 1_000_000 + 1, (b - step).value // 1_000_000))
-        new = pd.concat([x for x in parts if len(x)]).sort_index()
-        new = new[~new.index.duplicated(keep="last")]
-        added = len(new) - len(df)
-        if added > 0:
-            _atomic_parquet(new, p)
-        return added
-
-
 def _fetch_range(symbol: str, tf: str, start_ms: int, end_ms: int, category: str = "linear") -> pd.DataFrame:
     interval, minutes = TIMEFRAMES[tf]
     rows: list[list[str]] = []

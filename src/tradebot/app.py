@@ -90,11 +90,6 @@ async def shutdown_data(client) -> dict:
     return {"kind": "shutdown", "pos": {"side": pos.side, "qty": pos.qty}, "stop": pos.stop}
 
 
-async def shutdown_note(client) -> str:
-    """Текст остановки (plain) — для логов и тестов; в Telegram уходит HTML из messages.shutdown_msg."""
-    return M.plain(await shutdown_data(client))
-
-
 async def startup_data(env, store, client) -> dict:
     """Данные сообщения о запуске: счёт и позиция читаются с биржи (best effort, с коротким таймаутом)."""
     d = {"kind": "startup", "env": env.bybit_env, "paper": env.paper, "enabled": bool(store.settings()["enabled"]),

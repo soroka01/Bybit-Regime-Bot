@@ -11,7 +11,6 @@ from tradebot.market.klines import TIMEFRAMES
 SYMBOLS = ("BTCUSDT", "ETHUSDT")
 Symbol = Literal["BTCUSDT", "ETHUSDT"]      # зеркало SYMBOLS (проверяется тестом): символ попадает в путь файла данных
 MAX_LEVERAGE = 100.0              # максимум Bybit для BTCUSDT; зеркало web/src/leverage.ts (проверяется тестом)
-BOT_MAX_LEVERAGE = 3.0            # живой бот ограничен 3x (trading.config.MAX_LEVERAGE) — здесь только для подсказок UI
 PERP_FEE = DEFAULT_PERP_FEE       # taker деривативов: реальные 0.1 % аккаунта (единый источник — core.engine.DEFAULT_PERP_FEE)
 SPOT_FEE = 0.0010                 # taker спота (Bybit)
 Market = Literal["perp", "spot"]

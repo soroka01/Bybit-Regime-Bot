@@ -43,11 +43,6 @@ def request_shutdown() -> None:
     _shutdown.set()
 
 
-def reset_shutdown() -> None:
-    """Снимает общий флаг остановки (для тестов и повторного запуска в одном процессе)."""
-    _shutdown.clear()
-
-
 @contextlib.contextmanager
 def bind_cancel(event: threading.Event):
     """На время блока флаг `event` управляет отменой загрузок в ЭТОМ потоке."""

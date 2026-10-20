@@ -1,8 +1,29 @@
 """Тесты честного оптимизатора (синтетические данные, без сети)."""
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
 from tradebot.core import optimize as opt
+
+RANK_FIXTURE = Path(__file__).resolve().parents[1] / "web" / "tests" / "fixtures" / "rank.json"
+_TIER = {"robust": 0, "overfit": 1, "few": 2, "loss": 3}
+_RANK_KEYS = {"calmar": "calmar", "sharpe": "sharpe", "return": "total_return", "dd": "max_drawdown"}
+
+
+def _oracle_rank(items: list[dict], criterion: str = "calmar") -> list[dict]:
+    """ЭТАЛОН порядка рейтинга для web/tests/fixtures/rank.json (на сервере рейтинга нет: карточки сортирует фронтенд,
+    web/src/tabs/lbRank.ts). Сначала ярус вердикта (robust > overfit > few > loss), внутри — критерий по OOS (больше — лучше;
+    для 'dd' — ближе к нулю). Элементы без OOS-метрики уходят в конец яруса."""
+    key = _RANK_KEYS[criterion]
+
+    def k(it: dict):
+        v = (it.get("oos") or {}).get(key)
+        if criterion == "dd" and not (it.get("oos") or {}).get("trades"):
+            v = None
+        return (_TIER[it["verdict"]], v is None, -(v if v is not None else 0.0))
+    return sorted(items, key=k)
 
 
 def _df(n=6000, seed=3):
@@ -103,13 +124,22 @@ def test_ranking_tiers_then_criterion():
     good = {"name": "Good", "verdict": "robust", "oos": {"calmar": 0.5, "sharpe": 0.6, "total_return": 0.05, "trades": 40, "max_drawdown": -0.2}}
     bad = {"name": "Bad", "verdict": "loss", "oos": {"calmar": 9.0, "sharpe": 9.0, "total_return": -0.1, "trades": 40, "max_drawdown": -0.3}}
     for crit in ("calmar", "sharpe", "return", "dd"):
-        names = [i["name"] for i in opt.rank_items([bad, thin, solid, good], crit)]
+        names = [i["name"] for i in _oracle_rank([bad, thin, solid, good], crit)]
         assert names == ["Good", "EMA+ADX", "Funding", "Bad"], (crit, names)
     a = {"name": "a", "verdict": "robust", "oos": {"calmar": 1.0, "sharpe": 2, "total_return": 0.1, "trades": 30, "max_drawdown": -0.1}}
     b = {"name": "b", "verdict": "robust", "oos": {"calmar": 2.0, "sharpe": 1, "total_return": 0.2, "trades": 30, "max_drawdown": -0.3}}
-    assert [i["name"] for i in opt.rank_items([a, b], "calmar")] == ["b", "a"]
-    assert [i["name"] for i in opt.rank_items([a, b], "sharpe")] == ["a", "b"]
-    assert [i["name"] for i in opt.rank_items([a, b], "dd")] == ["a", "b"]
+    assert [i["name"] for i in _oracle_rank([a, b], "calmar")] == ["b", "a"]
+    assert [i["name"] for i in _oracle_rank([a, b], "sharpe")] == ["a", "b"]
+    assert [i["name"] for i in _oracle_rank([a, b], "dd")] == ["a", "b"]
+
+
+def test_rank_fixture_order_matches_oracle():
+    """Контракт с фронтендом: web/tests/fixtures/rank.json читает и TS-тест (leaderboard.test.ts, splitRanked); здесь — та же
+    фикстура против эталона порядка. Расхождение любой из сторон с фикстурой ломает один из двух тестов."""
+    fx = json.loads(RANK_FIXTURE.read_text(encoding="utf-8"))
+    assert set(fx["expected"]) == set(_RANK_KEYS)
+    for crit, names in fx["expected"].items():
+        assert [i["name"] for i in _oracle_rank(fx["items"], crit)] == names, crit
 
 
 def test_short_oos_window_is_always_few():

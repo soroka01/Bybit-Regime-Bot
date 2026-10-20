@@ -403,10 +403,6 @@ def position_lines(pos: dict | None, lev: float, equity: float | None, stop: flo
 
 
 # ---------- обычные предупреждения (plain-текст; Notifier экранирует сам) ----------
-def w_no_keys() -> str:
-    return "API-ключи Bybit не заданы: считаю сигналы, но кошелёк и позиция недоступны, торговля невозможна."
-
-
 def w_setup_failed(e) -> str:
     return f"Не удалось настроить аккаунт: {e}. Торговля заблокирована."
 

@@ -184,7 +184,7 @@ def test_leverage_change_resizes_only_after_acted_reset(tmp_path):
     st, ex, exe, _ = mk(tmp_path, equity=1100)
     run(exe.reconcile(0.5, BAR))
     st.set_setting("leverage", 3)
-    assert run(exe.apply_leverage()) is True
+    assert run(exe.setup()) is True                            # плечо применено на бирже
     assert run(exe.reconcile(0.5, BAR)) == "без изменений" and ex.qty == pytest.approx(0.010)     # без сброса — удержание
     st.clear_acted()                                           # так делает обработчик lv
     assert run(exe.reconcile(0.5, BAR)) == "выполнено"

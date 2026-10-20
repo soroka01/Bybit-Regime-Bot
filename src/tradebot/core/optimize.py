@@ -100,23 +100,6 @@ def verdict(is_m: dict, oos_m: dict, oos_days: float | None = None) -> str:
     return "overfit"
 
 
-TIER = {"robust": 0, "overfit": 1, "few": 2, "loss": 3}
-RANK_KEYS = {"calmar": "calmar", "sharpe": "sharpe", "return": "total_return", "dd": "max_drawdown"}
-
-
-def rank_items(items: list[dict], criterion: str = "calmar") -> list[dict]:
-    """Рейтинг: сначала ярус вердикта (robust > overfit > few > loss), внутри яруса — критерий по OOS (больше — лучше;
-    для 'dd' — ближе к нулю). Элементы без OOS-метрики уходят в конец яруса. Зеркало в web/src/tabs/leaderboard.ts."""
-    key = RANK_KEYS[criterion]
-
-    def k(it: dict):
-        v = (it.get("oos") or {}).get(key)
-        if criterion == "dd" and not (it.get("oos") or {}).get("trades"):
-            v = None
-        return (TIER[it["verdict"]], v is None, -(v if v is not None else 0.0))
-    return sorted(items, key=k)
-
-
 def _pick(m: dict) -> dict:
     if not m:
         return {}

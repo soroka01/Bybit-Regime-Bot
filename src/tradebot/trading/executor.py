@@ -168,12 +168,6 @@ class Executor:
         self.store.set("paper_plan", plan)
         return plan
 
-    async def apply_leverage(self) -> bool:
-        if self.paper:
-            return False
-        async with self.lock:
-            return await self.setup()
-
     async def set_leverage(self, n: float) -> bool:
         """Смена плеча ОДНОЙ операцией под торговым lock: старое значение -> новое -> clear_acted -> setup().
         Инвариант: сверка (reconcile) держит тот же lock, поэтому её запись acted_* не может «перебить» сброс, сделанный сменой

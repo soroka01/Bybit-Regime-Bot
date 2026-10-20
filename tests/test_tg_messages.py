@@ -499,7 +499,7 @@ def test_runner_daily_data_counts_closed_trips_of_last_24h(tmp_path):
     d = r.daily_data(165.0)
     assert d["trips_n"] == 1 and d["trips_pnl"] == pytest.approx(pnl_) and d["base"] == 163.44
     assert d["trips_fees"] == pytest.approx(0.49, abs=0.01) and d["dd"] == pytest.approx(5 / 170)
-    assert "Итоги суток" in r.daily_summary(165.0)
+    assert "Итоги суток" in M.plain(d)
 
 
 # ---------- запуск / остановка ----------
@@ -656,7 +656,7 @@ def _all_texts(tmp_path):
             M.startup_msg({"enabled": True, "pos": None, "equity": 163.0, "env": "mainnet", "paper": False}),
             M.shutdown_msg({"pos": {"side": "long", "qty": 0.003}, "stop": 65000.0}),
             *M.position_lines({"side": "short", "qty": 0.003, "entry": 81550.1, "mark": 81000.0, "upnl": 1.6}, 2, 163.44, 97860.0)]
-    out += [M.w_no_keys(), M.w_setup_failed("x"), M.w_setup_mismatch({"leverage": 1, "isolated": True, "one_way": True}, 2), M.w_key_check_failed(ValueError()),
+    out += [M.w_setup_failed("x"), M.w_setup_mismatch({"leverage": 1, "isolated": True, "one_way": True}, 2), M.w_key_check_failed(ValueError()),
             M.w_key_read_only(), M.w_key_withdraw(), M.w_order_ambiguous(), M.w_order_unconfirmed(), M.w_rearm_failed("x"), M.w_stop_failed(),
             M.w_not_flat("long", 0.003), M.w_orders_cancelled(2), M.w_balance_unavailable("x"), M.w_exchange_error("x"), M.w_close_failed("x"),
             M.w_weights(["a"]), M.w_feed_down("x"), M.w_oi_late(), M.w_tf_stale("6h", "x"), M.w_no_signal({}), M.w_cycle_failed(KeyError("x")),

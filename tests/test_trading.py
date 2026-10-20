@@ -447,14 +447,16 @@ def test_safe_cycle_swallows_any_exception(env):
     assert sink.has("Сбой пересчёта сигналов")
 
 
-def test_shutdown_note_only_claims_verified_stop(env):
-    from tradebot.app import shutdown_note
+def test_shutdown_data_only_claims_verified_stop(env):
+    from tradebot.app import shutdown_data
+    from tradebot.telegram import messages as M
     _, ex, exe, _ = env
-    assert "нет" in run(shutdown_note(ex))
+    note = lambda: M.plain(run(shutdown_data(ex)))  # noqa: E731
+    assert "нет" in note()
     run(exe.reconcile(0.5, BAR))
-    assert "под биржевым стопом" in run(shutdown_note(ex))
+    assert "под биржевым стопом" in note()
     ex.stop = None
-    assert "БЕЗ" in run(shutdown_note(ex))
+    assert "БЕЗ" in note()
 
 
 def test_uta_isolated_via_account_info():

@@ -19,9 +19,7 @@ def mdir(tmp_path, monkeypatch):
     monkeypatch.setattr(klines, "DATA_DIR", d)
     klines._gap_seen.clear()
     derivs._stale_seen.clear()
-    guard.reset_shutdown()
     yield d
-    guard.reset_shutdown()
 
 
 def _hold(path, seconds):
@@ -247,7 +245,7 @@ def test_cancel_interrupts_derivs_paginate(monkeypatch):
         with pytest.raises(guard.Cancelled):
             derivs._paginate("open-interest", {}, "timestamp", 0, 10_000_000)
     finally:
-        guard.reset_shutdown()
+        guard._shutdown.clear()
 
 
 def test_cancel_flag_is_per_thread():
@@ -312,22 +310,6 @@ def test_load_logs_gap_but_returns_the_same_data(mdir, monkeypatch, caplog):
         out = klines.load("BTCUSDT", "1h", 1095, refresh=True)
     assert any("пропуски" in r.getMessage() and "3 баров" in r.getMessage() for r in caplog.records)
     pd.testing.assert_frame_equal(out, holed, check_freq=False)                              # лог-only: данные не «починены»
-
-
-def test_repair_gaps_is_explicit_and_fills(mdir, monkeypatch):
-    b = bars(1, 300, 4)
-    holed = b.drop(b.index[[50, 51]])
-    p = klines._path("BTCUSDT", "1h")
-    klines._atomic_parquet(holed, p)
-    asked = []
-
-    def fake(symbol, tf, a, z, category="linear"):
-        asked.append((a, z))
-        return b[(b.index >= pd.Timestamp(a, unit="ms", tz="UTC")) & (b.index <= pd.Timestamp(z, unit="ms", tz="UTC"))]
-    monkeypatch.setattr(klines, "_fetch_range", fake)
-    assert klines.repair_gaps("BTCUSDT", "1h") == 2
-    assert len(asked) == 1
-    pd.testing.assert_frame_equal(pd.read_parquet(p), b, check_freq=False)
 
 
 # ---------------------------------------------------------------- C7: протянутые вперёд ряды

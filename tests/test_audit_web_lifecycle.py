@@ -42,7 +42,6 @@ def fresh_lanes(monkeypatch):
     yield calc, net
     for ln in (calc, net):
         ln.pool.shutdown(wait=False, cancel_futures=True)
-    guard.reset_shutdown()
 
 
 def run(coro):
@@ -133,7 +132,7 @@ def test_atexit_hook_cancels_lanes_and_global_flag(monkeypatch):
         lanes._shutdown_at_exit()
         assert ev.is_set() and lane.closed and guard.cancelled()
     finally:
-        guard.reset_shutdown()
+        guard._shutdown.clear()
     assert not guard.cancelled()
 
 

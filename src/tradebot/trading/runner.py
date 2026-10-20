@@ -345,6 +345,3 @@ class Runner:
                 "trips_fees": sum(fees) if fees else None,
                 "pos": {"side": pos["side"], "qty": pos["qty"], "upnl": pos.get("upnl") or 0.0} if pos else None,
                 "dd": max(0.0, (peak - eq) / peak) if peak and peak > 0 else None}
-
-    def daily_summary(self, eq: float) -> str:
-        return M.plain(self.daily_data(eq))

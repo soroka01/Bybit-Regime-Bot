@@ -309,12 +309,11 @@ def test_ts_constants_match_server():
         assert m, name
         return float(m.group(1))
     assert const(lev, "MAX_LEVERAGE") == schemas.MAX_LEVERAGE
-    assert const(lev, "BOT_MAX_LEVERAGE") == schemas.BOT_MAX_LEVERAGE
+    from tradebot.trading.config import MAX_LEVERAGE as BOT
+    assert const(lev, "BOT_MAX_LEVERAGE") == BOT == 3          # фронтенд держит свою копию потолка живого бота; потолок не менялся
     assert const(lev, "MMR") == MAINT_MARGIN_RATE
     assert const(lev, "MIN_LEVERAGE") == 1
     fee = re.search(r"FEE_PCT[^=]*=\s*\{\s*perp:\s*([0-9.]+),\s*spot:\s*([0-9.]+)", mkt)
     assert fee and float(fee.group(1)) / 100 == pytest.approx(schemas.PERP_FEE) and float(fee.group(2)) / 100 == pytest.approx(schemas.SPOT_FEE)
     sw = (WEB_SRC / "tabs" / "statsWarnings.ts").read_text(encoding="utf-8")
     assert const(sw, "BACKTEST_TAKER") == pytest.approx(DEFAULT_PERP_FEE)      # заметка «бэктесты оптимистичны» сверяется с тем же умолчанием
-    from tradebot.trading.config import MAX_LEVERAGE as BOT
-    assert schemas.BOT_MAX_LEVERAGE == BOT == 3          # потолок живого бота не менялся

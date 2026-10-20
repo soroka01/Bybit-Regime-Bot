@@ -13,7 +13,6 @@ SYMBOL = "BTCUSDT"
 MAX_LEVERAGE = 3  # жёсткий потолок; менять только правкой кода
 MAINNET_URL = "https://api.bybit.com"
 TESTNET_URL = "https://api-testnet.bybit.com"
-DASHBOARD_URL = "http://127.0.0.1:8000"
 # формат токена Telegram-бота от @BotFather: <числовой id>:<секрет>; проверяется только вид, значение нигде не выводится
 TOKEN_RE = re.compile(r"[0-9]{5,}:[A-Za-z0-9_-]{20,}")
 

@@ -15,6 +15,15 @@ def _isolated_web_cache(tmp_path, monkeypatch):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _reset_shutdown_flag():
+    """Общий флаг остановки загрузок (market.guard) не должен «протекать» между тестами: сбрасываем до и после каждого."""
+    from tradebot.market import guard
+    guard._shutdown.clear()
+    yield
+    guard._shutdown.clear()
+
+
 # ---------------------------------------------------------------------------------------------- запрет сети в тестах
 class NetworkBlocked(RuntimeError):
     """Тест попытался выйти в реальную сеть."""
