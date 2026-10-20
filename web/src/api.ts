@@ -132,7 +132,7 @@ export const api = {
   wfWindows: (lev: number, symbol: string, s?: AbortSignal) => request<WfWindow[]>(`/api/walkforward/windows?${qs({ lev, symbol })}`, {}, s),
   wfCurve: (lev: number, symbol: string, tf: string, strategy: string, variant: string, s?: AbortSignal) =>
     request<Curve>(`/api/walkforward/curve?${qs({ lev, symbol, tf, strategy, variant })}`, {}, s),
-  /** Статистика реальной торговли бота (сервер кэширует ответ на минуту). 404 — бот работает на старой версии бэкенда. */
+  /** Статистика реальной торговли бота (сервер кэширует ответ на минуту). */
   stats: (range: StatsRange, s?: AbortSignal) => request<StatsResponse>(`/api/stats?${qs({ range })}`, { cache: "no-store" }, s),
   live: (s?: AbortSignal) => request<LiveSnapshot>("/api/live", { cache: "no-store" }, s),
   /** «В бота»: текст «для бота» уходит в Telegram-карточку; вес и подтверждение выбирает владелец там. 422 — текст отклонён, 409 — бот не запускался, 429 — слишком много неподтверждённых. */

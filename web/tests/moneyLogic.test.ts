@@ -63,7 +63,7 @@ describe("итоги окна (шапка блока «Закрытые сдел
     expect([p.profit, p.loss, p.net].map((x) => x.replace(/\s/g, " "))).toEqual(["+1 234,50 $", "−234,50 $", "+1 000,00 $"]);
   });
 
-  it("нет полей суммы (ответ старого формата): по строкам, если они не обрезаны; обрезаны — null (не выдумываем)", () => {
+  it("нет полей суммы: по строкам, если они не обрезаны; обрезаны — null (не выдумываем)", () => {
     const r = JSON.parse(JSON.stringify(g)) as StatsResponse;
     delete (r.kpis as unknown as Record<string, unknown>).profit_sum_usdt;
     expect(periodSummary(r)?.count).toBe(r.trades!.rows.length);

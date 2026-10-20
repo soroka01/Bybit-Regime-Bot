@@ -17,7 +17,7 @@ export function freshStats(range: StatsRange, maxAgeMs: number, now = Date.now()
   return e && now - e.at <= maxAgeMs ? e.res : null;
 }
 
-/** Свежий кэш или сетевой запрос (один на диапазон одновременно). Ошибки (в т.ч. 404 старого бэкенда) пробрасываются как ApiError. */
+/** Свежий кэш или сетевой запрос (один на диапазон одновременно). Ошибки пробрасываются как ApiError. */
 export async function loadStats(range: StatsRange, o: { maxAgeMs?: number; now?: number } = {}): Promise<StatsResponse> {
   const hit = freshStats(range, o.maxAgeMs ?? 30_000, o.now);
   if (hit) return hit;

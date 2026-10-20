@@ -1,7 +1,7 @@
 // Окно результата на вкладке «Бот (live)»: какой период реально показывают чип «за …» и график, и чем он подтверждён (чистая логика, без DOM;
 // тесты: tests/liveWindow.test.ts). Правило: цифра никогда не выдаётся под подписью более длинного периода, чем у неё есть данных.
 // /api/live отдаёт только последние ~2000 точек кошелька (≈ 7 суток при шаге 5 мин), поэтому «7 д» и «Всё» при нехватке данных берутся из
-// /api/stats?range=7d|all (то же, что вкладка «Статистика»); если его нет (404 на старом бэкенде / ошибка) — снимок с честной подписью.
+// /api/stats?range=7d|all (то же, что вкладка «Статистика»); если запрос не удался (сеть, 5xx, available:false) — снимок с честной подписью.
 import type { Num, StatsResponse } from "../types";
 import { datetime, num, usd } from "../ui/fmt";
 import { ddmmyy } from "../ui/fmtTime";
@@ -9,7 +9,6 @@ import { DAY_MS, rangeStart, sliceSeries, totalPl, utcDayStart, type PlToday, ty
 
 /** Допуск «окно покрыто»: первая точка снимка может быть позже начала окна не больше чем на разрыв, который бэкенд считает паузой (15 мин). */
 export const COVER_TOL_MS = 15 * 60_000;
-export const HINT_OLD_BACKEND = "Полная история доступна после обновления бота";
 
 const fin = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
@@ -20,7 +19,6 @@ export type FullRange = "7d" | "all";
 export type FeedState =
   | { kind: "loading" }
   | { kind: "ok"; res: StatsResponse }
-  | { kind: "missing" }                                 // 404: бэкенд старый, эндпоинта нет
   | { kind: "error"; message?: string };                // сеть, 5xx, available:false (нет БД / сделок / equity)
 export type Feeds = Partial<Record<FullRange, FeedState>>;
 
@@ -67,8 +65,6 @@ export interface WindowInfo {
   source: "snapshot" | "stats";
   /** Фактическая длина окна, мс. */
   spanMs: number;
-  /** Одна приглушённая строка под переключателем (только для 404). */
-  note: string | null;
   /** Точки для графика (мс) и начало окна (для маркеров). */
   series: Pt[];
   start: number;
@@ -79,12 +75,12 @@ export interface WindowInfo {
 const NOTE_TAIL = "Бот торгует на весь баланс счёта; ввод и вывод средств в цифре не отделены.";
 const isoS = (sec: number) => new Date(sec * 1000).toISOString();
 
-function fromSnapshot(range: RangeKey, pts: readonly Pt[], equity: Num | undefined, anchor: number, cov: Coverage, label: string, partial: boolean, note: string | null): WindowInfo {
+function fromSnapshot(range: RangeKey, pts: readonly Pt[], equity: Num | undefined, anchor: number, cov: Coverage, label: string, partial: boolean): WindowInfo {
   const start = rangeStart(range, anchor);
   const pl = totalPl(pts, equity, start);
   const series = sliceSeries(pts, start);
   return {
-    state: "ok", pl, label, partial, source: "snapshot", spanMs: pl ? Math.max(0, anchor - pl.since) : cov.spanMs, note, series, start: Number.isFinite(start) ? start : (series[0]?.t ?? -Infinity),
+    state: "ok", pl, label, partial, source: "snapshot", spanMs: pl ? Math.max(0, anchor - pl.since) : cov.spanMs, series, start: Number.isFinite(start) ? start : (series[0]?.t ?? -Infinity),
     title: pl ? `Изменение кошелька ${label}: с ${datetime(new Date(pl.since).toISOString())} (${usd(pl.base)}) до сейчас (${usd(pl.cur)}). ${NOTE_TAIL}` : "",
   };
 }
@@ -105,7 +101,7 @@ function fromStats(range: FullRange, res: StatsResponse): WindowInfo | null {
   const label = range === "all" ? `за всё время · с ${ddmmyy(e.eq_start_ts)}` : partial ? `за доступные ${fmtSpan(spanMs)} · с ${ddmmyy(e.eq_start_ts)}` : "за 7 дн.";
   const what = range === "all" ? "за всё время (вся история кошелька бота)" : partial ? "за всё доступное время (бот работает меньше 7 дней)" : "за 7 суток";
   return {
-    state: "ok", pl: { abs, pct, base: e.eq_start, cur: e.eq_end, since }, label, partial, source: "stats", spanMs, note: null, series, start: series[0]!.t,
+    state: "ok", pl: { abs, pct, base: e.eq_start, cur: e.eq_end, since }, label, partial, source: "stats", spanMs, series, start: series[0]!.t,
     title: `Изменение кошелька ${what}: с ${datetime(isoS(e.eq_start_ts))} (${usd(e.eq_start)}) до ${datetime(isoS(e.eq_end_ts))} (${usd(e.eq_end)}), по данным /api/stats. ${NOTE_TAIL}`,
   };
 }
@@ -120,19 +116,19 @@ export function resolveWindow(range: RangeKey, pts: readonly Pt[], equity: Num |
   const need = statsNeeded(range, pts, anchor);
   if (!need) {
     return cov.full
-      ? fromSnapshot(range, pts, equity, anchor, cov, range === "24h" ? "за 24 ч" : "за 7 дн.", false, null)
-      : fromSnapshot(range, pts, equity, anchor, cov, `за доступные ${fmtSpan(cov.spanMs)}`, true, null);       // 24 ч, а данных меньше (бот недавно запущен)
+      ? fromSnapshot(range, pts, equity, anchor, cov, range === "24h" ? "за 24 ч" : "за 7 дн.", false)
+      : fromSnapshot(range, pts, equity, anchor, cov, `за доступные ${fmtSpan(cov.spanMs)}`, true);       // 24 ч, а данных меньше (бот недавно запущен)
   }
   const f = feeds[need];
   if (!f || f.kind === "loading") {
-    return { state: "loading", pl: null, label: need === "all" ? "за всё время" : "за 7 дн.", partial: false, source: "stats", spanMs: 0, note: null, series: [], start: -Infinity, title: "" };
+    return { state: "loading", pl: null, label: need === "all" ? "за всё время" : "за 7 дн.", partial: false, source: "stats", spanMs: 0, series: [], start: -Infinity, title: "" };
   }
   if (f.kind === "ok") {
     const w = fromStats(need, f.res);
     if (w) return w;
   }
   const label = need === "all" ? `за доступную историю (≈ ${fmtSpan(cov.spanMs)})` : `за доступные ${fmtSpan(cov.spanMs)}`;
-  return fromSnapshot(range, pts, equity, anchor, cov, label, true, f.kind === "missing" ? HINT_OLD_BACKEND : null);
+  return fromSnapshot(range, pts, equity, anchor, cov, label, true);
 }
 
 /** Подпись чипа «сегодня»: база — первая точка текущих суток UTC; если она заметно позже 00:00 (бот запущен днём, снимок короче суток) — время указано. */

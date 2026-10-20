@@ -91,17 +91,15 @@ export interface ImportResult {
   skipped: string[];
   /** Сколько выключенных ног пропущено. */
   disabled: number;
-  /** Есть перенесённые ноги, у которых в снимке не было признака long_only (старый бот): он взят из набора по умолчанию. */
-  legacyLongOnly?: boolean;
   reason?: string;
 }
 
 /**
  * Ноги живого бота -> ноги портфеля. Берутся только включённые; параметры — по спецификации стратегии (лишние отбрасываются, недостающие — по умолчанию,
- * значения зажимаются в диапазон). long_only берётся из снимка; у старых снимков (без поля) — у одноимённой ноги по умолчанию (strategy+tf), иначе false (`ImportResult.legacyLongOnly`).
+ * значения зажимаются в диапазон). long_only берётся из снимка как есть.
  */
 export function importLiveLegs(
-  snap: LiveSnapshot | null | undefined, strategies: ReadonlyMap<string, StrategyMeta>, tfs: readonly string[], defaults: readonly LegCfg[],
+  snap: LiveSnapshot | null | undefined, strategies: ReadonlyMap<string, StrategyMeta>, tfs: readonly string[],
 ): ImportResult {
   if (!snap || !snap.available) return { ok: false, legs: [], skipped: [], disabled: 0, reason: snap?.reason ?? "Снимок бота недоступен: бот не запущен или база состояния не найдена." };
   const src = snap.legs ?? [];
@@ -109,7 +107,6 @@ export function importLiveLegs(
   const legs: LegCfg[] = [];
   const skipped: string[] = [];
   let disabled = 0;
-  let legacyLongOnly = false;
   for (const l of src) {
     const label = `${l.strategy}@${l.tf}`;
     if (!l.enabled) { disabled++; continue; }
@@ -119,10 +116,8 @@ export function importLiveLegs(
     if (!Number.isFinite(l.weight) || l.weight < 0) { skipped.push(`${label}: некорректный вес`); continue; }
     if (legs.length >= MAX_LEGS) { skipped.push(`${label}: не больше ${MAX_LEGS} ног`); continue; }
     const params = normalizeParams(st, l.params);
-    const twin = defaults.find((d) => d.strategy === l.strategy && d.tf === l.tf);
-    if (typeof l.long_only !== "boolean") legacyLongOnly = true;
-    legs.push({ strategy: l.strategy, tf: l.tf, params, weight: Math.min(LEG_WEIGHT_MAX, +l.weight.toFixed(4)), long_only: typeof l.long_only === "boolean" ? l.long_only : (twin?.long_only ?? false) });
+    legs.push({ strategy: l.strategy, tf: l.tf, params, weight: Math.min(LEG_WEIGHT_MAX, +l.weight.toFixed(4)), long_only: l.long_only });
   }
   if (!legs.length) return { ok: false, legs, skipped, disabled, reason: "Нет включённых ног, которые можно перенести." };
-  return { ok: true, legs, skipped, disabled, legacyLongOnly };
+  return { ok: true, legs, skipped, disabled };
 }

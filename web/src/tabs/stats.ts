@@ -11,7 +11,7 @@ import { DEFAULT_STATS_RANGE, isStatsRange, isStTradeFilter, selectState, STATS_
 import { agoMs } from "../ui/fmt";
 import { clockUtc } from "../ui/fmtTime";
 import {
-  allMetrics, costsCard, heroGrid, oldBackendCard, pageNotices, positionCard, qualityBlock, reasonCard, reconCard, sideCard, unavailableCard, windowLine,
+  allMetrics, costsCard, heroGrid, pageNotices, positionCard, qualityBlock, reasonCard, reconCard, sideCard, unavailableCard, windowLine,
 } from "./statsView";
 import { createTradesCard } from "./statsTrades";
 import { rememberStats } from "./statsFeed";
@@ -115,7 +115,6 @@ export function createStats(_meta: Meta): Tab {
     paintHead();
     switch (state.kind) {
       case "loading": content.replaceChildren(skeleton()); return;
-      case "old_backend": content.replaceChildren(oldBackendCard(() => void load())); return;
       case "error":
         if (stale) break;
         content.replaceChildren(h("div", { class: "banner error st-err", role: "alert", "data-code": state.code },

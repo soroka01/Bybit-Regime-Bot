@@ -99,12 +99,10 @@ describe("плашка статуса бота: позиция", () => {
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(NOW); document.body.replaceChildren(); });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-  it("слов MAINNET/TESTNET/PAPER нет ни в тексте, ни в подписи", async () => {
+  it("плашка: «Торговля вкл», без метки среды", async () => {
     const p = await paint(snap());
     expect(p.hidden).toBe(false);
     expect(clean(p.textContent)).toBe("Торговля вкл");
-    expect(p.querySelector(".bp-env")).toBeNull();
-    expect(p.getAttribute("aria-label")).not.toMatch(/MAINNET|TESTNET|PAPER/);
   });
   it("позиция: сторона словом без цвета P/L, результат в $ и % счёта отдельным чипом по знаку", async () => {
     const p = await paint(snap({ position: { side: "Buy", qty: 0.003, entry: 100000, upnl: -4.5, mark: 98500 } }));

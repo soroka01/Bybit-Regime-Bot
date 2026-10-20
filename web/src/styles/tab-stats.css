@@ -168,8 +168,6 @@ table.st-rt thead th { padding: 0 12px; }
 .st-state .strong { color: var(--fg); }
 .st-state .btn { margin-top: var(--sp-3); }
 .st-state .empty-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); color: var(--fg-muted); }
-.st-old { border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); background: color-mix(in srgb, var(--warn) 5%, var(--surface-1)); }
-.st-old .empty-icon { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
 .st-code { margin-top: var(--sp-2); }
 .st-skel { display: flex; flex-direction: column; gap: var(--sp-4); }
 .st-skel .skel-tile { height: 128px; }

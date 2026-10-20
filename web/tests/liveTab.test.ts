@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Вкладка «Бот (live)» (jsdom, график подменён): герой (чип результата за окно графика), карточка лимитов риска, предупреждение «стоп × плечо × веса».
-// Бот торгует на весь баланс счёта: поле settings.allocated_capital старого сервера игнорируется, его отсутствие ничего не ломает.
+// Бот торгует на весь баланс счёта: «выделенного капитала» в интерфейсе нет.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveSnapshot, Meta } from "../src/types";
 
@@ -87,20 +87,15 @@ describe("вкладка «Бот (live)»: результат за период
     expect(qa(tab.el, ".lv-hero")).toHaveLength(1);
   });
 
-  it("без settings.allocated_capital и со старой формой снимка (поле ещё приходит) вкладка рисуется одинаково", async () => {
-    const fresh = await mount(snap());
-    const textNew = totalChip(fresh.el)!.textContent;
-    fresh.hide();
-    document.body.replaceChildren();
-    const tab = await mount(snap({ settings: { ...SAFE, allocated_capital: 160 } }));        // старый бэкенд всё ещё присылает поле
-    expect(totalChip(tab.el)!.textContent).toBe(textNew);                            // 160 игнорируется: «к $160» больше нет
+  it("без «выделенного капитала»: в герое нет «всего к…», в карточке риска нет чипа «Капитал»", async () => {
+    const tab = await mount(snap());
     expect(tab.el.textContent).not.toMatch(/всего к|выделенн/i);
     expect(qa(tab.el, ".lv-risks .chip").map((c) => c.textContent ?? "").join("|")).not.toContain("Капитал");
     expect(q(tab.el, ".lv-risks")).not.toBeNull();
   });
 
   it("риск-карточка: чипа «Капитал» нет, стоп и плечо остались; формулировки про кошелёк", async () => {
-    const tab = await mount(snap({ settings: { ...SAFE, allocated_capital: 160 } }));
+    const tab = await mount(snap());
     expect(qa(tab.el, ".lv-risks .chip").map((c) => c.textContent ?? "")).toEqual(["Стоп5%", "Плечо2,0× из 10×"]);
     const text = q(tab.el, ".lv-risks")!.textContent ?? "";
     expect(text).toContain("Считается от пика кошелька");

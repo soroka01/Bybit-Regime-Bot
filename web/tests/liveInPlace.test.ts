@@ -37,7 +37,7 @@ let current: LiveSnapshot;
 const mounted: { hide(): void }[] = [];
 async function mount(s: LiveSnapshot) {
   current = s;
-  // /api/stats недоступен (старый бэкенд) -> блок сделок показывает список ордеров с кнопкой «Показать ещё»
+  // /api/stats недоступен (404) -> блок сделок показывает список ордеров с кнопкой «Показать ещё»
   vi.stubGlobal("fetch", vi.fn(async (url: string) => (String(url).includes("/api/stats") ? json(404, { detail: "no" }) : json(200, current))));
   const tab = createLive({} as Meta);
   mounted.push(tab);

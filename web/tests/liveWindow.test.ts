@@ -2,7 +2,7 @@
 // откат на снимок с честной подписью, чип «сегодня». Числа из отчёта владельца: первая точка 160,63 $, сейчас 166,05 $ -> +5,42 $ / +3,37 %.
 import { describe, expect, it } from "vitest";
 import { plToday, type Pt } from "../src/tabs/liveCalc";
-import { COVER_TOL_MS, HINT_OLD_BACKEND, fmtSpan, resolveWindow, snapshotCoverage, statsNeeded, todayLabel, type Feeds } from "../src/tabs/liveWindow";
+import { COVER_TOL_MS, fmtSpan, resolveWindow, snapshotCoverage, statsNeeded, todayLabel, type Feeds } from "../src/tabs/liveWindow";
 import type { StatsResponse } from "../src/types";
 import { richStats } from "./fixtures/statsRich";
 
@@ -69,7 +69,6 @@ describe("окно результата: 24 ч и 7 д из снимка", () =>
     expect(w.partial).toBe(false);
     expect(w.source).toBe("snapshot");
     expect(w.pl!.since).toBeLessThanOrEqual(NOW - DAY + 5 * MIN);
-    expect(w.note).toBeNull();
   });
   it("24 ч, а данных 8 часов — подпись сокращается до «за доступные 8 ч»", () => {
     const w = resolveWindow("24h", snapshot(97), 166.05, NOW, {});
@@ -106,7 +105,7 @@ describe("«Всё»: /api/stats", () => {
     expect(w.title).toContain("за всё время");
   });
   it("фикстура владельца: снимок (2000 точек, 162,60 -> 166,05) даёт НЕПРАВИЛЬНЫЕ +3,44 $ / +2,12 % — вот почему «Всё» берётся из статистики", () => {
-    const snap = resolveWindow("all", snapshot(2000), 166.05, NOW, { all: { kind: "missing" } });            // без статистики: честно «доступная история», а не всё время
+    const snap = resolveWindow("all", snapshot(2000), 166.05, NOW, { all: { kind: "error" } });            // без статистики: честно «доступная история», а не всё время
     expect(snap.pl!.abs).toBeCloseTo(3.45, 1);
     expect(snap.pl!.pct! * 100).toBeCloseTo(2.12, 1);
     expect(snap.label).toBe("за доступную историю (≈ 6,9 дн.)");
@@ -124,16 +123,15 @@ describe("«Всё»: /api/stats", () => {
       expect(w.series).toEqual([]);
     }
   });
-  it("404: снимок с честной подписью + подсказка про обновление бота", () => {
-    const w = resolveWindow("all", snapshot(2000), 166.05, NOW, { all: { kind: "missing" } });
+  it("ошибка запроса: снимок с честной подписью, не «за всё время»", () => {
+    const w = resolveWindow("all", snapshot(2000), 166.05, NOW, { all: { kind: "error" } });
     expect(w.state).toBe("ok");
     expect(w.label).toBe("за доступную историю (≈ 6,9 дн.)");
     expect(w.partial).toBe(true);
     expect(w.source).toBe("snapshot");
-    expect(w.note).toBe(HINT_OLD_BACKEND);
     expect(w.label).not.toContain("всё время");
   });
-  it("ошибка / available:false / ответ без equity: тот же откат, но БЕЗ подсказки про 404", () => {
+  it("available:false / ответ без equity / чужой диапазон: тот же откат на снимок", () => {
     const bad: StatsResponse[] = [
       { ...ALL(), available: false, reason: "no_db" },
       { ...ALL(), equity: undefined },
@@ -144,21 +142,19 @@ describe("«Всё»: /api/stats", () => {
     for (const res of bad) {
       const w = resolveWindow("all", snapshot(2000), 166.05, NOW, { all: { kind: "ok", res } });
       expect(w.label).toBe("за доступную историю (≈ 6,9 дн.)");
-      expect(w.note).toBeNull();
     }
     const e = resolveWindow("all", snapshot(2000), 166.05, NOW, { all: { kind: "error", message: "boom" } });
     expect(e.label).toBe("за доступную историю (≈ 6,9 дн.)");
-    expect(e.note).toBeNull();
   });
-  it("старая форма ответа: нет delta / wallet_return_pct — считается из eq_start и eq_end", () => {
+  it("ответ без delta / wallet_return_pct — считается из eq_start и eq_end", () => {
     const res = ALL();
     const w = resolveWindow("all", snapshot(2000), 166.05, NOW, { all: { kind: "ok", res: { ...res, equity: { ...res.equity!, delta: null, wallet_return_pct: null } } } });
     expect(w.source).toBe("stats");
     expect(w.pl!.abs).toBeCloseTo(5.42, 2);
     expect(w.pl!.pct! * 100).toBeCloseTo(3.374, 2);
   });
-  it("старый снимок без equity: чип по последней точке ряда, вкладка не падает", () => {
-    const w = resolveWindow("all", snapshot(2000), undefined, NOW, { all: { kind: "missing" } });
+  it("снимок без equity: чип по последней точке ряда, вкладка не падает", () => {
+    const w = resolveWindow("all", snapshot(2000), undefined, NOW, { all: { kind: "error" } });
     expect(w.pl!.cur).toBeCloseTo(166.05, 2);
   });
 });
@@ -180,14 +176,10 @@ describe("«7 д» при неполном снимке", () => {
     expect(w.label).toBe("за доступные 4,0 дн. · с 13.10.26");
     expect(w.partial).toBe(true);
   });
-  it("404: «за доступные 6,9 дн.» + подсказка; ошибка: то же без подсказки; пока грузится — loading", () => {
-    const m = resolveWindow("7d", snapshot(2000), 166.05, NOW, { "7d": { kind: "missing" } });
-    expect(m.label).toBe("за доступные 6,9 дн.");
-    expect(m.note).toBe(HINT_OLD_BACKEND);
-    expect(m.partial).toBe(true);
+  it("ошибка: «за доступные 6,9 дн.»; пока грузится — loading", () => {
     const e = resolveWindow("7d", snapshot(2000), 166.05, NOW, { "7d": { kind: "error" } });
     expect(e.label).toBe("за доступные 6,9 дн.");
-    expect(e.note).toBeNull();
+    expect(e.partial).toBe(true);
     expect(resolveWindow("7d", snapshot(2000), 166.05, NOW, {}).state).toBe("loading");
   });
 });

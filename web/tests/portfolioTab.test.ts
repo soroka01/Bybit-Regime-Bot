@@ -147,7 +147,7 @@ describe("Портфель: «Взять ноги живого бота»", () =
     expect(tab.el.querySelector(".wsum-val")!.textContent).toBe("Σ весов 50%");
   });
 
-  it("примечание про «только лонг» показывается только для снимка без этого признака", async () => {
+  it("снимок с признаком long_only: ноги загружаются без примечаний про «только лонг»", async () => {
     const withFlag = { available: true, legs: snap.legs.map((l) => ({ ...l, long_only: true })) };
     stub(withFlag);
     const tab = createPortfolio(meta);
@@ -155,10 +155,6 @@ describe("Портфель: «Взять ноги живого бота»", () =
     await vi.advanceTimersByTimeAsync(10); await flush();
     expect(tab.el.querySelector(".leg-import")!.textContent).toContain("Загружено ног: 2");
     expect(tab.el.querySelector(".leg-import")!.textContent).not.toContain("только лонг");
-    stub(snap);                                         // старый снимок: long_only нет
-    btn(tab.el, "живого бота").click();
-    await vi.advanceTimersByTimeAsync(10); await flush();
-    expect(tab.el.querySelector(".leg-import")!.textContent).toContain("«только лонг» в снимке бота не хранится");
   });
 
   it("бот не запущен или сервер недоступен: сообщение, ноги не меняются", async () => {

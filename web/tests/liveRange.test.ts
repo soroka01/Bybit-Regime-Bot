@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Вкладка «Бот (live)»: окно «Всё» / «7 д» из /api/stats, откат на снимок при 404 / ошибке, подписи чипов (jsdom, график подменён).
+// Вкладка «Бот (live)»: окно «Всё» / «7 д» из /api/stats, откат на снимок при сбое запроса, подписи чипов (jsdom, график подменён).
 // Реальные числа владельца: /api/live отдаёт последние 2000 точек (162,60 $ ... 166,05 $), вся история — 3220 точек с 160,63 $ -> +5,42 $ / +3,37 %.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveSnapshot, Meta, StatsResponse } from "../src/types";
@@ -78,7 +78,6 @@ const fullCalls = () => calls.filter((c) => /range=(all|7d)/.test(c));
 const totalChip = (el: HTMLElement) => qa(el, ".lv-hero .lv-pl").find((c) => !(c.textContent ?? "").includes("сегодня")) ?? null;
 const todayChip = (el: HTMLElement) => qa(el, ".lv-hero .lv-pl").find((c) => (c.textContent ?? "").includes("сегодня")) ?? null;
 const rangeBtn = (el: HTMLElement, label: string) => qa(el, ".lv-range button").find((b) => b.textContent === label) as HTMLButtonElement;
-const noteText = (el: HTMLElement) => { const n = q(el, ".lv-range-note"); return n && !n.hidden ? clean(n.textContent) : ""; };
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -99,7 +98,6 @@ describe("live: «Всё» — вся история из /api/stats", () => {
     expect(fullCalls()).toHaveLength(0);
     expect(clean(totalChip(tab.el)!.textContent)).toContain("за 24 ч");
     expect(clean(todayChip(tab.el)!.textContent)).toContain("сегодня (с 00:00 UTC)");
-    expect(noteText(tab.el)).toBe("");
   });
 
   it("клик по «Всё» запрашивает /api/stats?range=all; чип = +5,42 $ · +3,37 % «за всё время · с 06.10.26», график начинается 06.10", async () => {
@@ -115,7 +113,6 @@ describe("live: «Всё» — вся история из /api/stats", () => {
     expect(t).not.toContain("доступн");
     expect(chip.getAttribute("title")).toContain("160,63 $");
     expect(chip.getAttribute("title")).toContain("166,05 $");
-    expect(noteText(tab.el)).toBe("");
     const last = chartCalls.data[chartCalls.data.length - 1]!;
     expect(last.x[0]).toBe(Math.round(START_ALL / 1000));                      // график начинается 06.10 00:12, а не 10.10
     expect(new Date(last.x[0]! * 1000).toISOString().slice(0, 10)).toBe("2026-10-06");
@@ -156,8 +153,8 @@ describe("live: «Всё» — вся история из /api/stats", () => {
 });
 
 describe("live: откат на снимок", () => {
-  it("404 (старый бэкенд): «за доступную историю (≈ 6,9 дн.)», строка-подсказка, число — по снимку, не выдаётся за всё время", async () => {
-    statsHandler = () => json(404, { detail: "Not Found" });
+  it("сбой /api/stats: «за доступную историю (≈ 6,9 дн.)», число — по снимку, не выдаётся за всё время", async () => {
+    statsHandler = () => json(502, { detail: "Bad Gateway" });
     const tab = await mount();
     rangeBtn(tab.el, "Всё").click();
     await flush();
@@ -165,42 +162,34 @@ describe("live: откат на снимок", () => {
     expect(t).toContain("за доступную историю (≈ 6,9 дн.)");
     expect(t).not.toContain("за всё время");
     expect(t).toMatch(/\+3,45 \$/);                                            // 166,05 − 162,60 по снимку
-    expect(noteText(tab.el)).toBe("Полная история доступна после обновления бота");
     const last = chartCalls.data[chartCalls.data.length - 1]!;
     expect(new Date(last.x[0]! * 1000).toISOString().slice(0, 10)).toBe("2026-10-10");
-    // подсказка пропадает при возврате на 24 ч
-    rangeBtn(tab.el, "24 ч").click();
-    await flush();
-    expect(noteText(tab.el)).toBe("");
   });
 
-  it("ошибка сервера (500): честная подпись, но без подсказки про обновление", async () => {
+  it("ошибка сервера (500): честная подпись", async () => {
     statsHandler = () => json(500, { detail: "boom" });
     const tab = await mount();
     rangeBtn(tab.el, "Всё").click();
     await flush();
     expect(clean(totalChip(tab.el)!.textContent)).toContain("за доступную историю");
-    expect(noteText(tab.el)).toBe("");
   });
 
-  it("статистика недоступна (available:false, нет БД): тот же откат без подсказки", async () => {
+  it("статистика недоступна (available:false, нет БД): тот же откат", async () => {
     statsHandler = () => json(200, { available: false, reason: "no_db", message: "нет базы", range: "all", computed_at: 1, warnings: [], definitions: {} });
     const tab = await mount();
     rangeBtn(tab.el, "Всё").click();
     await flush();
     expect(clean(totalChip(tab.el)!.textContent)).toContain("за доступную историю (≈ 6,9 дн.)");
-    expect(noteText(tab.el)).toBe("");
   });
 
-  it("старая форма снимка (нет peak_equity, settings, legs) + 404: вкладка рисуется, подпись честная", async () => {
-    statsHandler = () => json(404, {});
-    const old = { available: true, equity: 166.05, equity_history: history(300), heartbeat: iso(NOW - 10_000) } as LiveSnapshot;
-    const tab = await mount(old);
+  it("минимальный снимок (нет peak_equity, settings, legs) + сбой статистики: вкладка рисуется, подпись честная", async () => {
+    statsHandler = () => json(500, {});
+    const min = { available: true, equity: 166.05, equity_history: history(300), heartbeat: iso(NOW - 10_000) } as LiveSnapshot;
+    const tab = await mount(min);
     rangeBtn(tab.el, "Всё").click();
     await flush();
     const t = clean(totalChip(tab.el)!.textContent);
     expect(t).toContain("за доступную историю (≈ 1,0 дн.)");
-    expect(noteText(tab.el)).toContain("Полная история");
     expect(q(tab.el, ".lv-hero")).not.toBeNull();
   });
 
@@ -227,15 +216,14 @@ describe("live: «7 д»", () => {
     expect(t).toContain("+2,56%");
   });
 
-  it("404: «за доступные 6,9 дн.» вместо «за 7 дн.» + подсказка", async () => {
-    statsHandler = () => json(404, {});
+  it("сбой /api/stats: «за доступные 6,9 дн.» вместо «за 7 дн.»", async () => {
+    statsHandler = () => json(500, {});
     const tab = await mount();
     rangeBtn(tab.el, "7 д").click();
     await flush();
     const t = clean(totalChip(tab.el)!.textContent);
     expect(t).toContain("за доступные 6,9 дн.");
     expect(t).not.toContain("за 7 дн.");
-    expect(noteText(tab.el)).toContain("Полная история доступна после обновления бота");
   });
 
   it("снимок покрывает неделю (2100 точек): без запросов, «за 7 дн.»", async () => {

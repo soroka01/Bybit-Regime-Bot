@@ -472,10 +472,6 @@ describe("предупреждения -> чипы", () => {
 
 describe("выбор состояния страницы", () => {
   const ok = g7;
-  it("404 -> старая версия бэкенда (даже при наличии прежних данных)", () => {
-    expect(selectState({ res: null, err: { status: 404, code: "http", message: "Not Found" } })).toEqual({ kind: "old_backend" });
-    expect(selectState({ res: ok, err: { status: 404, code: "http", message: "x" } }).kind).toBe("old_backend");
-  });
   it("сеть/сервер -> ошибка с кодом", () => {
     expect(selectState({ res: null, err: { status: 0, code: "network", message: "сервер недоступен" } })).toEqual({ kind: "error", message: "сервер недоступен", code: "network" });
     expect(selectState({ res: null, err: { status: 500, code: "http", message: "HTTP 500" } }).kind).toBe("error");

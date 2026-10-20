@@ -166,8 +166,6 @@
 .lv-range.segmented { margin: 0; }
 .lv-range.segmented button { padding: 0 12px; }
 .lv-mk { align-items: center; margin-top: var(--sp-2); }
-.lv-chart > .muted { margin: var(--sp-2) 0 0; }
-.lv-chart > .lv-range-note { margin: 0 0 var(--sp-2); }
 .lv-pl-loading { min-height: 24px; }
 
 /* ----- сделки ----- */

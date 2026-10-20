@@ -11,15 +11,14 @@ import { reasonCell } from "./statsView";
 
 const dfShort = new Intl.DateTimeFormat("ru-RU", { timeZone: "UTC", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
-/** Что показывает блок сделок: ждём первый ответ /api/stats, закрытые сделки готовы, либо откат к списку ордеров (старый бэкенд / ошибка / нет статистики). */
+/** Что показывает блок сделок: ждём первый ответ /api/stats, закрытые сделки готовы, либо откат к списку ордеров (ошибка / нет статистики). */
 export type ClosedState =
   | { kind: "loading" }
   | { kind: "ok"; res: StatsResponse }
-  | { kind: "fallback"; why: "old_backend" | "error" | "unavailable"; message?: string };
+  | { kind: "fallback"; why: "error" | "unavailable"; message?: string };
 
 /** Подсказка над списком ордеров, когда закрытые сделки получить нельзя. */
 export function fallbackHint(st: Extract<ClosedState, { kind: "fallback" }>): string {
-  if (st.why === "old_backend") return "Закрытые сделки с итогом в долларах появятся после перезапуска бота (run.bat): сервер дашборда запущен на старой версии. Пока показаны отдельные ордера.";
   if (st.why === "unavailable") return `Итоги закрытых сделок сейчас недоступны${st.message ? `: ${st.message}` : ""}. Пока показаны отдельные ордера.`;
   return `Не удалось загрузить закрытые сделки${st.message ? ` (${st.message})` : ""}. Пока показаны отдельные ордера; повтор через минуту.`;
 }

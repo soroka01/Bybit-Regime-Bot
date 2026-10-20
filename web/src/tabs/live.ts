@@ -74,19 +74,16 @@ export function createLive(meta: Meta): Tab {
   rangeSeg.el.classList.add("lv-range");
   const markerLegend = h("div", { class: "marker-legend lv-mk", hidden: true });
   const chartBody = h("div", { class: "lv-chart-body" });
-  const rangeNote = h("p", { class: "muted small lv-range-note", hidden: true });       // «Полная история доступна после обновления бота» (только 404)
   const chartCard = h("section", { class: "card lv-chart", "aria-label": "График капитала" },
-    h("header", { class: "card-head" }, h("h3", { text: "Кошелёк счёта" }), rangeSeg.el), rangeNote, chartBody, markerLegend);
+    h("header", { class: "card-head" }, h("h3", { text: "Кошелёк счёта" }), rangeSeg.el), chartBody, markerLegend);
 
   function updateChart(s: LiveSnapshot) {
     const eqAll = parseSeries(s.equity_history);
     const win = resolveWindow(S.range, eqAll, s.equity, Date.now(), feeds);       // то же окно, что в чипе героя
     const last = win.series[win.series.length - 1];
-    const sig = JSON.stringify([S.range, win.state, win.source, win.note, win.start, win.series.length, win.series[0]?.t, last?.t, last?.v, (s.trades ?? []).map((t) => [t.ts, t.side])]);
+    const sig = JSON.stringify([S.range, win.state, win.source, win.start, win.series.length, win.series[0]?.t, last?.t, last?.v, (s.trades ?? []).map((t) => [t.ts, t.side])]);
     if (sig === chartSig) return;
     chartSig = sig;
-    rangeNote.textContent = win.note ?? "";
-    rangeNote.hidden = !win.note;
     if (win.state === "loading") {
       chart?.destroy(); chart = null;
       chartBody.replaceChildren(skeletonChart(300));
@@ -158,8 +155,7 @@ export function createLive(meta: Meta): Tab {
     } catch (e) {
       const a = asApiError(e);
       if (a.silent || my !== closedSeq) return;
-      if (a.status === 404) closed = { kind: "fallback", why: "old_backend" };
-      else if (closed.kind !== "ok") closed = { kind: "fallback", why: "error", message: a.message };     // уже показанные итоги не затираем из-за разовой ошибки
+      if (closed.kind !== "ok") closed = { kind: "fallback", why: "error", message: a.message };     // уже показанные итоги не затираем из-за разовой ошибки
     }
     paintTrades();
   }
@@ -189,8 +185,7 @@ export function createLive(meta: Meta): Tab {
     } catch (e) {
       const a = asApiError(e);
       if (a.silent) { if (feeds[need]?.kind === "loading") delete feeds[need]; return; }
-      if (a.status === 404) feeds[need] = { kind: "missing" };
-      else if (feeds[need]?.kind !== "ok") feeds[need] = { kind: "error", message: a.message };
+      if (feeds[need]?.kind !== "ok") feeds[need] = { kind: "error", message: a.message };
     }
     repaintWindow();
   }

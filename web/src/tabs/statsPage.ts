@@ -4,17 +4,13 @@ import type { StatsResponse } from "../types";
 export interface ApiErrLike { status: number; code: string; message: string }
 export type PageState =
   | { kind: "loading" }
-  | { kind: "old_backend" }
   | { kind: "error"; message: string; code: string }
   | { kind: "unavailable"; reason: string; message: string }
   | { kind: "ready" };
 
 export function selectState(input: { res: StatsResponse | null; err: ApiErrLike | null; loading?: boolean }): PageState {
   const { res, err } = input;
-  if (err) {
-    if (err.status === 404) return { kind: "old_backend" };
-    return { kind: "error", message: err.message, code: err.code };
-  }
+  if (err) return { kind: "error", message: err.message, code: err.code };
   if (!res) return { kind: "loading" };
   if (!res.available) return { kind: "unavailable", reason: res.reason ?? "error", message: res.message ?? "" };
   return { kind: "ready" };

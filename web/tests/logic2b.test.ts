@@ -5,7 +5,7 @@ import { clampWeight, importLiveLegs, isLegCfg, LEG_WEIGHT_MAX, normalizeParams,
 import { ddVersus, isShortPeriod, periodDays, vsBenchmark } from "../src/tabs/resultLogic";
 import { csvCell, csvFileName, csvText, filterTrades, tradeCounts, tradesToCsv } from "../src/tabs/tradesLogic";
 import { windowMatrix, windowSpan, wfVerdict } from "../src/tabs/wfLogic";
-import type { LegCfg, LiveSnapshot, StrategyMeta, TradeRow, WfWindow } from "../src/types";
+import type { LiveSnapshot, StrategyMeta, TradeRow, WfWindow } from "../src/types";
 import { changedParams, isChanged } from "../src/ui/paramLogic";
 import { filterStrategies } from "../src/ui/strategySearch";
 
@@ -209,13 +209,13 @@ describe("портфель: импорт ног живого бота", () => {
     ["EMA cross", { name: "EMA cross", desc: "", derivative: false, params: { fast: sp(3, 75, 12), slow: sp(14, 300, 50) } }],
     ["OI flush", { name: "OI flush", desc: "", derivative: true, params: { n: sp(2, 50, 10) } }],
   ]);
-  const defaults: LegCfg[] = [{ strategy: "EMA cross", tf: "4h", params: {}, weight: 0.3, long_only: true }];
+
   const leg = (o: Partial<NonNullable<LiveSnapshot["legs"]>[number]>) =>
     ({ key: "k", strategy: "EMA cross", tf: "4h", params: { fast: 10, slow: 40 }, long_only: false, weight: 0.3, enabled: true, signal: 0, updated: null, ...o });
   const snap = (legs: ReturnType<typeof leg>[]): LiveSnapshot => ({ available: true, legs });
 
   it("переносит включённые ноги: параметры по спецификации, long_only из снимка", () => {
-    const r = importLiveLegs(snap([leg({}), leg({ strategy: "OI flush", tf: "1h", params: { n: 500, junk: 1 }, weight: 0.2 }), leg({ enabled: false })]), strategies, ["1h", "4h"], defaults);
+    const r = importLiveLegs(snap([leg({}), leg({ strategy: "OI flush", tf: "1h", params: { n: 500, junk: 1 }, weight: 0.2 }), leg({ enabled: false })]), strategies, ["1h", "4h"]);
     expect(r.ok).toBe(true);
     expect(r.disabled).toBe(1);
     expect(r.legs).toEqual([
@@ -223,21 +223,12 @@ describe("портфель: импорт ног живого бота", () => {
       { strategy: "OI flush", tf: "1h", params: { n: 50 }, weight: 0.2, long_only: false },
     ]);
   });
-  it("long_only берётся из снимка (true/false), у одноимённой ноги по умолчанию — только как запасной вариант", () => {
-    const r = importLiveLegs(snap([leg({ long_only: false }), leg({ strategy: "OI flush", tf: "1h", params: {}, long_only: true })]), strategies, ["1h", "4h"], defaults);
+  it("long_only берётся из снимка как есть (true/false), набор по умолчанию не подмешивается", () => {
+    const r = importLiveLegs(snap([leg({ long_only: false }), leg({ strategy: "OI flush", tf: "1h", params: {}, long_only: true })]), strategies, ["1h", "4h"]);
     expect(r.legs.map((l) => l.long_only)).toEqual([false, true]);       // у EMA cross@4h по умолчанию true, но снимок главнее
-    expect(r.legacyLongOnly).toBe(false);
-  });
-  it("старый снимок без long_only: запасной вариант — одноимённая нога по умолчанию, иначе false; флаг legacyLongOnly", () => {
-    const old = (o: object) => { const l = leg(o) as Record<string, unknown>; delete l.long_only; return l as ReturnType<typeof leg>; };
-    const r = importLiveLegs(snap([old({}), old({ strategy: "OI flush", tf: "1h", params: {} })]), strategies, ["1h", "4h"], defaults);
-    expect(r.legs.map((l) => l.long_only)).toEqual([true, false]);
-    expect(r.legacyLongOnly).toBe(true);
-    const mixed = importLiveLegs(snap([leg({ long_only: false }), old({ strategy: "OI flush", tf: "1h", params: {} })]), strategies, ["1h", "4h"], defaults);
-    expect(mixed.legacyLongOnly).toBe(true);
   });
   it("недостающие параметры — по умолчанию; неизвестная стратегия и таймфрейм пропускаются с причиной", () => {
-    const r = importLiveLegs(snap([leg({ params: {} }), leg({ strategy: "Нет такой" }), leg({ tf: "15m" })]), strategies, ["1h", "4h"], defaults);
+    const r = importLiveLegs(snap([leg({ params: {} }), leg({ strategy: "Нет такой" }), leg({ tf: "15m" })]), strategies, ["1h", "4h"]);
     expect(r.legs).toHaveLength(1);
     expect(r.legs[0]!.params).toEqual({ fast: 12, slow: 50 });
     expect(r.skipped).toHaveLength(2);
@@ -245,18 +236,18 @@ describe("портфель: импорт ног живого бота", () => {
     expect(r.skipped[1]).toContain("таймфрейм");
   });
   it("нет снимка / бот не запущен / нет ног / все выключены — ok=false с причиной", () => {
-    expect(importLiveLegs(null, strategies, ["4h"], defaults).ok).toBe(false);
-    expect(importLiveLegs({ available: false, reason: "бот не запущен" }, strategies, ["4h"], defaults).reason).toBe("бот не запущен");
-    expect(importLiveLegs({ available: true, legs: [] }, strategies, ["4h"], defaults).ok).toBe(false);
-    const r = importLiveLegs(snap([leg({ enabled: false })]), strategies, ["4h"], defaults);
+    expect(importLiveLegs(null, strategies, ["4h"]).ok).toBe(false);
+    expect(importLiveLegs({ available: false, reason: "бот не запущен" }, strategies, ["4h"]).reason).toBe("бот не запущен");
+    expect(importLiveLegs({ available: true, legs: [] }, strategies, ["4h"]).ok).toBe(false);
+    const r = importLiveLegs(snap([leg({ enabled: false })]), strategies, ["4h"]);
     expect(r).toMatchObject({ ok: false, disabled: 1 });
   });
   it("не больше 8 ног; вес зажимается в 1.5", () => {
     const many = Array.from({ length: 10 }, () => leg({ weight: 0.1 }));
-    const r = importLiveLegs(snap(many), strategies, ["4h"], defaults);
+    const r = importLiveLegs(snap(many), strategies, ["4h"]);
     expect(r.legs).toHaveLength(8);
     expect(r.skipped).toHaveLength(2);
-    expect(importLiveLegs(snap([leg({ weight: 9 })]), strategies, ["4h"], defaults).legs[0]!.weight).toBe(1.5);
+    expect(importLiveLegs(snap([leg({ weight: 9 })]), strategies, ["4h"]).legs[0]!.weight).toBe(1.5);
   });
 });
 

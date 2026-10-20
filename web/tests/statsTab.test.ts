@@ -368,21 +368,6 @@ describe("вкладка «Статистика»: таблица сделок",
 });
 
 describe("вкладка «Статистика»: ошибки и недоступность", () => {
-  it("HTTP 404 на /api/stats -> карточка «Бот запущен на старой версии: перезапустите run.bat»", async () => {
-    stub(() => json(404, { detail: "Not Found" }));
-    const tab = await mount();
-    const c = q(tab.el, ".st-old");
-    expect(c.textContent).toContain("Бот запущен на старой версии");
-    expect(c.textContent).toContain("Перезапустите run.bat, чтобы включить статистику");
-    expect(tab.el.querySelector(".st-hero")).toBeNull();
-    // после перезапуска «Проверить снова» подхватывает ответ
-    stub(() => json(200, g7));
-    (c.querySelector("button") as HTMLButtonElement).click();
-    await flush();
-    expect(tab.el.querySelector(".st-old")).toBeNull();
-    expect(qa(tab.el, ".st-tile")).toHaveLength(8);
-  });
-
   it("available:false (золотой ответ): карточка с причиной и сообщением сервера", async () => {
     const un = goldenUnavailable as unknown as StatsResponse;
     stub(() => json(200, un));

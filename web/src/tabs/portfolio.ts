@@ -234,7 +234,7 @@ export function createPortfolio(meta: Meta): Tab {
     importNote.replaceChildren();
     try {
       const snap = await api.live();
-      const r = importLiveLegs(snap, strategies, meta.portfolio_tfs, meta.legs);
+      const r = importLiveLegs(snap, strategies, meta.portfolio_tfs);
       if (!r.ok) {
         importNote.replaceChildren(h("div", { class: "notice warn", role: "alert" }, h("span", null, h("strong", { text: "Не удалось взять ноги бота. " }), r.reason ?? "")));
         return;
@@ -244,8 +244,7 @@ export function createPortfolio(meta: Meta): Tab {
       const sum = r.legs.reduce((a, l) => a + l.weight, 0);
       const parts = [`Загружено ног: ${r.legs.length}, Σ весов ${pct(sum, 0)}.`,
         r.disabled ? ` Выключенных пропущено: ${r.disabled}.` : "",
-        r.skipped.length ? ` Не перенесено: ${r.skipped.join("; ")}.` : "",
-        r.legacyLongOnly ? " Признак «только лонг» в снимке бота не хранится — взят из набора по умолчанию." : ""];
+        r.skipped.length ? ` Не перенесено: ${r.skipped.join("; ")}.` : ""];
       importNote.replaceChildren(h("div", { class: `notice${r.skipped.length ? " warn" : ""}`, role: "status" }, h("span", null, h("strong", { text: "Ноги живого бота. " }), parts.join(""))));
       toast("Ноги бота загружены", "ok");
     } catch (e) {

@@ -260,15 +260,6 @@ export function reconCard(res: StatsResponse): HTMLElement | null {
 }
 
 // ---------------------------------------------------------------- состояния страницы
-export function oldBackendCard(onRetry: () => void): HTMLElement {
-  return h("section", { class: "card st-state st-old", role: "status", "aria-label": "Старая версия бота" },
-    h("div", { class: "empty-icon", "aria-hidden": "true" }, icon("power", 26)),
-    h("h3", { text: "Бот запущен на старой версии" }),
-    h("p", { class: "strong", text: "Перезапустите run.bat, чтобы включить статистику." }),
-    h("p", { class: "muted", text: "Сервер дашборда отвечает, но не знает про раздел /api/stats: он был запущен до обновления. После перезапуска вкладка заработает сама — настройки и данные не потеряются. Вкладка проверит снова через минуту." }),
-    h("button", { class: "btn", type: "button", onClick: onRetry }, icon("refresh", 14), "Проверить снова"));
-}
-
 export function unavailableCard(reason: string, message: string, onRetry: () => void): HTMLElement {
   const u = unavailableCopy(reason);
   return h("section", { class: "card st-state st-unavail", role: "status", "aria-label": u.title, "data-reason": reason },

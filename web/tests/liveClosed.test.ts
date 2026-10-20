@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Вкладка «Бот (live)»: блок «Закрытые сделки» (round trips из /api/stats?range=30d) — деньги в долларах и % счёта, открытая позиция сверху,
-// шапка «За 30 дн.: закрыто N · плюс · минус · итого», откат к списку ордеров при 404/ошибке, подсветка новой сделки, нейтральные бейджи сторон.
+// шапка «За 30 дн.: закрыто N · плюс · минус · итого», откат к списку ордеров при ошибке, подсветка новой сделки, нейтральные бейджи сторон.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveSnapshot, Meta, StatsResponse, StatsTradeRow } from "../src/types";
 import { richStats } from "./fixtures/statsRich";
@@ -196,25 +196,25 @@ describe("«Закрытые сделки»: деньги и проценты", 
   });
 });
 
-describe("«Закрытые сделки»: старый бэкенд, ошибки, кэш, опрос", () => {
+describe("«Закрытые сделки»: ошибки, кэш, опрос", () => {
   const FILL = { ts: iso(NOW - H), side: "Buy", qty: 0.01, price: 100000, reason: "бар", order_id: "o1" };
 
-  it("404 (старый бэкенд): прежняя таблица ордеров + подсказка про перезапуск; названия «Покупка/Продажа» нейтральны", async () => {
+  it("404 на /api/stats — обычная ошибка: таблица ордеров + подсказка про повтор; названия «Покупка/Продажа» нейтральны", async () => {
     const tab = await mount(snap({ trades: [FILL, { ...FILL, side: "Sell", ts: iso(NOW - 2 * H) }] }), () => json(404, { detail: "Not Found" }));
     expect(q(tab.el, ".lv-closed")).toBeNull();
     const card = q(tab.el, ".lv-trades-card")!;
     expect(card.textContent).toContain("Последние сделки");
-    expect(clean(q(card, ".lv-trades-hint")!.textContent)).toContain("run.bat");
+    expect(clean(q(card, ".lv-trades-hint")!.textContent)).toContain("Не удалось загрузить закрытые сделки");
     const badges = qa(card, ".side-badge");
     expect(badges.map((b) => clean(b.textContent))).toEqual(["△Покупка", "▽Продажа"]);
     expect(badges.every((b) => !/\b(pos|neg|long|short)\b/.test(b.className))).toBe(true);        // ордер — не лонг/шорт и не прибыль/убыток
   });
 
-  it("сеть/5xx без прежних данных: откат к ордерам с другой подсказкой; вкладка работает", async () => {
+  it("сеть/5xx без прежних данных: откат к ордерам с подсказкой; вкладка работает", async () => {
     const tab = await mount(snap({ trades: [FILL] }), () => json(500, { detail: { code: "boom", message: "сломалось" } }));
     const hint = clean(q(tab.el, ".lv-trades-hint")!.textContent);
     expect(hint).toContain("Не удалось загрузить закрытые сделки");
-    expect(hint).not.toContain("run.bat");
+
     expect(q(tab.el, ".lv-hero")).not.toBeNull();
   });
 
@@ -288,11 +288,6 @@ describe("вкладка «Бот (live)»: сторона и среда без 
     expect(pnl.classList.contains("neg")).toBe(true);                       // лонг, но убыток -> именно neg
     expect(clean(pnl.textContent)).toContain("▼ −12,00 $");
     expect(clean(q(tab.el, ".lv-pos-pct")!.textContent)).toBe("−1,20% счёта");
-  });
-
-  it("герой: слов MAINNET / TESTNET / PAPER нет (бот работает только на основной сети)", async () => {
-    const t1 = await mount(snap({}), () => json(200, stats(ROWS)));
-    expect(t1.el.textContent).not.toMatch(/MAINNET|TESTNET|PAPER/);
   });
 
   it("цель и сигналы: направление без цветов P/L (классы вклада и значения без pos/neg)", async () => {
