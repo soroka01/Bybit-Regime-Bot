@@ -124,8 +124,3 @@ def _day(ts: float) -> str:
 def reason_group(reason: str | None) -> str:
     r = (reason or "").split(",")[0].strip()
     return (r[:40] or "—")
-
-
-def _pct(x):
-    return None if x is None else _num(x * 100.0)
-

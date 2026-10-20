@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 import _stats_fixture as fx
-from _stats_fixture import equity_points, golden_db, iso, make_db, ts
+from _stats_fixture import equity_points, golden_db, iso, ts
 from _synth import synth_market  # noqa: F401
 from tradebot.trading import pnl
 from tradebot.trading.exchange import BybitClient

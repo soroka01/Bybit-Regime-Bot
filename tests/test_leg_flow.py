@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from tradebot.core.legspec import draft_payload, parse_leg_text, validate_leg
+from tradebot.core.legspec import draft_payload, parse_leg_text
 from tradebot.core.portfolio import DEFAULT_LEGS, Leg
 from tradebot.core.strategies import STRATEGIES, Strategy
 from tradebot.telegram import keyboards as kb

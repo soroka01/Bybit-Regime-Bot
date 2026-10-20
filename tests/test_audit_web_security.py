@@ -1,6 +1,5 @@
 """Аудит web/: враждебные symbol/tf на всех эндпоинтах, middleware (Sec-Fetch-Site, Content-Type, защитные заголовки),
 разрешённые Host, статика с NUL-байтом, кодирование URI базы. Сети нет; реальные файлы данных не читаются."""
-import json
 import os
 import subprocess
 import sys

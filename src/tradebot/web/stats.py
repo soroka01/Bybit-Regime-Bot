@@ -189,7 +189,7 @@ def compute_stats(range_key: str, now: float, *, fill_rows: list[dict], event_ro
     rows = [_row(x, equity_at(eq_t, eq_v, x["entry_ts"])) for x in wt[-MAX_TRADE_ROWS:]]
 
     # --- предупреждения
-    warnings = _warnings(range_key, em, wt, trades, mismatch, open_pos, bad, market, market_error, now, start, end)
+    warnings = _warnings(em, wt, mismatch, open_pos, bad, market, market_error, start, end)
 
     return {
         "available": True, "range": range_key, "computed_at": int(now),
@@ -217,7 +217,7 @@ def compute_stats(range_key: str, now: float, *, fill_rows: list[dict], event_ro
     }
 
 
-def _warnings(range_key, em, wt, trades, mismatch, open_pos, bad, market, market_error, now, start, end) -> list[dict]:
+def _warnings(em, wt, mismatch, open_pos, bad, market, market_error, start, end) -> list[dict]:
     w: list[dict] = []
     if em["starts_before_data"]:
         w.append(_warn("starts_before_data", "Данные equity начинаются позже начала окна: ROI считается от первой точки.",

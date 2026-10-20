@@ -1,7 +1,6 @@
 """Статистика реальной торговли бота (tradebot.web.stats + GET /api/stats): реплей сделок, комиссии/фандинг, equity-метрики,
 окна, пустые состояния, кэш. Только временные БД — storage/state/bot.db не читается и не пишется."""
 import json
-import math
 import sqlite3
 
 import numpy as np

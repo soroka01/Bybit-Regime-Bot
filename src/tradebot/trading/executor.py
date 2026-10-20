@@ -655,7 +655,7 @@ class Executor:
         snap = s["trip"] or {"entry_equity": None, "eq_est": True, "ts_open": s["ts"], "lev": None, "acc": self._acc0()}
         acc = snap["acc"]
         data = {"kind": "stopout", "side": side, "qty": s["qty"], "entry": s["entry"], "exit": None, "latched": s["latched"],
-                "exit_kind": pnl.exit_kind(rec, s["stop"], side or "long"), "equity": await self._equity_now(ctx),
+                "exit_kind": pnl.exit_kind(rec, s["stop"]), "equity": await self._equity_now(ctx),
                 "pct_est": snap["eq_est"], "pnl": None, "exact": True}
         rt = {"ts_open": snap["ts_open"], "ts_close": s["ts"], "side": side, "qty": s["qty"], "entry": s["entry"],
               "exit": None, "pnl": None, "fees": None, "funding": None, "equity_open": snap["entry_equity"],
@@ -716,7 +716,7 @@ class Executor:
         data = {"kind": "stopout", "followup": True, **d, "exit": rec["avg_exit"], "entry": rec["avg_entry"] or d.get("entry"),
                 "qty": rec["closed_size"] or d.get("qty"), "pnl": total, "fees": acc["fees"] + p["fees"],
                 "funding": acc["funding"] + p["funding"], "exact": not acc["approx"], "latched": False,
-                "pct": (total / eq0) if eq0 and eq0 > 0 else None, "exit_kind": pnl.exit_kind(rec, pend.get("stop"), d.get("side") or "long"),
+                "pct": (total / eq0) if eq0 and eq0 > 0 else None, "exit_kind": pnl.exit_kind(rec, pend.get("stop")),
                 "equity": await self._equity_now({})}
         st.update_roundtrip(pend["rt_id"], exit=rec["avg_exit"], pnl=total, fees=data["fees"], funding=data["funding"],
                             approx=int(acc["approx"]), order_id=rec["order_id"], kind=data["exit_kind"])
@@ -803,11 +803,9 @@ class Executor:
                 orders = kept
                 if not orders:
                     return "аккаунт не настроен"
-            sent_n = 0
             try:
                 for side, qty, ro in orders:
                     await self._send(side, qty, ro, bar, reason, cur, balance)
-                    sent_n += 1
                     p = await self.ex.position()
                     cur = p.signed if p else 0.0
                 if flip and not gated:

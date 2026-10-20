@@ -147,7 +147,7 @@ def own_money(qty: float, price: float, lev: float, equity: float | None) -> tup
     return notional, margin, (margin / equity if equity and equity > 0 else None)
 
 
-def _stop_line(side: str, price: float, stop: float | None) -> str:
+def _stop_line(price: float, stop: float | None) -> str:
     if not stop:
         return "⚠️ Стоп на бирже ещё не подтверждён — проверяю"
     return f"Стоп {tx.code(tx.n(stop, 1))} ({tx.code(pct((stop - price) / price, 1))})"
@@ -161,7 +161,7 @@ def open_msg(d: dict) -> str:
         f"Вход {tx.code(tx.n(d['price'], 1))} · {tx.code(tx.qty(d['qty']))} BTC",
         f"Позиция {tx.code(tx.n(notional))} $ с плечом {tx.code(lev_s(d['leverage']))}",
         f"Своих денег {tx.code(tx.n(margin))} $" + (f" ({tx.code(share(sh))} счёта)" if sh is not None else ""),
-        _stop_line(d["side"], d["price"], d.get("stop")),
+        _stop_line(d["price"], d.get("stop")),
         f"Причина: {tx.esc(reason_human(d.get('reason')))}",
         _acct(d.get("equity")))
 

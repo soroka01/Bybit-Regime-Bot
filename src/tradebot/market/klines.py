@@ -172,7 +172,7 @@ def warn_gaps(label: str, gaps: list) -> None:
 
 
 def _fetch_range(symbol: str, tf: str, start_ms: int, end_ms: int, category: str = "linear") -> pd.DataFrame:
-    interval, minutes = TIMEFRAMES[tf]
+    interval = TIMEFRAMES[tf][0]
     rows: list[list[str]] = []
     end = end_ms
     while end > start_ms:

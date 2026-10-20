@@ -20,7 +20,7 @@ from tradebot.trading.exchange import BybitClient
 from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
 from tradebot.trading.market_feed import FeedData
-from tradebot.trading.runner import MANUAL_RECALC, Runner
+from tradebot.trading.runner import Runner
 from tradebot.trading.state import Store
 
 BAR = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
@@ -426,10 +426,10 @@ def test_stopout_when_target_changed_has_no_latch_text(tmp_path):
 
 def test_stopout_external_close_is_not_called_a_stop(tmp_path):
     rec_ = {"exec_type": "Trade", "avg_exit": 90000.0}
-    assert pnl.exit_kind(rec_, 65240.0, "long") == "external"
-    assert pnl.exit_kind({"exec_type": "BustTrade", "avg_exit": 1.0}, 65240.0, "long") == "liquidation"
-    assert pnl.exit_kind({"exec_type": "Trade", "avg_exit": 65200.0}, 65240.0, "long") == "stop"
-    assert pnl.exit_kind(None, None, "long") == "stop"
+    assert pnl.exit_kind(rec_, 65240.0) == "external"
+    assert pnl.exit_kind({"exec_type": "BustTrade", "avg_exit": 1.0}, 65240.0) == "liquidation"
+    assert pnl.exit_kind({"exec_type": "Trade", "avg_exit": 65200.0}, 65240.0) == "stop"
+    assert pnl.exit_kind(None, None) == "stop"
     d = {"kind": "stopout", "side": "long", "qty": 0.003, "entry": 81550.1, "exit": 90000.0, "pnl": 25.0, "exit_kind": "external",
          "latched": True, "pct": 0.15}
     assert "Позиция закрыта на бирже (не ботом): +25.00 $" in tx.strip_html(M.stopout_msg(d))
@@ -750,7 +750,6 @@ def test_pnl_replay_average_cost_partial_and_flip():
     c = pnl.step_for(steps, "c")
     assert c["closed_qty"] == pytest.approx(0.001) and c["net"] == pytest.approx(10 - 0.001 * 105000 * 0.001 - 0.001 * 115000 * 0.001)
     # сумма оценок закрытых частей = P/L сделки
-    nets = sum(pnl.step_for(steps, o)["net"] for o in ("c", "d") if True) - pnl.step_for(steps, "d")["fee_close"] * 0   # d закрывает обе стороны
     assert t1["pnl"] == pytest.approx(pnl.step_for(steps, "c")["net"] + (pnl.step_for(steps, "d")["gross"]
                                        - 0.003 * 105000 * 0.001 - 0.003 * 100000 * 0.001))
     ot = pnl.replay(fills[:2])[2]

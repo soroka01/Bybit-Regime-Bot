@@ -125,7 +125,7 @@ class ScreensMain:
         legs.append(f"🎯 Цель: {code(M.target_words(tgt))}" if tgt is not None else "🎯 Цель: считаю…")
         bars = ["🕒 <b>Последние бары</b> " + it("(UTC · местное)")]
         rows = st.recent_signals(8)
-        for bar, key, sg, target in rows:
+        for bar, key, sg, _ in rows:
             d = tx.parse_iso(bar)
             bars.append(f"{code(f'{d:%d.%m %H:%M} · {tx.local(d, self.tz)}')} {esc(key)}: {tx.sig_icon(sg)} {tx.sig_word(sg)}")
         if not rows:

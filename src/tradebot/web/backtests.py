@@ -81,7 +81,7 @@ def _trade_geometry(sub: pd.DataFrame, t: pd.DataFrame):
 def _marker_geometry(sub: pd.DataFrame, res, cap: int):
     """Сделки, попадающие на график (последние cap): (индексы баров входа, баров выхода, номера сделок для выходов, total, first)."""
     t = res.trades
-    ie, ix, pe = _trade_geometry(sub, t)
+    _, ix, pe = _trade_geometry(sub, t)
     n = len(t)
     first = max(n - cap, 0)               # усекаем ПО СДЕЛКАМ: входы и выходы остаются парами (раньше выходы сдвигались на одну сделку)
     open_last = bool(res.position.iloc[-1] != 0)

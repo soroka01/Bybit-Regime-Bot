@@ -91,7 +91,7 @@ def _is_corrupt(e: sqlite3.DatabaseError) -> bool:
 
 def _run(fn, default=None):
     with _lock:
-        for attempt in (0, 1):
+        for _ in range(2):
             try:
                 con = _connect()
                 try:

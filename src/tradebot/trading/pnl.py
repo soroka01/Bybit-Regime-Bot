@@ -56,7 +56,7 @@ def record_parts(rec: dict) -> dict:
     return {"net": rec["closed_pnl"], "fees": fees, "funding": funding, "gross": gross}
 
 
-def exit_kind(rec: dict | None, stop: float | None, side: str) -> str:
+def exit_kind(rec: dict | None, stop: float | None) -> str:
     """Чем закрыта позиция: liquidation (execType BustTrade) | stop (цена выхода у биржевого стопа) | external (иначе)."""
     if rec is None:
         return "stop"

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tradebot.core.portfolio import DEFAULT_LEGS, Leg, align, exposure, leg_signal
+from tradebot.core.portfolio import DEFAULT_LEGS, align, exposure, leg_signal
 from tradebot.market import derivs, klines
 from tradebot.paths import MARKET
 from tradebot.trading.market_feed import TF_DELTA, closed_only, compute_target, expected_last_bar, window_for
@@ -130,7 +130,7 @@ def test_default_live_exposure_equals_web_default(dfs):
     n_nonzero = 0
     for i in range(5000, len(base) - 5, 797):
         tc = base.index[i] + H1
-        tgt, sigs = compute_target(DEFAULT_LEGS, _live_cut(dfs, tc, DEFAULT_LEGS), False, {})
+        tgt, _ = compute_target(DEFAULT_LEGS, _live_cut(dfs, tc, DEFAULT_LEGS), False, {})
         tgt2, _ = compute_target(active, _live_cut(dfs, tc, active), False, {})
         assert abs(tgt - full.iloc[i]) < 1e-12 and abs(tgt2 - full.iloc[i]) < 1e-12 and abs(tgt) <= 1.0
         n_nonzero += tgt != 0

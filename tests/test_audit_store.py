@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from tradebot.trading import state
 from tradebot.trading.state import Store, read_snapshot
 
 NOW = datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc)
