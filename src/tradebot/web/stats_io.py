@@ -5,6 +5,7 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 
 import numpy as np
 
@@ -14,7 +15,9 @@ from tradebot.web.stats_market import Market, market_from_df
 
 # ---------------------------------------------------------------- ввод-вывод
 def _db_uri(path: Path) -> str:
-    return f"file:{Path(path).as_posix()}?mode=ro"
+    """URI sqlite для открытия только на чтение. Путь кодируется (пробел, «?», «#», «%», не-ASCII): иначе «?» или «#» в имени
+    папки обрезали бы путь, а «%» портил бы его."""
+    return "file:" + quote(Path(path).as_posix(), safe="/:") + "?mode=ro"
 
 
 def fingerprint(db: sqlite3.Connection, path: Path) -> tuple:
@@ -36,7 +39,9 @@ def fingerprint(db: sqlite3.Connection, path: Path) -> tuple:
 
 
 def read_db(db: sqlite3.Connection, q_start: float | None) -> dict:
-    """Читает всё нужное для compute_stats. equity — WHERE ts >= q_start (ISO-строки сортируются как время) + одна точка до него."""
+    """Читает всё нужное для compute_stats. equity: из БД берутся строки с датой >= (q_start - сутки) по ДАТЕ-префиксу (любой ISO-формат
+    начинается с YYYY-MM-DD, сравнение строк по нему безопасно), а отбор по q_start делается уже по РАЗОБРАННЫМ меткам времени:
+    точки >= q_start + одна последняя точка до него (для нормального формата БД результат тот же, что у прежнего сравнения строк)."""
     fills = [dict(zip(("id", "ts", "side", "qty", "price", "reason", "order_id"), r))
              for r in db.execute("SELECT id,ts,side,qty,price,reason,order_id FROM trades ORDER BY id")]
     try:                                                   # итоги закрытых сделок по данным биржи (пишет бот); таблицы может не быть
@@ -48,14 +53,20 @@ def read_db(db: sqlite3.Connection, q_start: float | None) -> dict:
         "SELECT ts,level,text FROM events WHERE text LIKE '%озиция исчезла%' OR text LIKE '%Бот запущен%' ORDER BY id")]
     if q_start is None:
         rows = db.execute("SELECT ts,v FROM equity ORDER BY rowid").fetchall()
+        t, v = _eq_arrays(rows)
     else:
-        q = iso(q_start)
-        rows = db.execute("SELECT ts,v FROM equity WHERE ts >= ? ORDER BY rowid", (q,)).fetchall()
-        b = db.execute("SELECT ts,v FROM equity WHERE ts < ? ORDER BY rowid DESC LIMIT 1", (q,)).fetchone()
-        if b:
-            rows.insert(0, b)
+        margin = iso(q_start - 86400)[:10]
+        rows = db.execute("SELECT ts,v FROM equity WHERE ts >= ? ORDER BY rowid", (margin,)).fetchall()
+        t, v = _eq_arrays(rows)
+        k = int(np.searchsorted(t, int(q_start), side="left"))       # t[:k] < q_start (до секунд, как iso())
+        if k == 0:                                                   # точки до начала нет среди прочитанных — берём последнюю из БД
+            b = db.execute("SELECT ts,v FROM equity WHERE ts < ? ORDER BY rowid DESC LIMIT 1", (margin,)).fetchone()
+            if b:
+                tb, vb = _eq_arrays([b])
+                t, v = np.concatenate([tb, t]), np.concatenate([vb, v])
+        elif k > 1:
+            t, v = t[k - 1:], v[k - 1:]
     first = db.execute("SELECT ts FROM equity ORDER BY rowid LIMIT 1").fetchone()
-    t, v = _eq_arrays(rows)
     kv = {}
     for k in ("position", "env", "heartbeat", "s_leverage", "s_stop_pct"):
         r = db.execute("SELECT v FROM kv WHERE k=?", (k,)).fetchone()
@@ -70,10 +81,21 @@ def read_db(db: sqlite3.Connection, q_start: float | None) -> dict:
 def _eq_arrays(rows) -> tuple[np.ndarray, np.ndarray]:
     if not rows:
         return np.zeros(0, "int64"), np.zeros(0)
-    try:   # быстрый путь: формат БД 'YYYY-MM-DDTHH:MM:SS+00:00' (UTC)
-        t = np.array([str(r[0])[:19] for r in rows], dtype="datetime64[s]").astype("int64")
-    except ValueError:
-        t = np.array([parse_ts(r[0]) or 0 for r in rows], dtype="int64")
+    strs = [str(r[0]) for r in rows]
+    if all(len(x) == 25 and x.endswith("+00:00") for x in strs):    # быстрый путь: формат БД 'YYYY-MM-DDTHH:MM:SS+00:00' (UTC)
+        try:
+            t = np.array([x[:19] for x in strs], dtype="datetime64[s]").astype("int64")
+        except ValueError:
+            t = None
+    else:
+        t = None
+    if t is None:                                                    # другой формат/смещение: разбираем каждую метку честно, битые — прочь
+        parsed = [parse_ts(x) for x in strs]
+        keep = [i for i, x in enumerate(parsed) if x is not None]
+        rows = [rows[i] for i in keep]
+        t = np.array([int(parsed[i]) for i in keep], dtype="int64")
+        if not len(rows):
+            return np.zeros(0, "int64"), np.zeros(0)
     v = np.array([np.nan if r[1] is None else r[1] for r in rows], dtype="float64")
     order = np.argsort(t, kind="stable")
     return t[order], v[order]

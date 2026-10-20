@@ -122,7 +122,9 @@ def compute_stats(range_key: str, now: float, *, fill_rows: list[dict], event_ro
     apply_exact(trades, roundtrip_rows)                    # точные итоги биржи (roundtrips) вместо оценки — ДО любых агрегатов
 
     # --- окно
-    first_data = min([fills[0]["ts"]] + ([eq_first_ts] if eq_first_ts is not None else []))
+    first_fill_ts = min(f["ts"] for f in fills)         # fills идут в порядке id, но ts не обязан возрастать (правка/импорт)
+    last_fill_ts = max(f["ts"] for f in fills)
+    first_data = min([first_fill_ts] + ([eq_first_ts] if eq_first_ts is not None else []))
     secs = RANGE_SECONDS[range_key]
     start = first_data if secs is None else now - secs
     end = now
@@ -203,7 +205,7 @@ def compute_stats(range_key: str, now: float, *, fill_rows: list[dict], event_ro
         "window": {"start": int(start), "effective_start": int(eff), "end": int(end), "start_date": _day(start), "end_date": _day(end),
                    "length_s": int(end - start)},
         "config": {"symbol": SYMBOL, "env": kv.get("env"), "taker_fee_est": TAKER_FEE_EST, "leverage": lev, "stop_pct": stop_pct},
-        "data": {"first_trade_ts": int(fills[0]["ts"]), "last_trade_ts": int(fills[-1]["ts"]), "first_equity_ts": int(eq_first_ts) if eq_first_ts is not None else None,
+        "data": {"first_trade_ts": int(first_fill_ts), "last_trade_ts": int(last_fill_ts), "first_equity_ts": int(eq_first_ts) if eq_first_ts is not None else None,
                  "funding_coverage_until": int(market.funding_until) if market and market.funding_until else None,
                  "candles_until": int(market.candles_until) if market and market.candles_until else None,
                  "fills": len(fills), "round_trips": len(trades), "environments": env_set},
@@ -264,6 +266,20 @@ def _warnings(range_key, em, wt, trades, mismatch, open_pos, bad, env_set, marke
 
 _cache: OrderedDict = OrderedDict()
 _cache_lock = threading.Lock()
+MAX_PARALLEL = 2                       # одновременных РАСЧЁТОВ статистики (разные диапазоны/ключи); остальные ждут слот
+COMPUTE_WAIT_S = 120.0                 # сколько ждёт результата чужого расчёта того же ключа (потом считает сам)
+_compute_sem = threading.Semaphore(MAX_PARALLEL)
+
+
+class _Flight:
+    """Идущий расчёт одного ключа кэша: остальные вызовы того же ключа ждут его результата, а не считают то же самое."""
+
+    def __init__(self):
+        self.event = threading.Event()
+        self.result: dict | None = None
+
+
+_inflight: dict[tuple, _Flight] = {}
 
 
 def _now() -> float:
@@ -272,7 +288,8 @@ def _now() -> float:
 
 def get_stats(range_key: str, db_path: Path | str, now: float | None = None) -> dict:
     """Точка входа API: читает bot.db read-only, считает, кэширует по (range, max id сделок/equity/events, mtime БД, свечи).
-    ValueError — неверный диапазон; всё остальное -> available:false."""
+    Один и тот же ключ считается ОДИН раз (single-flight): параллельные вызовы ждут результата первого; разные ключи считаются
+    не более MAX_PARALLEL одновременно. ValueError — неверный диапазон; всё остальное -> available:false."""
     if range_key not in RANGE_SECONDS:
         raise ValueError(f"неизвестный диапазон {range_key}: допустимо {', '.join(RANGE_SECONDS)}")
     now = _now() if now is None else float(now)
@@ -283,6 +300,7 @@ def get_stats(range_key: str, db_path: Path | str, now: float | None = None) -> 
         db = sqlite3.connect(_db_uri(path), uri=True, timeout=5)
     except sqlite3.Error as e:
         return unavailable(range_key, "db_error", f"Не удалось открыть базу бота: {type(e).__name__}", now)
+    flight, leader, out = None, False, None
     try:
         key = (range_key, int(now // CACHE_TTL_S), str(path), fingerprint(db, path), _market_sig())
         with _cache_lock:
@@ -290,17 +308,32 @@ def get_stats(range_key: str, db_path: Path | str, now: float | None = None) -> 
             if hit is not None:
                 _cache.move_to_end(key)
                 return hit
-        secs = RANGE_SECONDS[range_key]
-        q_start = None if secs is None else now - (2 * secs if secs >= COMPARE_MIN_S else secs) - EQ_LOOKBACK_S
-        raw = read_db(db, q_start)
-        market, err = load_market()
-        out = compute_stats(range_key, now, fill_rows=raw["fills"], event_rows=raw["events"], eq_t=raw["eq_t"], eq_v=raw["eq_v"],
-                            eq_first_ts=raw["eq_first_ts"], kv=raw["kv"], market=market, market_error=err,
-                            roundtrip_rows=raw["roundtrips"])
+            flight = _inflight.get(key)
+            if flight is None:
+                flight = _inflight[key] = _Flight()
+                leader = True
+        if not leader:
+            if flight.event.wait(COMPUTE_WAIT_S) and flight.result is not None:
+                return flight.result
+            flight = None                                 # лидер не справился/не успел — считаем самостоятельно
+        with _compute_sem:
+            secs = RANGE_SECONDS[range_key]
+            q_start = None if secs is None else now - (2 * secs if secs >= COMPARE_MIN_S else secs) - EQ_LOOKBACK_S
+            raw = read_db(db, q_start)
+            market, err = load_market()
+            out = compute_stats(range_key, now, fill_rows=raw["fills"], event_rows=raw["events"], eq_t=raw["eq_t"],
+                                eq_v=raw["eq_v"], eq_first_ts=raw["eq_first_ts"], kv=raw["kv"], market=market, market_error=err,
+                                roundtrip_rows=raw["roundtrips"])
     except sqlite3.Error as e:
-        return unavailable(range_key, "db_error", f"Ошибка чтения базы бота: {type(e).__name__}", now)
+        out = unavailable(range_key, "db_error", f"Ошибка чтения базы бота: {type(e).__name__}", now)
+        return out
     finally:
         db.close()
+        if leader:
+            with _cache_lock:
+                _inflight.pop(key, None)
+            flight.result = out
+            flight.event.set()                            # будим ждущих (при исключении result=None -> они посчитают сами)
     with _cache_lock:
         _cache[key] = out
         while len(_cache) > CACHE_SIZE:
