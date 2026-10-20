@@ -13,7 +13,7 @@ import _stats_fixture as fx
 from _stats_fixture import equity_points, golden_db, iso, make_db, ts
 from _synth import synth_market  # noqa: F401
 from tradebot.trading import pnl
-from tradebot.trading.exchange import BybitClient, ReadOnlyClient
+from tradebot.trading.exchange import BybitClient
 from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
 from tradebot.trading.runner import Runner
@@ -228,7 +228,7 @@ def mkbot(tmp_path, name="b.db", equity=163.44, mark=81550.1):
     st.set_setting("leverage", 2)
     st.set_setting("stop_pct", 0.2)
     ex = DryRunExchange(equity=equity, mark=mark)
-    exe = Executor(ex, st, lambda *a: None, "mainnet")
+    exe = Executor(ex, st, lambda *a: None)
     exe.poll_delay = 0
     exe.pnl_delays = (0.0, 0.0, 0.0)
     run(exe.setup())
@@ -406,7 +406,7 @@ def test_end_to_end_site_shows_backfilled_exact_net(tmp_path):
     from types import SimpleNamespace as NS
     from tradebot.telegram import texts as tx
     from tradebot.telegram.handlers import Controller
-    c = Controller(st, exe, NS(trigger=lambda: None), "mainnet")
+    c = Controller(st, exe, NS(trigger=lambda: None))
     t = tx.strip_html(asyncio.run(c.handle(("tx", "0"))).text)
     assert f"+{ex.closed[-1]['closed_pnl']:.2f} $" in t and "≈" not in t
 
@@ -432,9 +432,7 @@ def test_bybit_closed_pnl_list_get_only_with_window_and_limit():
     assert [r["order_id"] for r in out] == ["B", "A"] and out[0]["closed_pnl"] == 2.02085919
     assert seen == [("GET", "/v5/position/closed-pnl", {"category": "linear", "symbol": "BTCUSDT", "limit": "100", "startTime": "5000"})]
     assert run(_client(lambda r: httpx.Response(200, json={"retCode": 0, "result": {}})).closed_pnl_list()) == []
-    ro = ReadOnlyClient("https://x", "K", "S", transport=httpx.MockTransport(handler))
-    ro._c._synced = 1e18
-    assert len(run(ro.closed_pnl_list())) == 2 and all(m == "GET" for m, _, _ in seen)
+    assert len(run(c.closed_pnl_list())) == 2 and all(m == "GET" for m, _, _ in seen)
     bad = _client(lambda r: httpx.Response(200, json={"retCode": 10001, "retMsg": "nope"}))
     from tradebot.trading.exchange import ExchangeError
     with pytest.raises(ExchangeError):

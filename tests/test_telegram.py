@@ -65,7 +65,7 @@ def test_callback_validation():
                 "sl:s:7", "sl:s:50",
                 "rk:dd:s:99", "rk:da:s:25", "tr:on:n", "x", "", None, "lg:t:-1", "lg:w:1:x", "lg:10", "lg:1:w:101", "lg:1:w:005", "lg:1:w:-5", "lg:1:w", "lg:1:x", "lg:eq:n", "lg:1:t:n", "rk:dd:p50", "m" * 100,
                 "lv:s:3:y:z", "pn:Y", "lг", "sl:a:p5", "tx:10", "tx:-1", "tx", "ev:a", "m", "st",
-                "pp"):                  # экран «Режим PAPER» удалён: старая кнопка не проходит белый список
+                "pp"):                  # экрана режима больше нет: старая кнопка не проходит белый список
         assert kb.parse_cb(bad) is None, bad
 
 
@@ -74,7 +74,7 @@ def _all_callbacks(markup):
 
 
 def test_every_button_is_whitelisted_and_nav_present():
-    ms = [kb.home_menu(True, False, False, True), kb.home_menu(False, True, False, False), kb.home_menu(False, False, True, False),
+    ms = [kb.home_menu(True, False, True), kb.home_menu(False, True, False), kb.home_menu(False, False, False),
           kb.settings_menu("1x", "8%", "25%"), kb.confirm("pk:y", "set"), kb.legs_menu([("a", 0.5, True)]),
           kb.leverage_menu(2), kb.stop_menu(8), kb.risk_menu(25, 10), kb.position_menu(True),
           kb.pager_menu("tx", 0, 3), kb.pager_menu("ev", 2, 3), kb.trade_notice_menu()]
@@ -89,17 +89,23 @@ def test_every_button_is_whitelisted_and_nav_present():
 def ctl(tmp_path):
     st = Store(tmp_path / "b.db")
     ex = DryRunExchange(equity=1000)
-    exe = Executor(ex, st, lambda *a: None, "testnet")
+    exe = Executor(ex, st, lambda *a: None)
     exe.poll_delay = 0
     clk = NS(t=1000.0)
     trig = []
-    c = Controller(st, exe, NS(trigger=lambda: trig.append(1)), "testnet", mono=lambda: clk.t)
+    c = Controller(st, exe, NS(trigger=lambda: trig.append(1)), mono=lambda: clk.t)
     c.clk = clk
     return c, st, ex, trig
 
 
 def h(c, data):
     return run(c.handle(kb.parse_cb(data)))
+
+
+def hy(c, data):
+    """Нажатие и, если бот просит подтверждение (появилась кнопка data:y), подтверждение; возвращает итоговый экран."""
+    s = h(c, data)
+    return h(c, data + ":y") if data + ":y" in _all_callbacks(s.markup) else s
 
 
 def test_sub_screens_have_back_home_refresh(ctl):
@@ -120,7 +126,7 @@ def test_home_text_and_buttons(ctl):
     st.set("position", {"side": "long", "qty": 0.012, "entry": 98000.0, "upnl": 12.0, "mark": 99000.0})
     st.set("equity", 1234.5)
     s = h(c, "h")
-    assert "TESTNET" not in s.text and "Тестовая сеть" in s.text                     # не боевая биржа -> одна строка-предупреждение
+    assert "TESTNET" not in s.text and "Тестовая сеть" not in s.text and "⚠️ Режим" not in s.text      # про среду и режим запуска ни слова
     assert "<code>1 234.50</code>" in s.text and "Нереализовано <code>+12.00 $</code>" in s.text and "Следующий бар" in s.text
     assert "⬆️ <b>ЛОНГ</b> <code>0.012</code> BTC" in s.text and "Своих денег" in s.text and "с плечом <code>1x</code>" in s.text
     assert s.live and s.view == ("h",)
@@ -185,14 +191,14 @@ def test_leverage_two_step_and_cap(ctl):
 
 def test_presets_and_steps_applied(ctl):
     c, st, *_ = ctl
-    h(c, "sl:s:10")
+    hy(c, "sl:s:10")
     assert st.settings()["stop_pct"] == pytest.approx(0.10)
-    h(c, "rk:dd:s:30")
-    h(c, "rk:da:s:5")
+    hy(c, "rk:dd:s:30")
+    hy(c, "rk:da:s:5")
     s = st.settings()
     assert s["kill_dd"] == pytest.approx(0.30) and s["kill_daily"] == pytest.approx(0.05)
     for _ in range(40):
-        h(c, "sl:a:p1")
+        hy(c, "sl:a:p1")
     assert st.settings()["stop_pct"] <= 0.30
 
 
@@ -294,20 +300,20 @@ def test_weights_validated_server_side_and_legs_screen(ctl):
     assert {"lg:1:t", "lg:1:w:0"} <= cbs1 and "lg:1:w:50" not in cbs1             # 50% уже не влезает
     st.set("s_legs", {"SMA cross@4h": {"weight": 0.5, "enabled": True}, "OI flush@1h": {"weight": 0.5, "enabled": True}})
     assert [w for _, w, _ in st.leg_cfg()] == [0.5, 0.5, 0.0]                      # новая нога не меняет настроенное
-    s = h(c, "lg:0:w:60")                                      # сумма 1.1
+    s = hy(c, "lg:0:w:60")                                      # сумма 1.1
     assert s.toast.startswith("Отклонено") and "уменьшите" in s.toast.lower() and "10%" in s.toast
     assert "SMA cross · 4h" in s.text                          # остаёмся на экране ноги, а не на Главной
     assert [w for _, w, _ in st.leg_cfg()] == [0.5, 0.5, 0.0]
-    h(c, "lg:0:w:40")
+    hy(c, "lg:0:w:40")
     assert [w for _, w, _ in st.leg_cfg()] == [0.4, 0.5, 0.0]
-    assert h(c, "lg:2:w:10").toast.startswith("Сохранено") and [w for _, w, _ in st.leg_cfg()] == [0.4, 0.5, 0.1]
-    assert h(c, "lg:2:w:20").toast.startswith("Отклонено")                          # 0.4 + 0.5 + 0.2 > 1
-    assert h(c, "lg:2:w:10").toast == "Без изменений"
-    h(c, "lg:1:t")
+    assert hy(c, "lg:2:w:10").toast.startswith("Сохранено") and [w for _, w, _ in st.leg_cfg()] == [0.4, 0.5, 0.1]
+    assert hy(c, "lg:2:w:20").toast.startswith("Отклонено")                          # 0.4 + 0.5 + 0.2 > 1
+    assert hy(c, "lg:2:w:10").toast == "Без изменений"
+    hy(c, "lg:1:t")
     assert st.leg_cfg()[1][2] is False
-    assert h(c, "lg:0:w:50").toast.startswith("Сохранено") and st.leg_cfg()[0][1] == 0.5
-    assert h(c, "lg:1:t").toast.startswith("Отклонено") and "включить" in h(c, "lg:1:t").toast   # 0.5+0.5+0.1 > 1
-    assert h(c, "lg:9").toast.startswith("Отклонено") and h(c, "lg:9:t").toast.startswith("Отклонено")
+    assert hy(c, "lg:0:w:50").toast.startswith("Сохранено") and st.leg_cfg()[0][1] == 0.5
+    assert hy(c, "lg:1:t").toast.startswith("Отклонено") and "включить" in hy(c, "lg:1:t").toast   # 0.5+0.5+0.1 > 1
+    assert h(c, "lg:9").toast.startswith("Отклонено") and hy(c, "lg:9:t").toast.startswith("Отклонено")
     t = h(c, "lg").text
     assert "Regime switch (CHOP)</b> · 6h" in t and "вес <code>10%</code>" in t
     assert "Regime switch (CHOP) · 6h" in h(c, "sg").text and "Regime switch (CHOP) · 6h" in h(c, "h").text
@@ -348,7 +354,7 @@ def test_presets_only_feasible_and_current_included(ctl):
     assert [b.text for b in h(c, "lg:0").markup.inline_keyboard[1]] == ["+10%"]    # −10% от 5% невозможен
     tog = h(c, "lg:0").markup.inline_keyboard[2][0]
     assert tog.text == "⏸ Выключить" and tog.callback_data == "lg:0:t"
-    h(c, "lg:0:t")
+    hy(c, "lg:0:t")
     assert h(c, "lg:0").markup.inline_keyboard[2][0].text == "▶️ Включить"
 
 
@@ -356,17 +362,17 @@ def test_equalize_floors_and_skips_zero_weight_legs(ctl):
     c, st, trig = ctl[0], ctl[1], ctl[3]
     st.set("s_legs", {"SMA cross@4h": {"weight": 0.2, "enabled": True}, "OI flush@1h": {"weight": 0.0, "enabled": True},
                       "Regime switch (CHOP)@6h": {"weight": 0.8, "enabled": True}})
-    s = h(c, "lg:eq")
+    s = hy(c, "lg:eq")
     assert s.toast == "Сохранено; пересчёт цели запущен" and trig
     assert [w for _, w, _ in st.leg_cfg()] == [0.5, 0.0, 0.5]                # порядок применения не ломает сумму; вес-0 нога не тронута
     st.set("s_legs", {"SMA cross@4h": {"weight": 0.9, "enabled": True}, "OI flush@1h": {"weight": 0.05, "enabled": True},
                       "Regime switch (CHOP)@6h": {"weight": 0.05, "enabled": True}})
-    h(c, "lg:eq")
+    hy(c, "lg:eq")
     ws = [w for _, w, _ in st.leg_cfg()]
     assert ws == [0.33, 0.33, 0.33] and sum(ws) <= 1.0
-    assert h(c, "lg:eq").toast == "Без изменений"
+    assert hy(c, "lg:eq").toast == "Без изменений"
     st.set("s_legs", {k: {"weight": 0.0, "enabled": True} for k in ("SMA cross@4h", "OI flush@1h", "Regime switch (CHOP)@6h")})
-    assert h(c, "lg:eq").toast.startswith("Отклонено")
+    assert hy(c, "lg:eq").toast.startswith("Отклонено")
 
 
 def test_reset_peak_two_step(ctl):
@@ -415,18 +421,18 @@ def text_lines(t):
     return sum(1 for x in t.splitlines() if x.startswith(("✅", "❌", "➖")))     # по строке на закрытую сделку
 
 
-def _mainnet(tmp_path, name="m.db"):
+def _ctl_plain(tmp_path, name="m.db"):
     st = Store(tmp_path / name)
-    exe = Executor(DryRunExchange(), st, lambda *a: None, "mainnet")
+    exe = Executor(DryRunExchange(), st, lambda *a: None)
     trig = []
     clk = NS(t=1000.0)
-    c = Controller(st, exe, NS(trigger=lambda: trig.append(1)), "mainnet", mono=lambda: clk.t)
+    c = Controller(st, exe, NS(trigger=lambda: trig.append(1)), mono=lambda: clk.t)
     c.clk = clk
     return c, st, trig
 
 
-def test_mainnet_requires_confirm_for_setting_changes(tmp_path):
-    c, st, _ = _mainnet(tmp_path)
+def test_setting_changes_require_confirm(tmp_path):
+    c, st, _ = _ctl_plain(tmp_path)
     for data in ("lg:0:w:25", "lg:2:t", "lg:eq", "sl:a:p1", "sl:s:5",
                  "rk:dd:p5", "rk:dd:s:20"):
         if data == "lg:eq":                                   # чтобы «Поровну» что-то меняло
@@ -440,8 +446,8 @@ def test_mainnet_requires_confirm_for_setting_changes(tmp_path):
         assert (st.settings(), st.leg_cfg()) != before, data
 
 
-def test_mainnet_leg_confirm_text_before_after(tmp_path):
-    c, st, trig = _mainnet(tmp_path)
+def test_leg_confirm_text_before_after(tmp_path):
+    c, st, trig = _ctl_plain(tmp_path)
     st.log_signals("2026-01-01T00:00:00+00:00", {"SMA cross@4h": 1.0, "Regime switch (CHOP)@6h": 0.0}, 0.5)
     s = h(c, "lg:0:w:25")
     assert "SMA cross · 4h: <b>вес 50% → 25%</b>" in s.text and "Сумма весов <b>100% → 75%</b>" in s.text
@@ -455,8 +461,8 @@ def test_mainnet_leg_confirm_text_before_after(tmp_path):
     assert "Выровнять" in h(c, "lg:eq").text and h(c, "lg:eq").markup.inline_keyboard[0][1].callback_data == "lg"
 
 
-def test_mainnet_confirm_freshness_and_rejection_for_legs(tmp_path):
-    c, st, _ = _mainnet(tmp_path)
+def test_confirm_freshness_and_rejection_for_legs(tmp_path):
+    c, st, _ = _ctl_plain(tmp_path)
     assert h(c, "lg:0:w:25:y").toast == "Подтверждение устарело" and st.leg_cfg()[0][1] == 0.5   # без «взвода»
     h(c, "lg:0:w:25")
     c.clk.t += 61                                                             # срок вышел
@@ -464,20 +470,6 @@ def test_mainnet_confirm_freshness_and_rejection_for_legs(tmp_path):
     assert h(c, "lg:0:w:80").toast.startswith("Отклонено")                   # отказ уже на первом шаге, подтверждение не взведено
     assert not c.pending
     assert h(c, "lg:0:w:50").toast == "Без изменений" and not c.pending      # нечего подтверждать
-
-
-def test_enable_blocked_in_paper_at_controller_level(tmp_path):
-    st = Store(tmp_path / "pp.db", paper=True)
-    exe = Executor(DryRunExchange(), st, lambda *a: None, "mainnet", paper=True)
-    c = Controller(st, exe, NS(trigger=lambda: None), "mainnet")
-    for d in ("tr:on", "tr:on:y", "ke", "ke:y"):
-        s = h(c, d)
-        assert s.toast.startswith("Отклонено") and "PAPER" not in s.toast and not st.settings()["enabled"]
-    t = h(c, "h").text
-    assert "⚠️ Режим без ордеров" in t and "PAPER" not in t and "Что бы сделал бот" not in t
-    assert all(b.text != "ℹ️ Режим PAPER" for row in h(c, "h").markup.inline_keyboard for b in row)
-    assert not any(cb in ("tr:on", "tr:off", "ke", "pp") for cb in _all_callbacks(h(c, "h").markup))   # переключателя нет
-    assert kb.parse_cb("pp") is None
 
 
 # ---------- панель: правка на месте, fallback ----------
@@ -637,11 +629,11 @@ def test_autorefresh_swallows_errors_and_stops_when_message_gone(pan):
 
 
 # ---------- роутер: устаревшие callback и онбординг ----------
-def _router(tmp_path, paper=False):
-    st = Store(tmp_path / "r.db", paper=paper)
+def _router(tmp_path):
+    st = Store(tmp_path / "r.db")
     ex = DryRunExchange(equity=1000)
-    exe = Executor(ex, st, lambda *a: None, "testnet", paper=paper)
-    c = Controller(st, exe, NS(trigger=lambda: None), "testnet")
+    exe = Executor(ex, st, lambda *a: None)
+    c = Controller(st, exe, NS(trigger=lambda: None))
     clk = NS(t=0.0)
     p = Panel(st, c.handle, clock=lambda: clk.t, sleep=asyncio.sleep)
     r = build_router(c, p)
@@ -681,7 +673,7 @@ def test_stale_and_unknown_callbacks_rerender_panel_with_toast(tmp_path):
 
 
 def test_onboarding_only_first_time(tmp_path):
-    c, p, r = _router(tmp_path, paper=True)
+    c, p, r = _router(tmp_path)
     bot = FakeBot()
     start = r.message.handlers[0].callback
     menu = r.message.handlers[1].callback
@@ -693,7 +685,7 @@ def test_onboarding_only_first_time(tmp_path):
 
     async def go():
         await start(m)
-        assert len(answers) == 1 and "Режим без ордеров" in answers[0] and "PAPER" not in answers[0] + bot.sent[0][1]
+        assert len(answers) == 1 and "включите её кнопкой" in answers[0]
         await start(m)
         await menu(m)
         assert len(answers) == 1 and len(bot.sent) == 3                      # дальше только панель
@@ -705,17 +697,17 @@ def test_onboarding_only_first_time(tmp_path):
 def test_notifier_format_dedup_and_buttons(tmp_path):
     st = Store(tmp_path / "n.db")
     t = NS(v=0.0)
-    n = Notifier(st, OWNER, "testnet", False, clock=lambda: t.v)
-    n("error", "[TESTNET] Ошибка биржи при сверке: timeout 12")
-    n("error", "[TESTNET] Ошибка биржи при сверке: timeout 15")             # дубль (числа не в счёт)
+    n = Notifier(st, OWNER, clock=lambda: t.v)
+    n("error", "Ошибка биржи при сверке: timeout 12")
+    n("error", "Ошибка биржи при сверке: timeout 15")             # дубль (числа не в счёт)
     assert n.queue.qsize() == 1 and n.suppressed == 1
     t.v += 601
-    n("error", "[TESTNET] Ошибка биржи при сверке: timeout 20")
+    n("error", "Ошибка биржи при сверке: timeout 20")
     assert n.queue.qsize() == 2
     n("trade", "Покупка 0.01 BTC по 100000.0 (сигнал)")
     n("daily", "Итоги дня\nСчёт 1 000.00 $\nПозиции нет")
     items = [n.queue.get_nowait() for _ in range(4)]
-    assert items[0][1] == "🚨 Ошибка биржи при сверке: timeout 12"            # без тегов среды и без заголовка-режима
+    assert items[0][1] == "🚨 Ошибка биржи при сверке: timeout 12"            # иконка уровня + текст, без заголовка-режима
     assert items[2][1] == "💱 Покупка 0.01 BTC по 100000.0 (сигнал)"
     assert items[3][1].startswith("📅 Итоги дня\n") and "TESTNET" not in "".join(i[1] for i in items)
     assert n._kwargs("trade")["reply_markup"].inline_keyboard[0][0].text == "📊 Позиция"
@@ -728,7 +720,7 @@ HOSTILE = '<script>alert("x")</script> & <b>unclosed'
 
 def test_notifier_kinds_are_wellformed_and_escape_hostile_text(tmp_path):
     st = Store(tmp_path / "n2.db")
-    n = Notifier(st, OWNER, "mainnet", False)
+    n = Notifier(st, OWNER)
     samples = {"info": f"Бот запущен {HOSTILE}", "warn": f"warn {HOSTILE}", "error": f"KILL-SWITCH: {HOSTILE}",
                "signal": f"Сигнал {HOSTILE}", "daily": f"Итоги дня\n{HOSTILE}", "trade": f"Продажа 0.5 BTC ({HOSTILE})"}
     for level, text in samples.items():
@@ -746,11 +738,11 @@ def test_notifier_kinds_are_wellformed_and_escape_hostile_text(tmp_path):
 
 def test_notifier_parse_error_falls_back_to_plain_once(tmp_path):
     st = Store(tmp_path / "n3.db")
-    n = Notifier(st, OWNER, "testnet", False)
+    n = Notifier(st, OWNER)
     bot = FakeBot()
     n.attach(bot)
     bot.send_errors.append(bad("Bad Request: can't parse entities: Unsupported start tag"))
-    run(n._send("trade", n.fmt("trade", "[TESTNET] Покупка 0.01 BTC по 100000.0 (a < b)")))
+    run(n._send("trade", n.fmt("trade", "Покупка 0.01 BTC по 100000.0 (a < b)")))
     assert len(bot.sent) == 1                                                # повтор ровно один
     _, text, kw = bot.sent[0]
     assert "<" not in text.replace("a < b", "") and "Покупка" in text and kw["parse_mode"] is None
@@ -826,34 +818,33 @@ def _all_screens(c, st):
 
 
 def test_all_screens_wellformed_html_and_hostile_strings_escaped(tmp_path):
-    for env in ("testnet", "mainnet"):
-        st = Store(tmp_path / f"{env}.db")
-        exe = Executor(DryRunExchange(equity=160.62), st, lambda *a: None, env)
-        c = Controller(st, exe, NS(trigger=lambda: None), env)
-        _rich(c, st)
-        for killed in (False, True):
-            st.set("killed", killed)
-            st.set("kill_reason", HOSTILE if killed else None)
-            st.set("latch", killed)
-            screens = _all_screens(c, st)
-            if killed:
-                screens["ke"] = h(c, "ke")
-            for name, scr in screens.items():
-                assert_html(scr.text)
-                assert "<script>" not in scr.text, name
-                assert len(scr.text) < 4096 or name in ("ev:0", "ev:1"), (name, len(scr.text))
-                assert all(kb.parse_cb(x) for x in _all_callbacks(scr.markup)), name
-            if killed:
-                assert "&lt;script&gt;" in screens["h"].text and "&amp;" in screens["h"].text
-                assert "Причина: &lt;script&gt;" in screens["ke"].text
-            assert "&lt;script&gt;" in screens["ev:0"].text and "&lt;script&gt;" in screens["tx:0"].text
-            assert "Торгуется весь баланс счёта" in screens["set"].text and "Капитал" not in screens["set"].text
+    st = Store(tmp_path / "m.db")
+    exe = Executor(DryRunExchange(equity=160.62), st, lambda *a: None)
+    c = Controller(st, exe, NS(trigger=lambda: None))
+    _rich(c, st)
+    for killed in (False, True):
+        st.set("killed", killed)
+        st.set("kill_reason", HOSTILE if killed else None)
+        st.set("latch", killed)
+        screens = _all_screens(c, st)
+        if killed:
+            screens["ke"] = h(c, "ke")
+        for name, scr in screens.items():
+            assert_html(scr.text)
+            assert "<script>" not in scr.text, name
+            assert len(scr.text) < 4096 or name in ("ev:0", "ev:1"), (name, len(scr.text))
+            assert all(kb.parse_cb(x) for x in _all_callbacks(scr.markup)), name
+        if killed:
+            assert "&lt;script&gt;" in screens["h"].text and "&amp;" in screens["h"].text
+            assert "Причина: &lt;script&gt;" in screens["ke"].text
+        assert "&lt;script&gt;" in screens["ev:0"].text and "&lt;script&gt;" in screens["tx:0"].text
+        assert "Торгуется весь баланс счёта" in screens["set"].text and "Капитал" not in screens["set"].text
 
 
 def test_screen_length_worst_case_after_panel_fit(tmp_path):
     st = Store(tmp_path / "w.db")
-    exe = Executor(DryRunExchange(), st, lambda *a: None, "testnet")
-    c = Controller(st, exe, NS(trigger=lambda: None), "testnet")
+    exe = Executor(DryRunExchange(), st, lambda *a: None)
+    c = Controller(st, exe, NS(trigger=lambda: None))
     for i in range(10):
         st.add_event("error", "<&" * 400)                                     # 4x раздувается при экранировании
     old = kb.PAGE_SIZE
@@ -914,7 +905,7 @@ def test_panel_uses_html_everywhere_and_idle_note_is_valid(pan):
 def test_every_keyboard_callback_passes_parse_cb(ctl):
     c, st, *_ = ctl
     st.log_signals("2026-01-01T00:00:00+00:00", {"SMA cross@4h": 1.0}, 0.5)
-    menus = [kb.home_menu(e, k, pp, l) for e in (0, 1) for k in (0, 1) for pp in (0, 1) for l in (0, 1)]
+    menus = [kb.home_menu(e, k, l) for e in (0, 1) for k in (0, 1) for l in (0, 1)]
     menus += [kb.legs_menu([("a", 0.0, True), ("b", 0.5, False), ("c", 1.0, True)]), kb.trade_notice_menu(),
               kb.leg_menu(9, 100, True, [0, 25, 100], True, False, True), kb.leg_menu(0, 0, False, [0], False, False, False)]
     for st_cfg in ({}, {"SMA cross@4h": {"weight": 0.0, "enabled": False}}, {"SMA cross@4h": {"weight": 1.0, "enabled": True}}):
@@ -927,8 +918,8 @@ def test_every_keyboard_callback_passes_parse_cb(ctl):
 
 def test_home_dashboard_layout(tmp_path):
     st = Store(tmp_path / "hd.db")
-    exe = Executor(DryRunExchange(equity=160.62), st, lambda *a: None, "mainnet")
-    c = Controller(st, exe, NS(trigger=lambda: None), "mainnet")
+    exe = Executor(DryRunExchange(equity=160.62), st, lambda *a: None)
+    c = Controller(st, exe, NS(trigger=lambda: None))
     st.set("equity", 160.62)
     st.set("day_start_equity", 159.0)
     st.set("peak_equity", 160.62)

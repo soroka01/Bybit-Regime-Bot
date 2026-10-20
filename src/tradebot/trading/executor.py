@@ -83,9 +83,8 @@ def stop_price(pos: Position, stop_pct: float, inst: Instrument) -> float:
 
 
 class Executor:
-    def __init__(self, ex: Exchange, store: state.Store, notify: Notify, env_name: str, paper: bool = False):
-        self.ex, self.store, self.notify, self.env = ex, store, notify, env_name
-        self.paper = paper  # режим без ордеров: ни одной записи на биржу (молча, пользователю не показывается)
+    def __init__(self, ex: Exchange, store: state.Store, notify: Notify):
+        self.ex, self.store, self.notify = ex, store, notify
         self.lock = asyncio.Lock()
         self.trade_ok = False
         self.poll_delay = 0.5
@@ -110,15 +109,6 @@ class Executor:
 
     # ---------- настройка аккаунта ----------
     async def setup(self) -> bool:
-        if self.paper:  # только чтение: текущие режимы в журнал, ничего не меняем
-            try:
-                rb = await self.ex.setup_account(float(self.store.settings()["leverage"]))
-                log.info("режим без ордеров: на бирже плечо %gx, isolated=%s, one-way=%s (только чтение)",
-                         rb["leverage"], rb["isolated"], rb["one_way"])
-            except Exception as e:
-                log.warning("режим без ордеров: не удалось прочитать настройки аккаунта: %s", type(e).__name__)
-            self.trade_ok = False
-            return False
         lev = min(float(self.store.settings()["leverage"]), float(MAX_LEVERAGE))
         if not await self._key_ok():
             self.trade_ok = False
@@ -151,23 +141,6 @@ class Executor:
             return False
         return True            # привязка к IP не требуется (владелец сидит за VPN с меняющимся адресом)
 
-    async def paper_plan(self, target: float) -> dict:
-        """«Что бы сделал бот» при текущих настройках: теоретическая позиция и стоп (только чтение цены). Пользователю не
-        показывается; возможность оставлена для режима без ордеров."""
-        s = self.store.settings()
-        inst, price = await self.ex.instrument(), await self.ex.mark_price()
-        bal = await self.ex.sizing_balance() if abs(target) > EPS else 0.0     # цель 0 — баланс не нужен
-        q = target_qty(target, bal, float(s["leverage"]), price, inst)
-        plan = {"target": target, "price": price, "side": None, "qty": 0.0, "stop": None, "note": ""}
-        if q == 0:
-            plan["note"] = "ниже minOrderQty — позиции не было бы" if abs(target) > EPS else "вне рынка"
-        else:
-            plan["side"], plan["qty"] = ("long" if q > 0 else "short"), abs(q)
-            plan["stop"] = stop_price(Position(plan["side"], abs(q), price, 0, price), float(s["stop_pct"]), inst)
-            plan["note"] = "стоп был бы выставлен"
-        self.store.set("paper_plan", plan)
-        return plan
-
     async def set_leverage(self, n: float) -> bool:
         """Смена плеча ОДНОЙ операцией под торговым lock: старое значение -> новое -> clear_acted -> setup().
         Инвариант: сверка (reconcile) держит тот же lock, поэтому её запись acted_* не может «перебить» сброс, сделанный сменой
@@ -175,10 +148,6 @@ class Executor:
         плечо/режимы) -> ОТКАТ: сохранённое плечо и acted_* возвращаются, прежнее плечо best-effort переустанавливается на
         бирже, владелец получает сообщение. Уменьшение плеча не запрещаем — при неудаче откат. True — плечо применено."""
         st = self.store
-        if self.paper:  # режим без ордеров: настройка сохраняется, биржа не трогается
-            st.set_setting("leverage", n)
-            st.clear_acted()
-            return False
         async with self.lock:
             old = st.settings()["leverage"]
             old_acted = (st.get("acted_exposure"), st.get("acted_qty"))
@@ -406,8 +375,6 @@ class Executor:
 
     async def rearm_quietly(self) -> None:
         """Best-effort: после любой операции проверить/поставить биржевой стоп; ошибки не пробрасываем."""
-        if self.paper:
-            return
         try:
             await self._ensure_stop(await self.ex.position())
         except Exception as e:
@@ -756,7 +723,7 @@ class Executor:
     async def check_stopout(self) -> None:
         """Быстрая проверка из мониторинга (пропускается, если идёт торговая операция). Инвариант: НЕ зависит от enabled —
         стоп-аут при выключенной торговле тоже должен быть обнаружен и объявлен (иначе позиция «исчезла» молча)."""
-        if self.paper or self.lock.locked():
+        if self.lock.locked():
             return
         async with self.lock:
             pos = await self.ex.position()
@@ -775,8 +742,6 @@ class Executor:
     async def _reconcile(self, target: float, bar: datetime, reason: str) -> str:
         st = self.store
         s = st.settings()
-        if self.paper:
-            return "PAPER"
         if st.get("killed", False):
             return "kill-switch"
         if not s["enabled"]:
@@ -868,8 +833,6 @@ class Executor:
 
     # ---------- ручные и аварийные пути ----------
     async def close_all(self, reason: str = "закрытие вручную", latch: bool = True, quiet: bool = False) -> str:
-        if self.paper:
-            return "PAPER: ордера запрещены"
         async with self.lock:
             err: ExchangeError | None = None
             try:
@@ -898,8 +861,6 @@ class Executor:
                 "exact": all(r.get("exact", True) for r in results)}
 
     async def panic(self) -> str:
-        if self.paper:
-            return "PAPER: ордера запрещены"
         self.store.set_setting("enabled", False)  # сначала выключаем, затем закрываем
         r = await self.close_all("паника", latch=False, quiet=True)
         data = {"kind": "panic", **self._close_summary(self._results), "failed": r.startswith("ошибка"),
@@ -908,8 +869,6 @@ class Executor:
         return r
 
     async def kill(self, reason: str) -> None:
-        if self.paper:
-            return
         st = self.store
         st.mark_killed(reason)                       # enabled=False + killed + причина одной транзакцией
         failed = False
@@ -931,7 +890,7 @@ class Executor:
         пока бот в состоянии killed, позиция не должна висеть без попыток закрытия. Тихо по ошибкам (повторять тревогу каждый
         раз незачем — дедуплицированное предупреждение шлёт раннер); успешное закрытие объявляется обычным сообщением.
         Возвращает "закрыто" | "позиции нет" | "не закрыто"."""
-        if self.paper or not self.store.get("killed", False):
+        if not self.store.get("killed", False):
             return "позиции нет"
         async with self.lock:
             res = "не закрыто"

@@ -90,20 +90,19 @@ async def shutdown_data(client) -> dict:
     return {"kind": "shutdown", "pos": {"side": pos.side, "qty": pos.qty}, "stop": pos.stop}
 
 
-async def startup_data(env, store, client) -> dict:
+async def startup_data(store, client) -> dict:
     """Данные сообщения о запуске: счёт и позиция читаются с биржи (best effort, с коротким таймаутом)."""
-    d = {"kind": "startup", "env": env.bybit_env, "paper": env.paper, "enabled": bool(store.settings()["enabled"]),
-         "killed": bool(store.get("killed", False)), "no_keys": not env.has_keys, "equity": None, "pos": None, "pos_known": True}
-    if env.has_keys:
-        try:
-            d["equity"] = await asyncio.wait_for(client.equity(), 10)
-        except Exception:
-            d["equity"] = store.get("equity")
-        try:
-            pos = await asyncio.wait_for(client.position(), 10)
-            d["pos"] = {"side": pos.side, "qty": pos.qty, "upnl": pos.upnl} if pos else None
-        except Exception:
-            d["pos_known"] = False
+    d = {"kind": "startup", "enabled": bool(store.settings()["enabled"]), "killed": bool(store.get("killed", False)),
+         "equity": None, "pos": None, "pos_known": True}
+    try:
+        d["equity"] = await asyncio.wait_for(client.equity(), 10)
+    except Exception:
+        d["equity"] = store.get("equity")
+    try:
+        pos = await asyncio.wait_for(client.position(), 10)
+        d["pos"] = {"side": pos.side, "qty": pos.qty, "upnl": pos.upnl} if pos else None
+    except Exception:
+        d["pos_known"] = False
     return d
 
 
@@ -133,26 +132,22 @@ async def amain(env) -> None:
     from tradebot.telegram.handlers import Controller
     from tradebot.telegram.notify import Notifier
     from tradebot.telegram.proposals import ProposalWatcher
-    from tradebot.trading.exchange import BybitClient, ReadOnlyClient
+    from tradebot.trading.config import MAINNET_URL
+    from tradebot.trading.exchange import BybitClient
     from tradebot.trading.executor import Executor
     from tradebot.trading.market_feed import MarketFeed
     from tradebot.trading.runner import Runner
     from tradebot.trading.state import Store
 
-    store = Store(paper=env.paper)
+    store = Store()
     # номер в orderLinkId не должен повториться даже на старой/восстановленной из копии БД (дубль принялся бы за «ордер уже есть»)
     store.seed_order_seq()
-    store.set("env", env.bybit_env)           # служебные ключи для веба; в сообщениях Telegram не показываются
-    store.set("paper", env.paper)
-    if env.paper:
-        store.set_setting("enabled", False)
-    notify = Notifier(store, env.owner_id, env.bybit_env, env.paper)
-    # режим без ордеров: клиент без методов записи (и GET-only транспорт) — ордера физически невозможны
-    client = (ReadOnlyClient if env.paper else BybitClient)(env.base_url, env.api_key, env.api_secret)
-    executor = Executor(client, store, notify, env.bybit_env, paper=env.paper)
+    notify = Notifier(store, env.owner_id)
+    client = BybitClient(MAINNET_URL, env.api_key, env.api_secret)
+    executor = Executor(client, store, notify)
     feed = MarketFeed()
     runner = Runner(store, feed, executor, notify, tz_name=env.tz_name)
-    ctl = Controller(store, executor, runner, env.bybit_env, env.tz_name)
+    ctl = Controller(store, executor, runner, env.tz_name)
     bot, dp, panel = build(env.bot_token, env.owner_id, ctl)
     notify.attach(bot)
     watcher = ProposalWatcher(ctl, env.owner_id)      # «В бота» на сайте -> уведомление в Telegram
@@ -171,11 +166,8 @@ async def amain(env) -> None:
         await client.sync_time()
     except Exception as e:
         log.warning("синхронизация времени: %s", type(e).__name__)
-    if env.has_keys:  # без права на ордера setup только читает
-        await executor.setup()
-    else:
-        log.warning("API-ключи Bybit не заданы: торговля невозможна")
-    M.emit(notify, "info", await startup_data(env, store, client))
+    await executor.setup()
+    M.emit(notify, "info", await startup_data(store, client))
 
     tasks = [asyncio.create_task(c, name=n) for n, c in (
         ("notify", notify.worker()), ("proposals", watcher.run()), ("runner", runner.run()), ("monitor", runner.monitor()),
@@ -230,7 +222,7 @@ def main() -> int:
         print(f"Ошибка конфигурации: {e}")
         lock.close()
         return EXIT_CONFIG
-    log.info("старт, среда ордеров %s, paper=%s", env.bybit_env, env.paper)
+    log.info("старт")
     try:
         asyncio.run(amain(env))
     except KeyboardInterrupt:

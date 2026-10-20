@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
-from tradebot.trading.exchange import BybitClient, ExchangeError, ReadOnlyClient
+from tradebot.trading.exchange import BybitClient, ExchangeError
 from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import SIZING_EQUITY_FRACTION, Executor
 from tradebot.trading.state import Store, read_snapshot
@@ -40,7 +40,7 @@ def mk(tmp_path, equity=1100.0, lev=2, mark=100_000.0, **kw):
     st.set_setting("leverage", lev)
     ex = DryRunExchange(equity=equity, mark=mark, **kw)
     sink = Sink()
-    exe = Executor(ex, st, sink, "testnet")
+    exe = Executor(ex, st, sink)
     exe.poll_delay = 0
     exe.retry_wait = 0
     run(exe.setup())
@@ -390,20 +390,11 @@ def test_bybit_sizing_balance_error_does_not_fall_back_to_contract_account():
     assert log == ["UNIFIED"]
 
 
-def test_readonly_client_forwards_sizing_balance_with_get_only():
-    log = []
-    coins = [{"coin": "USDT", "walletBalance": "50", "equity": "51"}]
-    c = ReadOnlyClient("https://x", "K", "S", transport=httpx.MockTransport(_wb(coins, log)))
-    c._c._synced = 1e18
-    assert run(c.sizing_balance()) == pytest.approx(50.0)
-    assert log and all(m == "GET" for m, _, _ in log)
-
-
 # ---------- итоговое ревью: закрытия не зависят от баланса, рестарт, kill, повторные отказы ----------
 def _fresh_executor(ex, st):
     """Новый Executor на тех же бирже и БД: рестарт процесса бота."""
     sink = Sink()
-    exe = Executor(ex, st, sink, "testnet")
+    exe = Executor(ex, st, sink)
     exe.poll_delay = 0
     exe.retry_wait = 0
     run(exe.setup())
@@ -441,16 +432,6 @@ def test_partial_reduction_with_nonzero_target_still_needs_balance_and_holds(tmp
     assert run(exe.reconcile(0.5, BAR)).startswith("баланс недоступен")
     assert ex.qty == pytest.approx(0.021) and sink.count("warn") == 1
     assert st.get("acted_exposure") == 1.0 and st.get("acted_qty") == pytest.approx(0.021)
-
-
-def test_paper_plan_for_flat_target_needs_no_balance(tmp_path):
-    st = Store(tmp_path / "pp.db", paper=True)
-    ex = DryRunExchange(equity=1100)
-    ex.sizing_error = ExchangeError("сеть", -1)
-    exe = Executor(ex, st, Sink(), "mainnet", paper=True)
-    assert run(exe.paper_plan(0.0))["side"] is None and ex.sizing_calls == 0
-    with pytest.raises(ExchangeError):
-        run(exe.paper_plan(0.5))
 
 
 def test_restart_with_changed_target_resizes_from_wallet_size(tmp_path):

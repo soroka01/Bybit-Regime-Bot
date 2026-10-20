@@ -17,7 +17,7 @@ from tradebot.telegram.panel import Panel
 from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
 from tradebot.trading.legcheck import LegCheck
-from tradebot.trading.state import NO_ORDERS_MSG, Store
+from tradebot.trading.state import Store
 
 OWNER = 42
 FRESH = (pd.Timestamp.now(tz="UTC").floor("1h") - pd.Timedelta(hours=1)).isoformat()
@@ -46,12 +46,12 @@ class Bot:
     async def pin_chat_message(self, chat, msg, disable_notification=True): pass
 
 
-def mk(tmp_path, env="testnet", paper=False, exec_paper=None):
-    st = Store(tmp_path / "h.db", paper=paper)
-    exe = Executor(DryRunExchange(equity=1000), st, lambda *a: None, env, paper=paper if exec_paper is None else exec_paper)
+def mk(tmp_path):
+    st = Store(tmp_path / "h.db")
+    exe = Executor(DryRunExchange(equity=1000), st, lambda *a: None)
     exe.poll_delay = 0
     clk, trig = NS(t=1000.0), []
-    c = Controller(st, exe, NS(trigger=lambda: trig.append(1)), env, mono=lambda: clk.t)
+    c = Controller(st, exe, NS(trigger=lambda: trig.append(1)), mono=lambda: clk.t)
     c.clk, c.trig = clk, trig
     return c, st
 
@@ -230,29 +230,12 @@ def test_paste_handler_survives_any_unexpected_exception(tmp_path, boom):
     assert "не удалось разобрать" in bot.edits[-1]
 
 
-# ---------------------------------------------------------------------------------------------------------- G7
-def test_no_orders_mode_refuses_panic_and_close_before_confirm(tmp_path):
-    c, st = mk(tmp_path, paper=True)
-    for d in ("pn", "cl"):
-        s = h(c, d)
-        assert s.toast == f"Отклонено: {NO_ORDERS_MSG}" and "PAPER" not in s.toast and not c.pending
-
-
-def test_executor_paper_answer_is_mapped_to_shared_wording(tmp_path):
-    c, st = mk(tmp_path, paper=False, exec_paper=True)                      # хранилище не знает про режим, Executor — знает
-    for d in ("pn", "cl"):
-        h(c, d)
-        s = h(c, d + ":y")
-        assert "PAPER" not in s.toast and "режим без ордеров" in s.toast, s.toast
-
-
 # ---------------------------------------------------------------------------------------------------------- G8
 @pytest.mark.parametrize("cb_data,key,val", [("sl:a:p1", "stop_pct", 0.30), ("sl:a:m1", "stop_pct", 0.01),
                                              ("rk:dd:p5", "kill_dd", 0.50), ("rk:dd:m5", "kill_dd", 0.05),
                                              ("rk:da:p1", "kill_daily", 0.30), ("rk:da:m1", "kill_daily", 0.02)])
-@pytest.mark.parametrize("env", ["mainnet", "testnet"])
-def test_relative_step_out_of_range_is_rejected_politely_before_confirm(tmp_path, cb_data, key, val, env):
-    c, st = mk(tmp_path, env=env)
+def test_relative_step_out_of_range_is_rejected_politely_before_confirm(tmp_path, cb_data, key, val):
+    c, st = mk(tmp_path)
     st.set_setting(key, val)
     s = h(c, cb_data)
     assert s.toast.startswith("Отклонено:") and "должен быть от" in s.toast and "вне диапазона" not in s.toast
@@ -260,7 +243,7 @@ def test_relative_step_out_of_range_is_rejected_politely_before_confirm(tmp_path
 
 
 def test_stop_step_confirm_is_bound_to_absolute_value_at_arm_time(tmp_path):
-    c, st = mk(tmp_path, env="mainnet")
+    c, st = mk(tmp_path)
     s = h(c, "sl:a:p1")
     assert "8% → 9%" in s.text
     st.set_setting("stop_pct", 0.12)                                         # пока лежит подтверждение, настройка изменилась
@@ -270,7 +253,7 @@ def test_stop_step_confirm_is_bound_to_absolute_value_at_arm_time(tmp_path):
 
 
 def test_risk_step_confirm_is_bound_and_rearm_rebinds(tmp_path):
-    c, st = mk(tmp_path, env="mainnet")
+    c, st = mk(tmp_path)
     assert "25% → 30%" in h(c, "rk:dd:p5").text
     st.set_setting("kill_dd", 0.40)
     assert "40% → 45%" in h(c, "rk:dd:p5").text                              # новое нажатие — новая привязка
@@ -280,7 +263,7 @@ def test_risk_step_confirm_is_bound_and_rearm_rebinds(tmp_path):
 
 
 def test_bound_confirm_still_expires_after_60s_and_whitelist_is_strict(tmp_path):
-    c, st = mk(tmp_path, env="mainnet")
+    c, st = mk(tmp_path)
     h(c, "sl:a:p1")
     c.clk.t += 61
     assert h(c, "sl:a:p1:y").toast == "Подтверждение устарело" and st.settings()["stop_pct"] == 0.08 and not c.bound
@@ -290,14 +273,9 @@ def test_bound_confirm_still_expires_after_60s_and_whitelist_is_strict(tmp_path)
         assert kb.parse_cb(ok) is not None, ok
 
 
-def test_testnet_relative_step_applies_immediately_in_range(tmp_path):
-    c, st = mk(tmp_path, env="testnet")
-    assert h(c, "sl:a:p1").toast == "Сохранено" and st.settings()["stop_pct"] == 0.09
-
-
 # --------------------------------------------------------------------------------------------------------- G10/G13
 def test_double_tap_on_confirm_and_leg_removal(tmp_path):
-    c, st = mk(tmp_path, env="mainnet")
+    c, st = mk(tmp_path)
     n0 = len(st.leg_cfg())
     h(c, "lg:0:rm")
     assert h(c, "lg:0:rm:y").toast.startswith("Удалена") and len(st.leg_cfg()) == n0 - 1
@@ -318,7 +296,7 @@ def test_stale_confirm_literal_is_defined_once():
 
 # ---------------------------------------------------------------------------------------------------------- G11
 def test_leg_add_confirm_states_data_time_of_cached_check(tmp_path, monkeypatch):
-    c, st = mk(tmp_path, env="mainnet")
+    c, st = mk(tmp_path)
     monkeypatch.setattr("tradebot.telegram.legflow.check_leg", lambda leg: OK_CHECK)
     st.set_leg("SMA cross@4h", weight=0.0)
     st.set_leg("Regime switch (CHOP)@6h", weight=0.5)

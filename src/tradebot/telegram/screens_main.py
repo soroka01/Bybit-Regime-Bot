@@ -25,24 +25,21 @@ def _deals(n: int) -> str:
 
 
 class ScreensMain:
-    """Миксин: нужны self.st, self.clock, self.tz, self.paper, self.compose/head/config_warning."""
+    """Миксин: нужны self.st, self.clock, self.tz, self.compose/head."""
 
     # ---------- главный экран ----------
     def home(self, toast: str | None = None) -> Screen:
         st, s, now = self.st, self.st.settings(), self.clock()
         killed, eq, peak, day0 = st.get("killed", False), st.get("equity"), st.get("peak_equity"), st.get("day_start_equity")
         pos, tgt = st.get("position"), st.get("target_exposure")
-        if self.paper:
-            status = "🚫 <b>Торговля заблокирована</b> — ордера не отправляются"
-        elif killed:
+        if killed:
             status = "🛑 <b>Стоп-кран</b> — торговля заблокирована"
         else:
             status = "▶️ <b>Торговля включена</b>" if s["enabled"] else "⏸ <b>Торговля выключена</b>"
-        warn = self.config_warning()
-        top = ([f"<b>{esc(warn)}</b>"] if warn else []) + [status]
+        top = [status]
         if killed:
             top.append(f"🛑 Причина: {esc(st.get('kill_reason'))}")
-        if st.get("latch") and not self.paper:
+        if st.get("latch"):
             top.append(it("🔒 Защёлка: после стопа/ручного закрытия жду смены сигнала"))
         money = [f"💼 Счёт: {code(tx.n(eq))} $" if eq is not None else "💼 Счёт: —"]
         if eq is not None:
@@ -62,7 +59,7 @@ class ScreensMain:
         foot = [f"⏱ Следующий бар через {code(tx.minutes_to_next_bar(now))} мин",
                 f"{'⚠️' if stale else '💓'} Данные биржи: {esc(tx.age(hb, now))}"]
         text = self.compose(self.head(), top, money, trade, sg_lines, foot)
-        return Screen(text, kb.home_menu(bool(s["enabled"]), bool(killed), self.paper, bool(st.get("latch"))),
+        return Screen(text, kb.home_menu(bool(s["enabled"]), bool(killed), bool(st.get("latch"))),
                       toast, live=True, view=VIEW_HOME)
 
     def _signal_lines(self) -> list[str]:
@@ -117,10 +114,7 @@ class ScreensMain:
         secs = [self._pos_lines(pos), pnl]
         if pos:
             secs.append(it("Стоп на бирже ставится после каждой сделки."))
-        warn = self.config_warning()
-        if warn:
-            secs.insert(0, f"<b>{esc(warn)}</b>")
-        return Screen(self.compose(self.head("Позиция"), *secs), kb.position_menu(bool(pos) and not self.paper),
+        return Screen(self.compose(self.head("Позиция"), *secs), kb.position_menu(bool(pos)),
                       live=True, view=VIEW_POS)
 
     def signals_screen(self) -> Screen:

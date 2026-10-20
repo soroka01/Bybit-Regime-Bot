@@ -171,9 +171,9 @@ def test_fetch_retries_until_6h_bar_appears():
 
 # ---------- раннер ----------
 def make_runner(tmp_path, name, fd_fn):
-    st = Store(tmp_path / f"{name}.db", paper=True)
+    st = Store(tmp_path / f"{name}.db")          # торговля выключена по умолчанию: цикл считает цель, ордеров нет
     sink = Sink()
-    exe = Executor(DryRunExchange(equity=1000, mark=100_000), st, sink, "testnet", paper=True)
+    exe = Executor(DryRunExchange(equity=1000, mark=100_000), st, sink)
     seen = []
 
     async def fetch(legs):
@@ -306,28 +306,21 @@ def test_store_effective_legs_with_user_overrides(tmp_path):
 
 
 # ---------- размер позиции на диапазоне [-1, 1] ----------
-def test_sizing_and_paper_plan_full_exposure_range(tmp_path):
+def test_sizing_full_exposure_range(tmp_path):
     for expo in (1.0, 2 / 3, 0.5, 1 / 3, 0.0, -1 / 3, -0.5, -2 / 3, -1.0):
         q = target_qty(expo, 1000, 3, 100_000, INST)
         exact = abs(expo) * 1000 * 0.97 * 3 / 100_000                   # без округления, с техническим резервом 3%
         assert exact - 0.001 - 1e-9 < abs(q) <= exact + 1e-9           # округление вниз к шагу 0.001
         assert q == 0 or (q > 0) == (expo > 0)
         assert abs(q) <= 0.0291 + 1e-12
-    st = Store(tmp_path / "pr.db", paper=True)
-    exe = Executor(DryRunExchange(equity=1000, mark=100_000), st, Sink(), "mainnet", paper=True)
-    st.set_setting("leverage", 3)
-    for expo, side, qty in ((1.0, "long", 0.029), (-1.0, "short", 0.029), (0.5, "long", 0.014), (-0.5, "short", 0.014)):
-        pl = run(exe.paper_plan(expo))                                  # 1000 * 0.97 * 3 / 1e5 = 0.0291 при полной экспозиции
-        assert pl["side"] == side and pl["qty"] == pytest.approx(qty)
-        assert (pl["stop"] < 100_000) == (side == "long")
-    assert run(exe.paper_plan(0.0))["side"] is None
     for expo in (1.0, -1.0, 2 / 3):                                     # сверка на границах диапазона не ломается (DryRun)
         st2 = Store(tmp_path / f"e{expo:.2f}.db")
         st2.set_setting("enabled", True)
         st2.set_setting("leverage", 3)
         ex2 = DryRunExchange(equity=1000, mark=100_000)
-        e2 = Executor(ex2, st2, Sink(), "testnet")
+        e2 = Executor(ex2, st2, Sink())
         e2.poll_delay = 0
         run(e2.setup())
         assert run(e2.reconcile(expo, BAR)) == "выполнено"
-        assert ex2.qty == pytest.approx(expo * 0.0291, abs=0.001) and not ex2.rejected
+        assert ex2.qty == pytest.approx(expo * 0.0291, abs=0.001) and not ex2.rejected     # 1000 * 0.97 * 3 / 1e5 = 0.0291 при полной экспозиции
+        assert (ex2.stop < 100_000) == (expo > 0)                                          # стоп по ту сторону входа, где убыток

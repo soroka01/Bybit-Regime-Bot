@@ -46,9 +46,8 @@ def build_router(ctl: Controller, panel: Panel) -> Router:
     async def open_panel(m: Message, onboarding: bool) -> None:
         panel.touch()
         if onboarding and not ctl.st.get("onboarded", False):
-            warn = ctl.config_warning()
             hint = "Торговля выключена — включите её кнопкой, когда будете готовы."
-            await m.answer(f"{ONBOARDING}\n\n" + (f"<b>{esc(warn)}</b>\n" if warn else "") + f"<i>{hint}</i>", parse_mode="HTML")
+            await m.answer(f"{ONBOARDING}\n\n<i>{hint}</i>", parse_mode="HTML")
             ctl.st.set("onboarded", True)
         await panel.open(m.bot, m.chat.id, ctl.home())
 

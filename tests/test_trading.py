@@ -42,7 +42,7 @@ def env(tmp_path):
     # баланс 1100 USDT: 0.5 * 1100 * 0.97 (технический резерв 3%) * 2 / 100_000 = 0.01067 -> 0.010 BTC
     ex = DryRunExchange(equity=1100, mark=100_000)
     sink = Sink()
-    exe = Executor(ex, st, sink, "testnet")
+    exe = Executor(ex, st, sink)
     exe.poll_delay = 0
     run(exe.setup())
     return st, ex, exe, sink
@@ -287,15 +287,6 @@ def test_single_instance_lock(tmp_path):
         acquire_lock(tmp_path / "l.lock")
     f.close()
     acquire_lock(tmp_path / "l.lock").close()
-
-
-def test_mainnet_requires_confirmation():
-    from tradebot.trading.config import ConfigError, load_env
-    base = {"TELEGRAM_BOT_TOKEN": "123456789:AAFakeTokenForTestsOnly_0123456789abc", "TELEGRAM_OWNER_ID": "1", "BYBIT_ENV": "mainnet"}
-    with pytest.raises(ConfigError):
-        load_env(base)
-    assert load_env({**base, "I_UNDERSTAND_MAINNET": "1"}).bybit_env == "mainnet"
-    assert load_env({k: v for k, v in base.items() if k != "BYBIT_ENV"}).bybit_env == "testnet"
 
 
 def test_bybit_client_signing_and_retries():
@@ -548,7 +539,7 @@ def _key_env(tmp_path, query_api, fail_query=False):
     st = Store(tmp_path / "k.db")
     st.set_setting("leverage", 2)
     sink = Sink()
-    return Executor(c, st, sink, "testnet"), sink, reqs
+    return Executor(c, st, sink), sink, reqs
 
 
 def test_key_info_parsing():
@@ -564,6 +555,23 @@ def test_key_info_parsing():
             lambda req, res=res: httpx.Response(200, json={"retCode": 0, "result": res}))))
         c._synced = 1e18
         assert run(c.key_info()) == want
+
+
+def test_read_account_only_gets_and_reads_exchange_settings_as_is():
+    """read_account (его использует и `--check`) читает режимы аккаунта одними GET-запросами и ничего не переключает."""
+    import httpx
+    from tradebot.trading.exchange import BybitClient
+    reqs = []
+
+    def handler(req: httpx.Request):
+        reqs.append((req.method, req.url.path))
+        res = {"/v5/account/info": {"unifiedMarginStatus": 5, "marginMode": "REGULAR_MARGIN"},
+               "/v5/position/list": {"list": [{"leverage": "5", "tradeMode": 0, "positionIdx": 0, "size": "0"}]}}.get(req.url.path, {})
+        return httpx.Response(200, json={"retCode": 0, "result": res})
+    c = BybitClient("https://x", "K", "S", httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    c._synced = 1e18
+    assert run(c.read_account()) == {"leverage": 5.0, "isolated": False, "one_way": True}      # прочитано как есть, не изменено
+    assert reqs and all(m == "GET" for m, _ in reqs)
 
 
 def test_readonly_key_blocks_setup_without_any_post(tmp_path):
@@ -604,84 +612,8 @@ def test_key_info_failure_warns_and_continues(tmp_path):
     assert ("POST", "/v5/position/set-leverage") in reqs
 
 
-def test_paper_setup_never_calls_key_info(tmp_path):
-    reqs = []
-    c = _paper_client(reqs)
-    c._c._synced = 1e18
-    exe = Executor(c, Store(tmp_path / "p.db", paper=True), Sink(), "mainnet", paper=True)
-    assert run(exe.setup()) is False
-    assert reqs and "/v5/user/query-api" not in [p for _, p in reqs]
-    assert all(m == "GET" for m, _ in reqs)
-
-
 def test_dryrun_key_info_is_permissive(env):
     _, ex, exe, sink = env
     ki = run(ex.key_info())
     assert ki["read_only"] is False and ki["withdraw"] is False
     assert not sink.msgs and exe.trade_ok                                # фикстура env: setup() прошёл без предупреждений
-
-
-# ---------- PAPER ----------
-def _paper_client(requests):
-    import httpx
-    from tradebot.trading.exchange import ReadOnlyClient
-
-    def handler(req: httpx.Request):
-        requests.append((req.method, req.url.path))
-        res = {"/v5/account/info": {"unifiedMarginStatus": 5, "marginMode": "REGULAR_MARGIN"},
-               "/v5/position/list": {"list": [{"leverage": "5", "tradeMode": 0, "positionIdx": 0, "size": "0"}]},
-               "/v5/market/tickers": {"list": [{"markPrice": "100000"}]},
-               "/v5/market/instruments-info": {"list": [{"lotSizeFilter": {"qtyStep": "0.001", "minOrderQty": "0.001"},
-                                                          "priceFilter": {"tickSize": "0.1"}}]}}.get(req.url.path, {})
-        return httpx.Response(200, json={"retCode": 0, "result": res})
-    return ReadOnlyClient("https://x", "K", "S", transport=httpx.MockTransport(handler))
-
-
-def test_readonly_client_setup_only_gets_and_writes_raise():
-    from tradebot.trading.exchange import PaperModeError
-    reqs = []
-    c = _paper_client(reqs)
-    c._c._synced = 1e18
-
-    async def go():
-        rb = await c.setup_account(2)
-        assert rb == {"leverage": 5.0, "isolated": False, "one_way": True}   # прочитано как есть, не изменено
-        for call in (c.market("buy", 0.01, False, "x"), c.set_stop(1.0), c.cancel_order("1"), c.cancel_all(),
-                     c.set_leverage(2), c.switch_mode()):
-            with pytest.raises(PaperModeError):
-                await call
-        # даже в обход обёртки транспорт не пропустит запись
-        with pytest.raises(PaperModeError):
-            await c._c._call("POST", "/v5/order/create", {"qty": "1"})
-    run(go())
-    assert reqs and all(m == "GET" for m, _ in reqs)
-
-
-def test_paper_executor_never_orders_and_plans(tmp_path):
-    st = Store(tmp_path / "p.db", paper=True)
-    ex = DryRunExchange(equity=1100, mark=100_000)
-    sink = Sink()
-    exe = Executor(ex, st, sink, "mainnet", paper=True)
-    with pytest.raises(ValueError):
-        st.set_setting("enabled", True)
-    st.set("s_enabled", True)                                # даже «подделанное» значение игнорируется
-    assert st.settings()["enabled"] is False
-    assert run(exe.reconcile(0.5, BAR)) == "PAPER" and not ex.orders
-    assert run(exe.close_all()).startswith("PAPER") and run(exe.panic()).startswith("PAPER") and not ex.orders
-    st.set_setting("leverage", 2)
-    pl = run(exe.paper_plan(0.5))
-    assert pl["side"] == "long" and pl["qty"] == pytest.approx(0.01) and pl["stop"] == pytest.approx(92_000)
-    ex.cash = 10.0                                           # баланс счёта упал -> позиции бы не было
-    assert "minOrderQty" in run(exe.paper_plan(0.5))["note"]
-    assert run(exe.paper_plan(-0.5))["side"] is None and read_snapshot(st.path)["paper"] is False
-
-
-def test_paper_env_default():
-    from tradebot.trading.config import load_env
-    base = {"TELEGRAM_BOT_TOKEN": "123456789:AAFakeTokenForTestsOnly_0123456789abc", "TELEGRAM_OWNER_ID": "1"}
-    assert load_env(base).paper is True
-    assert load_env({**base, "PAPER": "0", "BYBIT_API_KEY": "k", "BYBIT_API_SECRET": "s"}).paper is False   # PAPER=0 требует ключи
-    assert load_env({**base, "PAPER": "1"}).paper is True
-    from tradebot.trading.config import ConfigError
-    with pytest.raises(ConfigError):                         # mainnet-гейт не изменился
-        load_env({**base, "BYBIT_ENV": "mainnet"})

@@ -1,8 +1,7 @@
 """Добавление и удаление стратегий в Telegram: черновики из присланного текста / с сайта, проверка окна, выбор веса, удаление.
 Миксин для Controller (handlers.py): использует его хранилище, раннер, подтверждения (_arm/_consume) и вёрстку (head/compose).
 
-Черновик — строка таблицы proposals (new -> announced -> added | rejected | expired); решение только здесь, с подтверждением на
-mainnet. Сайт ничего не меняет в торговле сам: он лишь кладёт предложение в очередь."""
+Черновик — строка таблицы proposals (new -> announced -> added | rejected | expired); решение только здесь, с подтверждением. Сайт ничего не меняет в торговле сам: он лишь кладёт предложение в очередь."""
 from __future__ import annotations
 
 import asyncio
@@ -32,7 +31,7 @@ def is_active(w: float, en: bool) -> bool:
 
 
 class LegFlow:
-    """Миксин: нужны self.st, self.runner, self.env, self.pending, self._arm/_consume, self.head/compose, self._target, self._leg_line."""
+    """Миксин: нужны self.st, self.runner, self.pending, self._arm/_consume, self.head/compose, self._target, self._leg_line."""
 
     # ---------- общее ----------
     def _init_legflow(self) -> None:
@@ -60,7 +59,7 @@ class LegFlow:
 
     def _latch_line(self, before: float | None, after: float | None) -> str | None:
         """Защёлка снимается при любой смене цели — бот может сразу войти в рынок: об этом надо сказать до подтверждения."""
-        if not self.st.get("latch") or self.paper:
+        if not self.st.get("latch"):
             return None
         if before is not None and after is not None and abs(before - after) < 1e-9:
             return None
@@ -282,9 +281,9 @@ class LegFlow:
         return await self._apply_add(pid, int(p[3]) if p[2] == "w" else 0, p[2] == "eq")
 
     def _ad_needs_confirm(self, p: tuple[str, ...]) -> bool:
-        """На mainnet подтверждение нужно всегда, кроме добавления НОВОЙ стратегии без веса (0%): она в торговлю не попадает.
+        """Подтверждение нужно всегда, кроме добавления НОВОЙ стратегии без веса (0%): она в торговлю не попадает.
         Замена параметров существующей ноги и «Поровну» меняют цель, поэтому подтверждаются."""
-        if self.env != "mainnet" or len(p) < 3 or p[-1] == "y":
+        if len(p) < 3 or p[-1] == "y":
             return False
         if p[2] == "eq":
             return True

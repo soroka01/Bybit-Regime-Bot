@@ -28,10 +28,6 @@ class ExchangeError(Exception):
         self.code = code
 
 
-class PaperModeError(ExchangeError):
-    """Попытка записи на биржу в режиме PAPER."""
-
-
 class AmbiguousOrder(ExchangeError):
     """Таймаут/сетевой сбой при POST: неизвестно, дошёл ли ордер."""
 
@@ -326,60 +322,3 @@ class BybitClient:
         isolated = info.get("marginMode") == "ISOLATED_MARGIN" if uta else int(p.get("tradeMode", -1)) == 1
         return {"leverage": float(p.get("leverage") or 0), "isolated": isolated,
                 "one_way": int(p.get("positionIdx", -1)) == 0}
-
-
-class _GetOnlyTransport(httpx.AsyncBaseTransport):
-    """Транспорт, физически не пропускающий ничего кроме GET (последний рубеж для PAPER)."""
-
-    def __init__(self, inner: httpx.AsyncBaseTransport | None = None):
-        self.inner = inner or httpx.AsyncHTTPTransport()
-
-    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        if request.method != "GET":
-            raise PaperModeError("PAPER: не-GET запрос заблокирован транспортом")
-        return await self.inner.handle_async_request(request)
-
-    async def aclose(self) -> None:
-        await self.inner.aclose()
-
-
-class ReadOnlyClient:
-    """Клиент для режима PAPER. Пересылает ТОЛЬКО чтение; методов записи у него нет — они бросают PaperModeError.
-    Внутренний клиент собран на GET-only транспорте, так что даже обход обёртки не отправит запись."""
-
-    def __init__(self, base_url: str, api_key: str = "", api_secret: str = "", transport: httpx.AsyncBaseTransport | None = None):
-        self._c = BybitClient(base_url, api_key, api_secret, httpx.AsyncClient(timeout=10.0, transport=_GetOnlyTransport(transport)))
-
-    def __repr__(self) -> str:
-        return "ReadOnlyClient()"
-
-    async def close(self): await self._c.close()
-    async def sync_time(self) -> None: await self._c.sync_time()
-    async def instrument(self) -> Instrument: return await self._c.instrument()
-    async def mark_price(self) -> float: return await self._c.mark_price()
-    async def equity(self) -> float: return await self._c.equity()
-    async def sizing_balance(self) -> float: return await self._c.sizing_balance()
-    async def position(self) -> Position | None: return await self._c.position()
-    async def open_orders(self) -> list[dict]: return await self._c.open_orders()
-    async def order_by_link(self, link_id: str) -> dict | None: return await self._c.order_by_link(link_id)
-
-    async def key_info(self) -> dict:
-        return await self._c.key_info()          # только GET; в PAPER Executor.setup() его не вызывает
-
-    async def closed_pnl(self, order_id: str | None, since_ms: int = 0) -> dict | None:
-        return await self._c.closed_pnl(order_id, since_ms)      # только GET
-
-    async def closed_pnl_list(self, since_ms: int = 0, limit: int = 100) -> list[dict]:
-        return await self._c.closed_pnl_list(since_ms, limit)    # только GET
-
-    async def setup_account(self, leverage: float) -> dict:
-        """Ничего не переключает: только читает текущие режим маржи/позиций и плечо."""
-        return await self._c.read_account()
-
-    # --- запись: заблокирована всегда ---
-    async def market(self, *a, **k): raise PaperModeError("PAPER: ордера запрещены")
-    async def set_stop(self, *a, **k): raise PaperModeError("PAPER: trading-stop запрещён")
-    async def cancel_order(self, *a, **k): raise PaperModeError("PAPER: отмена запрещена")
-    async def cancel_all(self, *a, **k): raise PaperModeError("PAPER: отмена запрещена")
-    async def set_leverage(self, *a, **k): raise PaperModeError("PAPER: смена плеча запрещена")
-    async def switch_mode(self, *a, **k): raise PaperModeError("PAPER: смена режима запрещена")

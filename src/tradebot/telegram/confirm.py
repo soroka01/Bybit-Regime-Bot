@@ -3,19 +3,19 @@ from __future__ import annotations
 
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram import texts as tx
-from tradebot.telegram.common import ENV_MSG_DONE, ENV_MSG_STALE, RESERVE_PCT, WORK_PCT, P
+from tradebot.telegram.common import DONE_CONFIRM_MSG, STALE_CONFIRM_MSG, RESERVE_PCT, WORK_PCT, P
 from tradebot.telegram.panel import Screen
 from tradebot.telegram.texts import code, esc, it
 from tradebot.trading.state import RANGES
 
 CONFIRM_TTL = 60.0
 DONE_TTL = 5.0     # столько секунд после успешного подтверждения повторный тап отвечает «Уже выполнено», а не «устарело»
-GUARDED = {"lg", "sl", "rk"}  # на mainnet любые изменения требуют подтверждения
+GUARDED = {"lg", "sl", "rk"}  # бот торгует реальными деньгами: любые изменения этих настроек требуют подтверждения
 BACK = {"lg": "lg", "sl": "sl", "rk": "rk", "tr": "h", "lv": "lv", "pk": "set", "cl": "pos", "pn": "h", "ke": "h"}
 
 
 class Confirm:
-    """Миксин: нужны self.st, self.env, self.mono, self.pending, _stop_risk_lines, _plan_legs, _target, _leg_index, _add_confirm_lines."""
+    """Миксин: нужны self.st, self.mono, self.pending, _stop_risk_lines, _plan_legs, _target, _leg_index, _add_confirm_lines."""
 
     def _arm(self, key: str, bound: float | tuple | None = None) -> None:
         """Взвести подтверждение на CONFIRM_TTL. bound — абсолютное значение, посчитанное сейчас (для шагов «±1%»): применится
@@ -45,7 +45,7 @@ class Confirm:
 
     def stale_toast(self, key: str) -> str:
         """Текст при непогашаемом подтверждении: только что выполнено (двойной тап) или действительно устарело."""
-        return ENV_MSG_DONE if self.done.get(key, 0.0) > self.mono() else ENV_MSG_STALE
+        return DONE_CONFIRM_MSG if self.done.get(key, 0.0) > self.mono() else STALE_CONFIRM_MSG
 
     # ---------- подтверждения ----------
     def _confirm_lines(self, p: tuple[str, ...]) -> list[str]:
@@ -139,10 +139,10 @@ class Confirm:
         if a == "lv" and len(p) == 3:
             return True
         if a == "lg":
-            return self.env == "mainnet" and self._is_leg_change(p)
+            return self._is_leg_change(p)
         if a == "ad":
             return self._ad_needs_confirm(p)
-        return self.env == "mainnet" and a in GUARDED and len(p) >= 3
+        return a in GUARDED and len(p) >= 3
 
     @staticmethod
     def _in_range(key: str, label: str, v: float) -> float:

@@ -119,16 +119,6 @@ class Runner:
             if late >= pd.Timedelta(minutes=2) and why != MANUAL_RECALC:
                 log.info("действую с опозданием на %d мин (после перезапуска/паузы)", int(late.total_seconds() // 60))
             reason = M.stored_reason(why, changes)
-            if self.ex.paper:
-                try:
-                    plan = await self.ex.paper_plan(target)
-                    log.info("бар %s цель %+.3f без ордеров: %s %s", fd.bar, target, plan["side"], plan["qty"])
-                except Exception as e:
-                    log.warning("paper_plan: %s", e)
-                if changes:
-                    M.emit(self.notify, "signal", {"kind": "signal", "changes": changes, "target": target,
-                                                   "note": M.NO_ORDER_NOTES["торговля выключена"]})
-                return
             sent0 = getattr(self.ex, "sent", 0)
             res = await self.ex.reconcile(target, fd.bar.to_pydatetime(), reason)
             log.info("бар %s цель %+.3f -> %s", fd.bar, target, res)
@@ -276,7 +266,7 @@ class Runner:
         else:
             self._alert("equity_bad", "баланс счёта не прочитан/равен нулю: проверка kill-switch пропущена")
         # kill-switch сразу после чтения эквити, независимо от успеха чтения позиции
-        if eq_ok and not self.ex.paper and not st.get("killed", False) and (s["enabled"] or st.get("position")):
+        if eq_ok and not st.get("killed", False) and (s["enabled"] or st.get("position")):
             reason = risk.check_kill(eq, peak, st.get("day_start_equity"), s["kill_dd"], s["kill_daily"])
             if reason:
                 await self.ex.kill(reason)
@@ -286,10 +276,10 @@ class Runner:
         # на бирже, и её закрытие биржей надо заметить и объявить.
         await self.ex.check_stopout()
         killed = st.get("killed", False)
-        if not self.ex.paper and pos is not None and pos.stop is None and not killed and not self.ex.lock.locked():
+        if pos is not None and pos.stop is None and not killed and not self.ex.lock.locked():
             async with self.ex.lock:
                 await self.ex.rearm_quietly()  # позиция без биржевого стопа
-        if not self.ex.paper and killed and pos is not None:
+        if killed and pos is not None:
             await self._retry_kill_close()
 
     async def _retry_kill_close(self) -> None:

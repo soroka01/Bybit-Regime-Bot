@@ -1,4 +1,4 @@
-"""Аудит ops: валидация конфигурации (PAPER=0 требует ключи, формат токена), завершение задач amain, порядок lock/лог,
+"""Аудит ops: валидация конфигурации (ключи обязательны, PAPER/testnet - ошибка, формат токена), завершение задач amain, порядок lock/лог,
 run.bat (ASCII + CRLF, бэкофф, run.log)."""
 import asyncio
 from pathlib import Path
@@ -22,23 +22,45 @@ def test_token_format_validated(bad):
 
 
 def test_token_ok():
-    assert load_env(BASE).owner_id == 42
+    assert load_env({**BASE, **KEYS}).owner_id == 42
 
 
-def test_live_mode_requires_keys_without_leaking():
-    live = {**BASE, "PAPER": "0"}
+KEYS = {"BYBIT_API_KEY": "AKEY123", "BYBIT_API_SECRET": "ASECRET456"}
+
+
+def test_keys_are_always_required_without_leaking():
     for extra in ({}, {"BYBIT_API_KEY": "AKEY123"}, {"BYBIT_API_SECRET": "ASECRET456"}, {"BYBIT_API_KEY": " ", "BYBIT_API_SECRET": "ASECRET456"}):
         with pytest.raises(ConfigError, match="BYBIT_API_KEY") as ei:
-            load_env({**live, **extra})
+            load_env({**BASE, **extra})
         assert "AKEY123" not in str(ei.value) and "ASECRET456" not in str(ei.value) and TOKEN not in str(ei.value)
-    env = load_env({**live, "BYBIT_API_KEY": "AKEY123", "BYBIT_API_SECRET": "ASECRET456"})
-    assert env.paper is False and env.has_keys
+    env = load_env({**BASE, **KEYS})
+    assert env.api_key == "AKEY123" and env.api_secret == "ASECRET456" and env.owner_id == 42
     assert "ASECRET456" not in repr(env) and "AKEY123" not in repr(env) and TOKEN not in repr(env)
 
 
-def test_paper_mode_does_not_need_keys():
-    assert load_env(BASE).paper is True and load_env({**BASE, "PAPER": "1"}).paper is True
-    assert load_env({**BASE, "BYBIT_ENV": "testnet", "PAPER": "1"}).has_keys is False
+@pytest.mark.parametrize("val", ["1", "true", "TRUE", "Yes", "on", " On "])
+def test_paper_enabled_is_a_config_error_even_with_keys(val):
+    """Режима PAPER больше нет: старый .env с PAPER=1 не должен тихо запускать бота иначе, чем ждёт владелец (fail-closed)."""
+    for extra in ({}, KEYS):
+        with pytest.raises(ConfigError, match="PAPER больше не поддерживается: удалите PAPER из .env"):
+            load_env({**BASE, **extra, "PAPER": val})
+
+
+@pytest.mark.parametrize("val", ["0", "false", "no", "off", ""])
+def test_paper_disabled_values_are_ignored(val):
+    assert load_env({**BASE, **KEYS, "PAPER": val}).owner_id == 42
+
+
+def test_bybit_env_testnet_is_a_config_error_and_mainnet_is_ignored():
+    with pytest.raises(ConfigError, match="BYBIT_ENV=testnet.*не поддерживается"):
+        load_env({**BASE, **KEYS, "BYBIT_ENV": "testnet"})
+    with pytest.raises(ConfigError, match="testnet"):
+        load_env({**BASE, **KEYS, "BYBIT_ENV": " TestNet "})
+    with pytest.raises(ConfigError, match="BYBIT_ENV"):
+        load_env({**BASE, **KEYS, "BYBIT_ENV": "bogus"})
+    for v in ("mainnet", "MAINNET", ""):
+        assert load_env({**BASE, **KEYS, "BYBIT_ENV": v, "I_UNDERSTAND_MAINNET": "1"}).owner_id == 42
+    assert load_env({**BASE, **KEYS, "I_UNDERSTAND_MAINNET": "0"}).owner_id == 42          # маркер молча игнорируется
 
 
 def test_env_example_documents_scopes_without_values():

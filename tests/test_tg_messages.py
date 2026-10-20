@@ -15,7 +15,7 @@ from tradebot.telegram.handlers import Controller
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram.notify import Notifier
 from tradebot.trading import pnl
-from tradebot.trading.exchange import BybitClient, ReadOnlyClient
+from tradebot.trading.exchange import BybitClient
 from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
 from tradebot.trading.market_feed import FeedData
@@ -69,14 +69,14 @@ class Sink:
         return any(s in t for _, t in self.msgs)
 
 
-def mk(tmp_path, name="b.db", equity=163.44, mark=81550.1, lev=2, stop_pct=0.2, notify=None, paper=False):
-    st = Store(tmp_path / name, paper=paper)
-    st.set_setting("enabled", not paper)
+def mk(tmp_path, name="b.db", equity=163.44, mark=81550.1, lev=2, stop_pct=0.2, notify=None):
+    st = Store(tmp_path / name)
+    st.set_setting("enabled", True)
     st.set_setting("leverage", lev)
     st.set_setting("stop_pct", stop_pct)
     ex = DryRunExchange(equity=equity, mark=mark)
     rec = notify if notify is not None else Rec()
-    exe = Executor(ex, st, rec, "mainnet", paper=paper)
+    exe = Executor(ex, st, rec)
     exe.poll_delay = 0
     exe.pnl_delays = (0.0, 0.0, 0.0)
     run(exe.setup())
@@ -503,19 +503,14 @@ def test_runner_daily_data_counts_closed_trips_of_last_24h(tmp_path):
 
 
 # ---------- запуск / остановка ----------
-def test_startup_msg_variants_and_misconfig_warning():
-    d = {"kind": "startup", "env": "mainnet", "paper": False, "enabled": True, "killed": False, "no_keys": False, "equity": 163.44,
+def test_startup_msg_variants():
+    d = {"kind": "startup", "enabled": True, "killed": False, "equity": 163.44,
          "pos": {"side": "long", "qty": 0.003, "upnl": 1.06}, "pos_known": True}
     assert tx.strip_html(M.startup_msg(d)) == "Бот запущен ✅ · счёт 163.44 $ · торговля включена · позиция ЛОНГ 0.003 BTC (+1.06 $)"
     assert tx.strip_html(M.startup_msg({**d, "enabled": False, "pos": None})) == "Бот запущен ✅ · счёт 163.44 $ · торговля выключена · позиции нет"
-    assert "kill-switch" in M.startup_msg({**d, "killed": True}) and "ключи не заданы" in M.startup_msg({**d, "no_keys": True, "equity": None})
+    assert "kill-switch" in M.startup_msg({**d, "killed": True})
     assert "позицию проверить не удалось" in M.startup_msg({**d, "pos_known": False})
-    # неверная настройка запуска -> ОДНА заметная строка
-    bad = tx.strip_html(M.startup_msg({**d, "paper": True, "env": "testnet"})).splitlines()
-    assert len(bad) == 2 and bad[1] == "⚠️ Режим без ордеров / тестовая сеть"
-    assert tx.strip_html(M.startup_msg({**d, "env": "testnet"})).splitlines()[1] == "⚠️ Тестовая сеть"
-    assert tx.strip_html(M.startup_msg({**d, "paper": True})).splitlines()[1] == "⚠️ Режим без ордеров"
-    assert M.config_warning("mainnet", False) is None
+    assert len(M.startup_msg(d).splitlines()) == 1                           # одна строка: никаких предупреждений о среде/режиме
 
 
 def test_shutdown_msg_variants():
@@ -532,10 +527,9 @@ def test_app_startup_data(tmp_path):
     from tradebot.app import startup_data, shutdown_data
     st, ex, exe, rec = mk(tmp_path)
     run(exe.reconcile(1.0, BAR))
-    env = NS(bybit_env="mainnet", paper=False, has_keys=True)
-    d = run(startup_data(env, st, ex))
+    d = run(startup_data(st, ex))
     assert d["equity"] == pytest.approx(163.44 - 0.24, abs=0.01) or d["equity"] > 0
-    assert d["pos"]["side"] == "long" and d["enabled"] and d["env"] == "mainnet"
+    assert d["pos"]["side"] == "long" and d["enabled"]
     assert tx.strip_html(M.startup_msg(d)).startswith("Бот запущен ✅ · счёт ") and "позиция ЛОНГ 0.003 BTC" in M.startup_msg(d)
     sd = run(shutdown_data(ex))
     assert "под биржевым стопом" in M.shutdown_msg(sd)
@@ -630,9 +624,6 @@ def test_noise_messages_are_gone(tmp_path, monkeypatch):
     for bad in ("опозданием", "принят как удерживаемый", "PAPER", "защёлка снята"):
         assert not rec.has(bad), bad
     assert rec.items == []
-    # режим без ордеров: ни «PAPER: на бирже плечо …», ни другого
-    st2, ex2, exe2, rec2 = mk(tmp_path, "pp.db", paper=True)
-    assert rec2.items == [] and exe2.trade_ok is False
 
 
 # ---------- нет «среды», красный/зелёный только не для стороны ----------
@@ -653,7 +644,7 @@ def _all_texts(tmp_path):
             M.panic_msg({"closed": False}),
             M.signal_msg({"changes": [{"label": "SMA cross@4h", "prev": 1.0, "new": -1.0}], "target": -0.5, "note": "x"}),
             M.daily_msg({"equity": 165.0, "base": 163.0, "trips_n": 1, "trips_pnl": 1.0, "trips_fees": 0.4, "pos": {"side": "short", "qty": 0.01, "upnl": -1.0}, "dd": 0.01}),
-            M.startup_msg({"enabled": True, "pos": None, "equity": 163.0, "env": "mainnet", "paper": False}),
+            M.startup_msg({"enabled": True, "pos": None, "equity": 163.0}),
             M.shutdown_msg({"pos": {"side": "long", "qty": 0.003}, "stop": 65000.0}),
             *M.position_lines({"side": "short", "qty": 0.003, "entry": 81550.1, "mark": 81000.0, "upnl": 1.6}, 2, 163.44, 97860.0)]
     out += [M.w_setup_failed("x"), M.w_setup_mismatch({"leverage": 1, "isolated": True, "one_way": True}, 2), M.w_key_check_failed(ValueError()),
@@ -673,10 +664,10 @@ def test_no_environment_words_and_no_red_green_in_builders(tmp_path):
         assert "🔴" not in t and "🟢" not in t
 
 
-def test_no_environment_words_on_any_screen_when_configured_properly(tmp_path):
+def test_no_environment_words_on_any_screen(tmp_path):
     st = Store(tmp_path / "s.db")
-    exe = Executor(DryRunExchange(equity=163.44), st, lambda *a: None, "mainnet")
-    c = Controller(st, exe, NS(trigger=lambda: None), "mainnet")
+    exe = Executor(DryRunExchange(equity=163.44), st, lambda *a: None)
+    c = Controller(st, exe, NS(trigger=lambda: None))
     st.set("equity", 163.44)
     st.set("position", {"side": "short", "qty": 0.003, "entry": 81550.1, "upnl": 1.0, "mark": 81200.0})
     st.set("target_exposure", -0.5)
@@ -697,24 +688,10 @@ def test_no_environment_words_on_any_screen_when_configured_properly(tmp_path):
     assert all(not ENV_WORDS.search(b.text) for d in ("h", "pos", "set") for row in asyncio.run(c.handle(kb.parse_cb(d))).markup.inline_keyboard for b in row)
 
 
-def test_home_shows_one_warning_line_only_when_misconfigured(tmp_path):
-    for env, paper, want in (("mainnet", False, None), ("testnet", False, "Тестовая сеть"), ("mainnet", True, "Режим без ордеров"),
-                             ("testnet", True, "Режим без ордеров / тестовая сеть")):
-        st = Store(tmp_path / f"{env}{paper}.db", paper=paper)
-        exe = Executor(DryRunExchange(), st, lambda *a: None, env, paper=paper)
-        c = Controller(st, exe, NS(trigger=lambda: None), env)
-        t = asyncio.run(c.handle(("h",))).text
-        assert not ENV_WORDS.search(t)
-        if want is None:
-            assert "⚠️ Тест" not in t and "⚠️ Режим" not in t
-        else:
-            assert tx.strip_html(t).count(f"⚠️ {want}") == 1 and not ENV_WORDS.search(t)
-
-
 # ---------- экраны «Сделки» и «События» ----------
 def test_trades_screen_shows_round_trips_with_dollars_and_total(tmp_path):
     st, ex, exe, rec = mk(tmp_path)
-    c = Controller(st, exe, NS(trigger=lambda: None), "mainnet")
+    c = Controller(st, exe, NS(trigger=lambda: None))
     run(exe.reconcile(1.0, BAR, "бар, Regime switch (CHOP) · 6h: вне рынка → лонг"))
     ex.mark = 82300.0
     run(exe.reconcile(0.0, BAR, "бар, Regime switch (CHOP) · 6h: лонг → вне рынка"))
@@ -730,7 +707,7 @@ def test_trades_screen_shows_round_trips_with_dollars_and_total(tmp_path):
 
 def test_trades_screen_estimates_history_and_marks_unknown_stop(tmp_path):
     st, ex, exe, rec = mk(tmp_path)
-    c = Controller(st, exe, NS(trigger=lambda: None), "mainnet")
+    c = Controller(st, exe, NS(trigger=lambda: None))
     # история до этой версии: вход/выход только в таблице исполнений
     st.add_trade("buy", 0.01, 100000.0, "бар", "h1")
     st.add_trade("sell", 0.01, 101000.0, "бар", "h2")
@@ -747,7 +724,7 @@ def test_trades_screen_estimates_history_and_marks_unknown_stop(tmp_path):
 
 def test_events_screen_hides_noise(tmp_path):
     st, ex, exe, rec = mk(tmp_path)
-    c = Controller(st, exe, NS(trigger=lambda: None), "mainnet")
+    c = Controller(st, exe, NS(trigger=lambda: None))
     for t in ("Действую с опозданием на 25 мин (после перезапуска/паузы).", "Размер текущей позиции 0.003 BTC принят как удерживаемый",
               "PAPER: на бирже плечо 1x", "Сверка: защёлка", "Открыт ЛОНГ · важное"):
         st.add_event("info", t)
@@ -820,17 +797,6 @@ def test_bybit_closed_pnl_by_order_id_and_by_time():
     assert seen[0][2] == {"category": "linear", "symbol": "BTCUSDT", "limit": "10"}
 
 
-def test_readonly_client_forwards_closed_pnl_get_only():
-    seen = []
-
-    def handler(req):
-        seen.append(req.method)
-        return httpx.Response(200, json={"retCode": 0, "result": {"list": [{"orderId": "A", "updatedTime": "5", "closedPnl": "1"}]}})
-    ro = ReadOnlyClient("https://x", "K", "S", transport=httpx.MockTransport(handler))
-    ro._c._synced = 1e18
-    assert run(ro.closed_pnl("A"))["closed_pnl"] == 1.0 and seen == ["GET"]
-
-
 def test_dryrun_closed_pnl_simulates_net_pnl_minus_fees():
     ex = DryRunExchange(equity=5000, mark=100_000, fee_rate=0.002)
 
@@ -895,7 +861,7 @@ def test_bookkeeping_failure_never_blocks_trading(tmp_path, monkeypatch):
 
 def test_notifier_builds_structured_events_and_logs_plain_text(tmp_path):
     st = Store(tmp_path / "n.db")
-    n = Notifier(st, 1, "mainnet", False)
+    n = Notifier(st, 1)
     d = {"kind": "close", "side": "long", "qty": 0.003, "entry": 81550.1, "exit": 82300.0, "pnl": 2.31, "fees": 0.49, "funding": 0.0,
          "exact": True, "pct": 0.014, "pct_est": False, "roe": 0.028, "held_s": 600, "reason": HOSTILE, "equity": 165.0, "reds": 0}
     M.emit(n, "trade", d)
@@ -940,7 +906,7 @@ def test_monitor_order_stopout_keeps_position_snapshot(tmp_path, target, side):
     (row,) = st.roundtrip_rows()
     assert row["side"] == side and row["qty"] == pytest.approx(0.003) and row["entry"] == pytest.approx(81550.1)
     assert st.get("pos_last") is None                   # закрытие объявлено и записано -> снимок очищен
-    c = Controller(st, exe, NS(trigger=lambda: None), "mainnet")
+    c = Controller(st, exe, NS(trigger=lambda: None))
     scr = tx.strip_html(asyncio.run(c.handle(("tx", "0"))).text)
     assert f"{M.arrow(side)} {M.word(side)} 0.003 BTC" in scr and "NONE" not in scr.upper() and "▫️" not in scr
     assert "сумма уточняется" not in scr
@@ -968,7 +934,7 @@ def test_stopout_without_any_snapshot_infers_side_from_record(tmp_path):
 
 def test_trades_screen_never_prints_none_for_unknown_side(tmp_path):
     st, ex, exe, rec = mk(tmp_path)
-    c = Controller(st, exe, NS(trigger=lambda: None), "mainnet")
+    c = Controller(st, exe, NS(trigger=lambda: None))
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     st.add_roundtrip(ts_open=now, ts_close=now, side=None, qty=None, entry=None, exit=None, pnl=None, fees=None, funding=None,
                      equity_open=None, eq_est=1, approx=1, kind="stop", reason="закрыто биржей", order_id=None)
@@ -1040,8 +1006,8 @@ def test_followup_has_no_break_marker_and_reentry_is_safe(tmp_path):
     st.set_setting("leverage", 2)
     st.set_setting("stop_pct", 0.2)
     ex = DryRunExchange(equity=163.44, mark=81550.1)
-    n = Notifier(st, 1, "mainnet", False)
-    exe = Executor(ex, st, n, "mainnet")
+    n = Notifier(st, 1)
+    exe = Executor(ex, st, n)
     exe.poll_delay = 0
     exe.pnl_delays = (0.0, 0.0, 0.0)
     run(exe.setup())

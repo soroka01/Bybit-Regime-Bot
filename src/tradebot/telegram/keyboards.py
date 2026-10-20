@@ -20,7 +20,7 @@
   |     |-- lg:<i>                  экран одной стратегии (i = индекс в Store.leg_cfg(), 0-9)
   |     |     |-- lg:<i>:t / lg:<i>:t:y            включить/выключить (2 шага)
   |     |     |-- lg:<i>:w:<0..100> / ...:y        вес в процентах (абсолютное значение; ±10% тоже абсолютные)
-  |     |     `-- lg:<i>:rm / lg:<i>:rm:y          удалить стратегию (подтверждение на ЛЮБОЙ среде)
+  |     |     `-- lg:<i>:rm / lg:<i>:rm:y          удалить стратегию (всегда с подтверждением)
   |     `-- lg:eq / lg:eq:y         «Поровну»: выровнять веса работающих стратегий (2 шага)
   |-- set                           Настройки (бот торгует ВСЕМ балансом счёта: настройки «капитала» нет)
   |     |-- lv                      Плечо
@@ -106,17 +106,15 @@ def _chunks(items: list[B], k: int) -> list[list[B]]:
 
 
 # ---------- главный экран ----------
-def home_menu(enabled: bool, killed: bool, paper: bool, latch: bool) -> InlineKeyboardMarkup:
-    if paper:
-        first = None                  # без права на ордера включать нечего: переключателя нет (причина — строка-предупреждение)
-    elif killed:
+def home_menu(enabled: bool, killed: bool, latch: bool) -> InlineKeyboardMarkup:
+    if killed:
         first = b("🔓 Снять блокировку", "ke")
     elif enabled:
         first = b("⏸ Выключить торговлю", "tr:off")
     else:
         first = b("▶️ Включить торговлю", "tr:on")
-    rows = [[first] if first else []]
-    if latch and not paper:
+    rows = [[first]]
+    if latch:
         rows.append([b("🔒 Защёлка: что это?", "lt")])
     rows += [
         [b("📊 Позиция", "pos"), b("🧭 Сигналы", "sg")],

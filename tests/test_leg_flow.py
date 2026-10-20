@@ -221,12 +221,12 @@ def test_check_flags_data_that_would_wedge_the_live_feed():
 
 
 # ---------- Telegram ----------
-def _ctl(tmp_path, env="testnet", monkeypatch=None, check=OK_CHECK):
+def _ctl(tmp_path, monkeypatch=None, check=OK_CHECK):
     st = Store(tmp_path / "c.db")
-    exe = Executor(DryRunExchange(equity=1000), st, lambda *a: None, env)
+    exe = Executor(DryRunExchange(equity=1000), st, lambda *a: None)
     trig = []
     clk = NS(t=1000.0)
-    c = Controller(st, exe, NS(trigger=lambda: trig.append(1)), env, mono=lambda: clk.t)
+    c = Controller(st, exe, NS(trigger=lambda: trig.append(1)), mono=lambda: clk.t)
     c.trig = trig
     if monkeypatch:
         monkeypatch.setattr("tradebot.telegram.legflow.check_leg", lambda leg: check)
@@ -239,6 +239,12 @@ def h(c, data):
 
 def cbs(screen):
     return [b.callback_data for row in screen.markup.inline_keyboard for b in row]
+
+
+def hc(c, data):
+    """Нажатие и, если бот просит подтверждение (появилась кнопка data:y), само подтверждение; возвращает итоговый экран."""
+    s = h(c, data)
+    return h(c, data + ":y") if f"{data}:y" in cbs(s) else s
 
 
 def texts(screen):
@@ -290,11 +296,11 @@ def test_draft_card_content_and_weight_buttons(tmp_path, monkeypatch):
     assert all(kb.parse_cb(x) for x in cbs(s)) and "ad" in cbs(s) and "h" in cbs(s)       # «Назад» — к списку предложений
 
 
-def test_add_on_testnet_is_immediate_and_closes_proposal(tmp_path, monkeypatch):
+def test_confirmed_add_closes_proposal_and_opens_leg_screen(tmp_path, monkeypatch):
     c, st = _ctl(tmp_path, monkeypatch=monkeypatch)
     free_up(st, 0.5)
     pid = propose(c)
-    s = h(c, f"ad:{pid}:w:25")
+    s = hc(c, f"ad:{pid}:w:25")
     assert s.toast.startswith("Стратегия добавлена") and c.trig
     assert weights(st)["EMA cross@1h"] == 0.25 and st.proposal(pid)["status"] == "added"
     (leg,) = [l for l, _, _ in st.leg_cfg() if l.key == "EMA cross@1h"]
@@ -304,8 +310,8 @@ def test_add_on_testnet_is_immediate_and_closes_proposal(tmp_path, monkeypatch):
     assert any("Добавлена стратегия EMA cross · 1h" in e["text"] for e in st.events())
 
 
-def test_add_on_mainnet_needs_confirmation_with_before_after(tmp_path, monkeypatch):
-    c, st = _ctl(tmp_path, "mainnet", monkeypatch)
+def test_add_needs_confirmation_with_before_after(tmp_path, monkeypatch):
+    c, st = _ctl(tmp_path, monkeypatch)
     free_up(st, 0.5)
     st.log_signals("2026-01-01T00:00:00+00:00", {"Regime switch (CHOP)@6h": 1.0, "SMA cross@4h": 0.0, "OI flush@1h": 0.0}, 0.5)
     pid = propose(c)
@@ -323,7 +329,7 @@ def test_add_on_mainnet_needs_confirmation_with_before_after(tmp_path, monkeypat
 
 
 def test_confirmation_expires_and_cancel_returns_to_card(tmp_path, monkeypatch):
-    c, st = _ctl(tmp_path, "mainnet", monkeypatch)
+    c, st = _ctl(tmp_path, monkeypatch)
     free_up(st, 0.5)
     pid = propose(c)
     h(c, f"ad:{pid}:w:25")
@@ -337,7 +343,7 @@ def test_equal_split_rebalances_active_legs(tmp_path, monkeypatch):
     pid = propose(c)
     s = h(c, f"ad:{pid}")
     assert "Места нет" in s.text and f"ad:{pid}:w:10" not in cbs(s) and f"ad:{pid}:eq" in cbs(s)
-    r = h(c, f"ad:{pid}:eq")
+    r = hc(c, f"ad:{pid}:eq")
     assert weights(st) == {"SMA cross@4h": 0.33, "OI flush@1h": 0.0, "Regime switch (CHOP)@6h": 0.33, "EMA cross@1h": 0.33}
     assert sum(weights(st).values()) <= 1.0 and r.toast.startswith("Стратегия добавлена")
 
@@ -345,7 +351,7 @@ def test_equal_split_rebalances_active_legs(tmp_path, monkeypatch):
 def test_overweight_is_rejected_server_side(tmp_path, monkeypatch):
     c, st = _ctl(tmp_path, monkeypatch=monkeypatch)
     pid = propose(c)
-    s = h(c, f"ad:{pid}:w:50")                                                              # руками подсунули вес, которому нет места
+    s = hc(c, f"ad:{pid}:w:50")                                                             # руками подсунули вес, которому нет места
     assert s.toast.startswith("Отклонено") and "сумма весов" in s.toast and "EMA cross@1h" not in weights(st)
     assert st.proposal(pid)["status"] == "new"                                              # не потеряно: можно выбрать другой вес
 
@@ -385,7 +391,7 @@ def test_replacing_same_key_says_so_and_keeps_weight(tmp_path, monkeypatch):
     s = h(c, f"ad:{pid}")
     assert "Заменит параметры" in s.text and "Такая стратегия уже есть (вес 50%)" in s.text
     assert "✅ 50%" in texts(s) and f"ad:{pid}:w:0" not in cbs(s)                         # текущий вес отмечен; «без веса» для замены нет
-    h(c, f"ad:{pid}:w:50")
+    hc(c, f"ad:{pid}:w:50")
     (leg,) = [l for l, _, _ in st.leg_cfg() if l.key == "SMA cross@4h"]
     assert leg.params == {"fast": 20, "slow": 120} and len(st.leg_cfg()) == 3 and weights(st)["SMA cross@4h"] == 0.5
 
@@ -412,7 +418,7 @@ def test_remove_on_clean_db_keeps_default_weights(st):
     assert [l.key for l in st.effective_legs()] == ["SMA cross@4h", "Regime switch (CHOP)@6h"]
 
 
-def test_remove_always_asks_confirmation_even_on_testnet(tmp_path):
+def test_remove_asks_confirmation(tmp_path):
     c, st = _ctl(tmp_path)
     s = h(c, "lg:1:rm")
     assert "OI flush@1h" in keys(st) and "Удалить стратегию?" in s.text and cbs(s) == ["lg:1:rm:y", "lg:1"]
@@ -423,7 +429,7 @@ def test_remove_always_asks_confirmation_even_on_testnet(tmp_path):
 
 
 def test_remove_last_active_leg_warns_and_sets_flat_target(tmp_path):
-    c, st = _ctl(tmp_path, "mainnet")
+    c, st = _ctl(tmp_path)
     st.set_leg("SMA cross@4h", weight=0.0)
     st.log_signals("2026-01-01T00:00:00+00:00", {"Regime switch (CHOP)@6h": 1.0, "SMA cross@4h": 0.0, "OI flush@1h": 0.0}, 0.5)
     s = h(c, "lg:2:rm")
@@ -443,7 +449,7 @@ def test_remove_confirmation_is_bound_to_the_leg_not_the_index(tmp_path):
 
 
 def test_catalog_changes_disarm_pending_confirmations(tmp_path, monkeypatch):
-    c, st = _ctl(tmp_path, "mainnet", monkeypatch)
+    c, st = _ctl(tmp_path, monkeypatch)
     free_up(st, 0.5)
     h(c, "lg:0:w:10")                                                                       # взвели изменение веса (индекс 0 = SMA)
     pid = propose(c)
@@ -483,8 +489,8 @@ class Bot:
     async def pin_chat_message(self, chat, msg, disable_notification=True): pass
 
 
-def _router(tmp_path, monkeypatch, env="testnet"):
-    c, st = _ctl(tmp_path, env, monkeypatch)
+def _router(tmp_path, monkeypatch):
+    c, st = _ctl(tmp_path, monkeypatch)
     p = Panel(st, c.handle, clock=lambda: 0.0, sleep=asyncio.sleep)
     return c, st, p, build_router(c, p)
 
@@ -557,7 +563,7 @@ def test_watcher_announces_web_proposals_once(tmp_path, monkeypatch):
     assert [b.callback_data for row in kw["reply_markup"].inline_keyboard for b in row] == [f"ad:{ids[0]}"]
     assert st.proposal(ids[0])["status"] == "announced" and st.proposal(ids[0])["payload"]["check"]["ok"] is True
     free_up(st, 0.5)
-    assert h(c, f"ad:{ids[0]}:w:25").toast.startswith("Стратегия добавлена")                    # announced -> можно добавить
+    assert hc(c, f"ad:{ids[0]}:w:25").toast.startswith("Стратегия добавлена")                   # announced -> можно добавить
 
 
 def test_watcher_survives_telegram_failure_and_retries(tmp_path, monkeypatch):
@@ -655,7 +661,7 @@ def test_stale_local_data_is_flagged_on_the_card(tmp_path, monkeypatch):
 
 
 def test_replacing_a_disabled_leg_says_it_will_be_enabled(tmp_path, monkeypatch):
-    c, st = _ctl(tmp_path, "mainnet", monkeypatch)
+    c, st = _ctl(tmp_path, monkeypatch)
     free_up(st, 0.5)
     st.set_leg("SMA cross@4h", enabled=False)
     pid = propose(c, 'Leg("SMA cross", "4h", {"fast": 20, "slow": 120})')
@@ -674,7 +680,7 @@ def test_replacing_an_idle_leg_when_there_is_no_room_still_has_a_weight_button(t
 
 
 def test_latch_is_mentioned_before_a_confirmation_that_changes_the_target(tmp_path, monkeypatch):
-    c, st = _ctl(tmp_path, "mainnet", monkeypatch)
+    c, st = _ctl(tmp_path, monkeypatch)
     st.set("latch", True)
     st.log_signals("2026-01-01T00:00:00+00:00", {"Regime switch (CHOP)@6h": 1.0, "SMA cross@4h": 1.0, "OI flush@1h": 0.0}, 1.0)
     free_up(st, 0.5)
@@ -690,7 +696,7 @@ def test_bot_revalidates_a_payload_written_by_another_process(tmp_path, monkeypa
     free_up(st, 0.5)
     pid = st.add_proposal("web", {"leg": {"strategy": "EMA cross", "tf": "1h", "params": {"fast": 5000, "slow": 26}, "long_only": False, "weight": 0.5},
                                   "result": "", "bt_leverage": None, "notes": [], "check": {"ok": True, "warmup": 480, "signal": 1.0}})
-    s = h(c, f"ad:{pid}:w:25")
+    s = hc(c, f"ad:{pid}:w:25")
     assert s.toast.startswith("Отклонено") and "вне допустимого диапазона" in s.toast and "EMA cross@1h" not in weights(st)
     assert st.proposal(pid)["status"] == "new"
 

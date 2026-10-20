@@ -38,7 +38,7 @@ def mk(tmp_path, equity=1100.0):
     st.set_setting("leverage", 2)
     ex = DryRunExchange(equity=equity, mark=100_000.0)
     sink = Sink()
-    exe = Executor(ex, st, sink, "testnet")
+    exe = Executor(ex, st, sink)
     exe.poll_delay = 0
     exe.retry_wait = 0
     run(exe.setup())

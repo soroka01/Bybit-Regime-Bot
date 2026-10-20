@@ -23,7 +23,6 @@ PERSISTENT_LEVELS = ("error", "trade")     # такие сообщения не�
 RETRY_WINDOW_S = 300.0                     # сколько всего пытаемся доставить одно сообщение
 MAX_SLEEP_S = 60.0                         # потолок одной паузы (в том числе по retry_after от Telegram)
 MAX_LEN = 500
-_TAG = re.compile(r"^\[[A-Za-z]+\]\s*")
 
 
 def _norm(text: str) -> str:
@@ -35,10 +34,8 @@ class Notifier:
     """Вызывается синхронно как notify(level, text[, data]): пишет событие в БД и кладёт сообщение в очередь.
     data — структурное событие (словарь с ключом kind); без него текст выводится как есть."""
 
-    def __init__(self, store: Store, owner_id: int, env_name: str = "mainnet", paper: bool = False,
-                 maxsize: int = 200, clock=time.monotonic, sleep=asyncio.sleep):
+    def __init__(self, store: Store, owner_id: int, maxsize: int = 200, clock=time.monotonic, sleep=asyncio.sleep):
         self.store, self.owner_id, self.clock, self.sleep = store, owner_id, clock, sleep
-        self.env_name, self.paper = env_name, paper      # режим в сообщениях не показывается; предупреждение строит messages
         self.queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue(maxsize)
         self.bot = None
         self._ready = asyncio.Event()
@@ -52,7 +49,7 @@ class Notifier:
                 return M.build(data)
             except Exception as e:  # битые данные не должны терять уведомление: показываем plain-текст
                 log.warning("notify: не удалось собрать %s: %s", data.get("kind"), type(e).__name__)
-        text = tx.trunc(_TAG.sub("", text).strip(), MAX_LEN)
+        text = tx.trunc(text.strip(), MAX_LEN)
         lines = [tx.esc(ln) for ln in text.split("\n")]
         lines[0] = f"{ICONS.get(level, '')} {lines[0]}".strip()
         return "\n".join(lines)

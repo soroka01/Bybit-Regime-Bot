@@ -10,9 +10,8 @@ import time
 from datetime import datetime, timezone
 
 from tradebot.telegram import keyboards as kb
-from tradebot.telegram import messages as M
 from tradebot.telegram import texts as tx
-from tradebot.telegram.common import ENV_MSG_STALE, ONBOARDING, TOAST_MAX  # noqa: F401  (реэкспорт)
+from tradebot.telegram.common import STALE_CONFIRM_MSG, ONBOARDING, TOAST_MAX  # noqa: F401  (реэкспорт)
 from tradebot.telegram.confirm import BACK, CONFIRM_TTL, GUARDED, Confirm  # noqa: F401  (реэкспорт)
 from tradebot.telegram.leg_changes import LegChange, LegChanges  # noqa: F401  (реэкспорт)
 from tradebot.telegram.legflow import LegFlow, is_active  # noqa: F401  (реэкспорт)
@@ -26,19 +25,18 @@ from tradebot.trading import risk
 from tradebot.trading.config import MAX_LEVERAGE
 from tradebot.trading.executor import Executor
 from tradebot.trading.runner import Runner
-from tradebot.trading.state import NO_ORDERS_MSG, Store
+from tradebot.trading.state import Store
 
-__all__ = ["Controller", "build_router", "ONBOARDING", "LegChange", "CONFIRM_TTL", "TOAST_MAX", "ENV_MSG_STALE", "BACK", "GUARDED", "Panel", "Screen", "is_active"]
+__all__ = ["Controller", "build_router", "ONBOARDING", "LegChange", "CONFIRM_TTL", "TOAST_MAX", "STALE_CONFIRM_MSG", "BACK", "GUARDED", "Panel", "Screen", "is_active"]
 log = logging.getLogger("tg")
-NO_ORDERS_ACTIONS = ("cl", "pn")        # ручное закрытие/паника без права на ордера: отказ до подтверждения
 
 
 class Controller(ScreensMain, ScreensSettings, ScreensLegs, LegChanges, Confirm, LegFlow):
     confirm_ttl = CONFIRM_TTL
 
-    def __init__(self, store: Store, executor: Executor, runner: Runner, env_name: str, tz_name: str = "Europe/Moscow",
+    def __init__(self, store: Store, executor: Executor, runner: Runner, tz_name: str = "Europe/Moscow",
                  clock=None, mono=None):
-        self.st, self.ex, self.runner, self.env = store, executor, runner, env_name
+        self.st, self.ex, self.runner = store, executor, runner
         self.tz = tx.tzinfo(tz_name)
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.mono = mono or time.monotonic
@@ -49,14 +47,6 @@ class Controller(ScreensMain, ScreensSettings, ScreensLegs, LegChanges, Confirm,
         self._init_legflow()
 
     # ---------- общее ----------
-    @property
-    def paper(self) -> bool:
-        return self.st.paper
-
-    def config_warning(self) -> str | None:
-        """Единственное упоминание режима запуска: только если он НЕ боевой (без права на ордера / не основная биржа)."""
-        return M.config_warning(self.env, self.paper)
-
     def head(self, *path: str, extra: str = "") -> str:
         """Заголовок: жирная «хлебная крошка», под ней тонкая линия."""
         crumb = " › ".join(("Главная",) + path)
@@ -110,8 +100,6 @@ class Controller(ScreensMain, ScreensSettings, ScreensLegs, LegChanges, Confirm,
 
     async def _handle(self, p: tuple[str, ...]) -> Screen:
         st, a = self.st, p[0]
-        if self.paper and (p[:2] == ("tr", "on") or a == "ke" or a in NO_ORDERS_ACTIONS):
-            raise ValueError(NO_ORDERS_MSG)
         if self._is_rm(p):
             return await self._handle_rm(p)
         if a == "ad" and len(p) >= 3 and p[2] in ("w", "eq") and p[-1] != "y":
@@ -146,11 +134,6 @@ class Controller(ScreensMain, ScreensSettings, ScreensLegs, LegChanges, Confirm,
         if p[0] == "rk" and len(p) >= 3:
             return self._risk_new(p, self.st.settings())[1]
         return None
-
-    @staticmethod
-    def _no_orders(r: str) -> str | None:
-        """Ответ Executor вида «PAPER: …» (его текст не трогаем) -> общая формулировка режима без ордеров."""
-        return f"Не выполнено: {M.NO_ORDERS}" if r.startswith("PAPER") else None
 
     async def _dispatch(self, p: tuple[str, ...], bound: float | tuple | None = None) -> Screen:
         st, a = self.st, p[0]
@@ -227,10 +210,10 @@ class Controller(ScreensMain, ScreensSettings, ScreensLegs, LegChanges, Confirm,
             return self.settings_screen("Пик сброшен")
         if a == "cl":
             r = await self.ex.close_all("закрытие из Telegram")
-            return self.home(self._no_orders(r) or r)
+            return self.home(r)
         if a == "pn":
             r = await self.ex.panic()
-            return self.home(self._no_orders(r) or f"Паника: {r}")
+            return self.home(f"Паника: {r}")
         if a == "ke":
             return await self._reenable()
         raise ValueError("неизвестное действие")

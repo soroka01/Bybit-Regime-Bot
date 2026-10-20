@@ -38,7 +38,7 @@ def mk(tmp_path, equity=1100.0, lev=2, mark=100_000.0):
     st.set_setting("leverage", lev)
     ex = DryRunExchange(equity=equity, mark=mark)
     sink = Sink()
-    exe = Executor(ex, st, sink, "testnet")
+    exe = Executor(ex, st, sink)
     exe.poll_delay = 0
     exe.retry_wait = 0
     run(exe.setup())
@@ -220,14 +220,6 @@ def test_set_leverage_waits_for_inflight_reconcile(tmp_path):
     assert st.get("acted_exposure") is None and st.get("acted_qty") is None and st.settings()["leverage"] == 3.0
 
 
-def test_set_leverage_paper_saves_without_exchange(tmp_path):
-    st = Store(tmp_path / "p.db", paper=True)
-    ex = DryRunExchange()
-    exe = Executor(ex, st, Sink(), "testnet", paper=True)
-    assert run(exe.set_leverage(3)) is False and st.settings()["leverage"] == 3.0
-    assert ex.account["leverage"] == 1.0                                 # биржу не трогали
-
-
 # ---------- T3a: закрытие ботом гасит stop_armed ----------
 def test_bot_close_clears_stop_armed_and_pos_last(tmp_path):
     st, ex, exe, _ = mk(tmp_path)
@@ -237,7 +229,7 @@ def test_bot_close_clears_stop_armed_and_pos_last(tmp_path):
     run(exe._send("sell", 0.010, True, BAR, "сигнал", 0.010))
     assert ex.qty == 0 and st.get("stop_armed") is False and st.get("pos_last") is None
     # рестарт: новый исполнитель на той же БД не объявляет ложный «стоп-аут»
-    exe2 = Executor(ex, st, Sink(), "testnet")
+    exe2 = Executor(ex, st, Sink())
     assert exe2.detect_stopout(None, 0.5) is False and exe2._stopouts == []
 
 

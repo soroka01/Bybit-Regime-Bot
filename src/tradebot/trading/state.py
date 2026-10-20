@@ -55,9 +55,6 @@ RT_COLS = ("ts_open", "ts_close", "side", "qty", "entry", "exit", "pnl", "fees",
            "kind", "reason", "order_id")
 
 
-NO_ORDERS_MSG = "Торговля заблокирована: бот запущен без права отправлять ордера (проверьте настройки запуска)"
-
-
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -141,8 +138,7 @@ def validate_setting(key: str, value):
 
 
 class Store:
-    def __init__(self, path: Path | str = DB_PATH, paper: bool = False):
-        self.paper = paper  # PAPER: enabled принудительно False и не включается
+    def __init__(self, path: Path | str = DB_PATH):
         self.path = str(path)
         self._lock = threading.RLock()
         self._db = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None, timeout=10)
@@ -215,13 +211,9 @@ class Store:
     def settings(self) -> dict:
         s = {k: self.get("s_" + k, d) for k, d in DEFAULTS.items()}
         s["leverage"] = min(float(s["leverage"]), float(MAX_LEVERAGE))
-        if self.paper:
-            s["enabled"] = False
         return s
 
     def set_setting(self, key: str, value) -> None:
-        if self.paper and key == "enabled" and value:
-            raise ValueError(NO_ORDERS_MSG)
         self.set("s_" + key, validate_setting(key, value))
 
     @contextmanager

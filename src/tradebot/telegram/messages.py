@@ -1,8 +1,7 @@
 """ЕДИНЫЙ модуль текстов уведомлений и экранных строк Telegram: чистые функции (данные -> HTML/текст), без сети и БД.
 
 Правила (заказ владельца):
-* ни слова про среду/режим биржи (mainnet/testnet/paper): если процесс запущен НЕ так, как надо (без права на ордера или не на
-  боевой бирже) — одна заметная строка config_warning(), больше нигде;
+* ни слова про среду/режим биржи: бот работает только на основной сети Bybit, показывать нечего;
 * сторона сделки — только словами и нейтральными стрелками (⬆️ ЛОНГ / ⬇️ ШОРТ); ✅/❌ — ТОЛЬКО знак реализованного P/L;
 * деньги — в долларах (USDT == $), точные цифры биржи без «≈»; оценка по сделкам помечается «≈»/«(оценка)».
 Уведомление исполнителя — это словарь `data` с ключом kind (open | increase | reduce | close | stopout | kill | panic | signal |
@@ -18,8 +17,6 @@ from tradebot.telegram.texts import sig_icon, sig_word  # noqa: F401  (реэк�
 MINUS = "−"
 ARROW = {"long": "⬆️", "short": "⬇️"}
 WORD = {"long": "ЛОНГ", "short": "ШОРТ"}
-NO_ORDERS = "режим без ордеров"
-TESTNET_WORDS = "тестовая сеть"
 
 
 # ---------- числа ----------
@@ -338,16 +335,6 @@ def daily_msg(d: dict) -> str:
 
 
 # ---------- запуск / остановка ----------
-def config_warning(env: str | None, paper: bool) -> str | None:
-    """Единственное место, где упоминается режим запуска: только если он НЕ боевой. None — всё настроено как надо."""
-    parts = []
-    if paper:
-        parts.append(NO_ORDERS)
-    if env and env != "mainnet":
-        parts.append(TESTNET_WORDS)
-    return ("⚠️ " + " / ".join(parts)[:1].upper() + " / ".join(parts)[1:]) if parts else None
-
-
 def pos_brief(pos: dict | None) -> str:
     if not pos:
         return "позиции нет"
@@ -356,18 +343,16 @@ def pos_brief(pos: dict | None) -> str:
 
 
 def startup_msg(d: dict) -> str:
-    """«Бот запущен ✅ · счёт 163.44 $ · торговля включена · позиция ЛОНГ 0.003 BTC (+1.06 $)» (+ строка-предупреждение)."""
+    """«Бот запущен ✅ · счёт 163.44 $ · торговля включена · позиция ЛОНГ 0.003 BTC (+1.06 $)»."""
     bits = ["<b>Бот запущен ✅</b>"]
     if d.get("equity") is not None:
         bits.append(f"счёт {tx.code(tx.n(d['equity']))} $")
-    if d.get("no_keys"):
-        bits.append("API-ключи не заданы: торговля невозможна")
-    elif d.get("killed"):
+    if d.get("killed"):
         bits.append("kill-switch: торговля заблокирована")
     else:
         bits.append("торговля включена" if d.get("enabled") else "торговля выключена")
     bits.append(tx.esc(pos_brief(d.get("pos"))) if d.get("pos_known", True) else "позицию проверить не удалось")
-    return _lines(" · ".join(bits), config_warning(d.get("env"), bool(d.get("paper"))))
+    return _lines(" · ".join(bits))
 
 
 def shutdown_msg(d: dict) -> str:

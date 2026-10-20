@@ -209,7 +209,7 @@ def test_build_registers_startup_hook(tmp_path):
     from fakes.exchange import DryRunExchange
     from tradebot.trading.executor import Executor
     st = Store(tmp_path / "b.db")
-    ctl = Controller(st, Executor(DryRunExchange(equity=1000), st, lambda *a: None, "testnet"), NS(trigger=lambda: None), "testnet")
+    ctl = Controller(st, Executor(DryRunExchange(equity=1000), st, lambda *a: None), NS(trigger=lambda: None))
     bot, dp, panel = build("123:abc", 1, ctl)
     calls = []
 
