@@ -3,12 +3,17 @@ import { describe, expect, it } from "vitest";
 import type { StatsKpis, StatsResponse, StatsTradeRow, StatsWarning } from "../src/types";
 import golden7 from "./fixtures/stats_7d.json";
 import goldenAll from "./fixtures/stats_all.json";
-import {
-  agoMs, BACKTEST_TAKER, binLabel, binTone, bucketLabel, bucketTitle, bucketValues, calendarGrid, calendarIsCompact, calendarList, calendarSections, calLevel,
-  cmpView, compareSupported, csvText, DEFAULT_STATS_RANGE, defText, equityMapper, feeNote, fillBasisText, filterStTrades, fmtDuration, FUNDING_HINT, heroKpis, histModel,
-  isStatsRange, isStTradeFilter, miniKpis, rangeDef, rangeLabel, selectState, STATS_RANGES, stTradeCounts, stTradesToCsv, tradeMarkers, trimMessage, unavailableCopy,
-  valueAt, warningChips, fsp, fp, fsusd, toneOf,
-} from "../src/tabs/statsLogic";
+import { spctU } from "../src/ui/fmt";
+import { BACKTEST_TAKER, feeNote, FUNDING_HINT, warningChips } from "../src/tabs/statsWarnings";
+import { binLabel, binTone, histModel } from "../src/charts/histModel";
+import { bucketLabel, bucketTitle, bucketValues } from "../src/tabs/statsBuckets";
+import { calendarGrid, calendarIsCompact, calendarList, calendarSections, calLevel } from "../src/charts/calendarModel";
+import { cmpView, defText, heroKpis, miniKpis } from "../src/tabs/statsKpi";
+import { compareSupported, DEFAULT_STATS_RANGE, isStatsRange, rangeDef, rangeLabel, STATS_RANGES } from "../src/tabs/statsRange";
+import { csvText, fillBasisText, filterStTrades, isStTradeFilter, stTradeCounts, stTradesToCsv } from "../src/tabs/statsTradeLogic";
+import { equityMapper, tradeMarkers, valueAt } from "../src/tabs/statsMarkers";
+import { fmtDuration } from "../src/ui/fmtTime";
+import { selectState, trimMessage, unavailableCopy } from "../src/tabs/statsPage";
 
 const g7 = golden7 as unknown as StatsResponse;
 const gAll = goldenAll as unknown as StatsResponse;
@@ -59,31 +64,6 @@ describe("длительности и время", () => {
     expect(fmtDuration(135000)).toBe("1 д 14 ч");
     expect(fmtDuration(3 * 86400 + 4 * 3600)).toBe("3 д 4 ч");
     expect(fmtDuration(NaN)).toBe("—");
-  });
-  it("agoMs", () => {
-    const now = 1_000_000_000;
-    expect(agoMs(now - 5000, now)).toBe("5 с назад");
-    expect(agoMs(now + 5000, now)).toBe("0 с назад");
-    expect(agoMs(now - 5 * 60_000, now)).toBe("5 мин назад");
-    expect(agoMs(now - 3 * 3600_000, now)).toBe("3 ч назад");
-    expect(agoMs(now - 3 * 86400_000, now)).toBe("3 дн назад");
-  });
-});
-
-describe("форматтеры процентов, денег, знаков", () => {
-  it("null -> «—», знак «+», типографский минус", () => {
-    expect(fp(null)).toBe("—");
-    expect(fp(12.345, 1)).toBe("12,3%");
-    expect(fsp(1.5, 1)).toBe("+1,5%");
-    expect(fsp(-1.5, 1)).toBe("−1,5%");
-    expect(fsp(0.001, 1)).toBe("0,0%");
-    expect(fsusd(2)).toBe("+2,00 $");
-    expect(fsusd(-0.001)).toBe("0,00 $");
-    expect(fsusd(undefined)).toBe("—");
-    expect(toneOf(0.001, 0.005)).toBe("");
-    expect(toneOf(1)).toBe("pos");
-    expect(toneOf(-1)).toBe("neg");
-    expect(toneOf(null)).toBe("");
   });
 });
 
@@ -320,7 +300,7 @@ describe("KPI: плитки и обработка null", () => {
     expect(by.roi!.cmp?.field).toBe("wallet_return_pct");
     expect(by.roi!.label).toBe("ROI счёта");
     expect(by.roi!.def).toBe("wallet_return_pct");
-    expect(by.roi!.value).toBe(fsp(g7.equity!.wallet_return_pct, 2));
+    expect(by.roi!.value).toBe(spctU(g7.equity!.wallet_return_pct, 2));
     expect(by.win!.value).toBe("50,0%");
     expect(by.trades!.value).toBe("2");
     expect(by.trades!.sub).toBe("лонг 1 · шорт 1");

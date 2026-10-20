@@ -1,4 +1,4 @@
-// Вкладка «Статистика»: плитки KPI, определения метрик и сравнение с предыдущим окном (чистая логика; barrel — statsLogic.ts).
+// Вкладка «Статистика»: плитки KPI, определения метрик и сравнение с предыдущим окном (чистая логика).
 import type { Num, StatsResponse } from "../types";
 import { isNum as ok, num, pctU, snum, spctU, susd, toneOf, usd } from "../ui/fmt";
 import { ddmm, ddmmyy, fmtDuration, ymdRu } from "../ui/fmtTime";

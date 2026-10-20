@@ -3,9 +3,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StatsResponse, StatsTradeRow } from "../src/types";
 import { closedKey, newClosedKeys, upnlAccountFrac } from "../src/tabs/liveCalc";
-import {
-  filterStTrades, moneyLine, moneySummary, openAccountPct, periodParts, periodSummary, resultText, resultTone, stTradesToCsv, ST_CSV_HEADER,
-} from "../src/tabs/statsLogic";
+import { filterStTrades, stTradesToCsv, ST_CSV_HEADER } from "../src/tabs/statsTradeLogic";
+import { moneyLine, moneySummary, openAccountPct, periodParts, periodSummary, resultText, resultTone } from "../src/tabs/statsMoney";
 import { freshStats, loadStats, rememberStats, resetStatsFeed } from "../src/tabs/statsFeed";
 import golden from "./fixtures/stats_all.json";
 

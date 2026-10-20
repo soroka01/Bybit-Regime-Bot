@@ -3,7 +3,7 @@
 // а также карточка «Цель и сигналы» (активные ноги в таблице, неактивные — в свёрнутом списке).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sendButton, sendToBotWithToast } from "../src/ui/clipboard";
-import { signalsCard } from "../src/tabs/liveView";
+import { signalsCard } from "../src/tabs/liveSignals";
 import type { LiveSnapshot, Meta } from "../src/types";
 
 vi.mock("../src/tabs/resultview", () => ({

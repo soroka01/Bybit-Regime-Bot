@@ -1,4 +1,4 @@
-// Вкладка «Статистика»: маркеры сделок и единицы оси графика капитала (чистая логика; barrel — statsLogic.ts).
+// Вкладка «Статистика»: маркеры сделок и единицы оси графика капитала (чистая логика).
 import type { Num, StatsTradeRow } from "../types";
 import { stepValueAt } from "../charts/align";
 

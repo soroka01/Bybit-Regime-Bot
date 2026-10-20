@@ -1,9 +1,11 @@
 // Вкладка «Статистика»: таблица закрытых сделок (round trips) — фильтры со счётчиками, сортировка, раскрытие fills, CSV, «Показать ещё».
-// Клик по строке выделяет вход/выход сделки на графике капитала (onSelect). Логика фильтров и CSV — statsLogic.ts.
+// Клик по строке выделяет вход/выход сделки на графике капитала (onSelect). Логика фильтров и CSV — statsTradeLogic.ts, суммы — statsMoney.ts.
 import type { StatsFill, StatsResponse, StatsTradeRow } from "../types";
 import { downloadText } from "../ui/download";
 import { h } from "../ui/dom";
-import { fillBasisText, filterStTrades, fmtDuration, isoUtc, moneyLine, moneySummary, resultTone, ST_TRADE_FILTERS, stamp, stTradeCounts, stTradesToCsv, type StTradeFilter } from "./statsLogic";
+import { fillBasisText, filterStTrades, ST_TRADE_FILTERS, stTradeCounts, stTradesToCsv, type StTradeFilter } from "./statsTradeLogic";
+import { fmtDuration, isoUtc, stamp } from "../ui/fmtTime";
+import { moneyLine, moneySummary, resultTone } from "./statsMoney";
 import { icon } from "../ui/icons";
 import { agoMs, int, num, spctU, susd, toneOf, usd } from "../ui/fmt";
 import { csvFileName } from "./tradesLogic";

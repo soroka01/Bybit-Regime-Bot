@@ -9,7 +9,11 @@ import { segmented } from "../ui/controls";
 import { h } from "../ui/dom";
 import { num, pctU, snum, spctU, susd, usd } from "../ui/fmt";
 import { emptyState } from "../ui/kit";
-import { BUCKET_TITLE, bucketLabel, bucketTitle, bucketValues, calendarIsCompact, ddmm, equityMapper, histModel, stamp, tradeMarkers, ymdRu, type BucketKind, type HistModel } from "./statsLogic";
+import { BUCKET_TITLE, bucketLabel, bucketTitle, bucketValues, type BucketKind } from "./statsBuckets";
+import { calendarIsCompact } from "../charts/calendarModel";
+import { ddmm, stamp, ymdRu } from "../ui/fmtTime";
+import { equityMapper, tradeMarkers } from "./statsMarkers";
+import { histModel, type HistModel } from "../charts/histModel";
 import { infoMark } from "./statsView";
 
 export type EqUnit = "usdt" | "pct";

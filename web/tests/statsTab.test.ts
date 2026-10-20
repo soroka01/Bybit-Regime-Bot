@@ -21,7 +21,8 @@ vi.mock("../src/charts/bars", () => ({ barChart: () => ({ redraw() {}, destroy()
 vi.mock("../src/charts/histogram", () => ({ histogramChart: () => ({ redraw() {}, destroy() {} }) }));
 
 const { createStats } = await import("../src/tabs/stats");
-const { moneySummary, fsusd } = await import("../src/tabs/statsLogic");
+const { moneySummary } = await import("../src/tabs/statsMoney");
+const { susd } = await import("../src/ui/fmt");
 
 const g7 = golden7 as unknown as StatsResponse;
 const gAll = goldenAll as unknown as StatsResponse;
@@ -528,15 +529,15 @@ describe("вкладка «Статистика»: деньги — главно
     const tab = await mount();
     const all = moneySummary(r.trades!.rows);
     const line = () => clean(q(tab.el, ".st-trades .st-money")!.textContent);
-    expect(line()).toBe(`Закрыто 40: заработано ▲ ${fsusd(all.profit)}, потеряно ▼ ${fsusd(all.loss)}, итого ▲ ${fsusd(all.net)}`);
+    expect(line()).toBe(`Закрыто 40: заработано ▲ ${susd(all.profit)}, потеряно ▼ ${susd(all.loss)}, итого ▲ ${susd(all.net)}`);
     qa(tab.el, ".st-filters button")[2]!.click();                                       // Шорт
     const sh = moneySummary(r.trades!.rows.filter((x) => x.side === "short"));
     expect(line()).toContain("Закрыто 20: заработано");
-    expect(line()).toContain(`итого ▲ ${fsusd(sh.net)}`);
+    expect(line()).toContain(`итого ▲ ${susd(sh.net)}`);
     qa(tab.el, ".st-filters button")[4]!.click();                                       // Убыточные
     const ls = moneySummary(r.trades!.rows.filter((x) => (x.net ?? 0) < 0));
-    expect(line()).toContain(`заработано ${fsusd(0)}`);
-    expect(line()).toContain(`потеряно ▼ ${fsusd(ls.loss)}`);
+    expect(line()).toContain(`заработано ${susd(0)}`);
+    expect(line()).toContain(`потеряно ▼ ${susd(ls.loss)}`);
     expect(q(tab.el, ".st-trades .st-money .st-m.strong")!.classList.contains("neg")).toBe(true);
   });
 

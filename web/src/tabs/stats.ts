@@ -1,5 +1,5 @@
 // Вкладка «Статистика»: анализатор РЕАЛЬНОЙ торговой истории бота (GET /api/stats?range=…). Только чтение.
-// Состав: statsLogic.ts (чистая логика), statsView.ts (плитки/карточки/состояния), statsCharts.ts (графики), statsTrades.ts (таблица сделок), здесь — опрос, состояния, шапка.
+// Состав: statsRange/Buckets/TradeLogic/Money/Markers/Kpi/Warnings/Page.ts (чистая логика), statsView.ts (плитки/карточки/состояния), statsCharts.ts (графики), statsTrades.ts (таблица сделок), здесь — опрос, состояния, шапка.
 import { api, asApiError, type ApiError } from "../api";
 import { persisted } from "../state";
 import type { Meta, StatsRange, StatsResponse } from "../types";
@@ -7,7 +7,9 @@ import { h } from "../ui/dom";
 import { icon } from "../ui/icons";
 import { setLoading, skeletonChart, skeletonTile } from "../ui/kit";
 import { createStatsCharts, isEqUnit, type EqUnit } from "./statsCharts";
-import { DEFAULT_STATS_RANGE, isStatsRange, isStTradeFilter, selectState, STATS_RANGES, type StTradeFilter } from "./statsLogic";
+import { DEFAULT_STATS_RANGE, isStatsRange, STATS_RANGES } from "./statsRange";
+import { isStTradeFilter, type StTradeFilter } from "./statsTradeLogic";
+import { selectState } from "./statsPage";
 import { agoMs } from "../ui/fmt";
 import { clockUtc } from "../ui/fmtTime";
 import {

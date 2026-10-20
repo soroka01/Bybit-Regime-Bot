@@ -1,4 +1,4 @@
-// Вкладка «Статистика»: подписи и значения корзин P/L для столбчатой диаграммы (чистая логика; barrel — statsLogic.ts).
+// Вкладка «Статистика»: подписи и значения корзин P/L для столбчатой диаграммы (чистая логика).
 import type { Num, StatsPnlBucket } from "../types";
 import { MONTHS } from "../ui/fmt";
 import { ddmm, ddmmyy, hhmm, p2, stamp } from "../ui/fmtTime";

@@ -6,7 +6,8 @@ import { emptyState, glyph } from "../ui/kit";
 import { orderBadge, sideBadge } from "../ui/side";
 import { closedKey, isBuy, positionView, upnlAccountFrac, type LiveTrade } from "./liveCalc";
 import { tk } from "./liveTick";
-import { ddmm, fmtDuration, hhmm, isoUtc, periodSummary, resultText, resultTone } from "./statsLogic";
+import { ddmm, fmtDuration, hhmm, isoUtc } from "../ui/fmtTime";
+import { periodSummary, resultText, resultTone } from "./statsMoney";
 import { reasonCell } from "./statsView";
 
 const dfShort = new Intl.DateTimeFormat("ru-RU", { timeZone: "UTC", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });

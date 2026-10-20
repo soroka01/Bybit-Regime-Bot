@@ -6,9 +6,6 @@ import type { LiveSnapshot, Num } from "../types";
 import { parseTime } from "../ui/fmt";
 import { isLongSide } from "../ui/heartbeat";
 
-// Свежесть сигнала жизни и сторона позиции живут в ui/heartbeat.ts (их же использует плашка в шапке); здесь — прежние имена.
-export { DEAD_S, STALE_S, heartbeatState, isLongSide, type HbTone, type Heartbeat } from "../ui/heartbeat";
-
 export const DAY_MS = 86_400_000;
 /** Порог цвета индикатора лимита: с 60 % — предупреждение, с 85 % — опасно. */
 export const RISK_WARN = 0.6;

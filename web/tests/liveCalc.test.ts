@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  drawdownFrac, eventKind, filterEvents, fmtCountdown, gaugePos, heartbeatState, isLongSide, isNoiseEvent, legRows, legTotals, nextClose, splitLegs,
+  drawdownFrac, eventKind, filterEvents, fmtCountdown, gaugePos, isNoiseEvent, legRows, legTotals, nextClose, splitLegs,
   parseSeries, plToday, positionView, rangeStart, riskMeter, sliceSeries, stopRisk, stopRiskWarning, sumWeights, tfMs, totalPl, tradeMarkers, valueAt,
 } from "../src/tabs/liveCalc";
+import { heartbeatState, isLongSide } from "../src/ui/heartbeat";
 
 const T = (iso: string) => Date.parse(iso);
 

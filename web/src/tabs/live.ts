@@ -1,5 +1,5 @@
 // Вкладка «Бот (live)»: панель управления торговлей «с одного взгляда». Только чтение снимка /api/live; управление — исключительно в Telegram.
-// Состав: liveCalc.ts (чистая логика: P/L за сутки, обратный отсчёт, стоп/ликвидация, пороги риска), liveView.ts (секции), здесь — опрос, график, тикер.
+// Состав: liveCalc.ts (чистая логика: P/L за сутки, обратный отсчёт, стоп/ликвидация, пороги риска), liveHero/livePosition/liveSignals/liveRisk/liveTrades/liveEvents.ts (секции), здесь — опрос, график, тикер.
 import { api, asApiError } from "../api";
 import { alignSeries, stride } from "../charts/align";
 import { lineChart, type LineChart } from "../charts/line";
@@ -14,12 +14,17 @@ import { emptyState, pageHead, skeletonChart, skeletonTile } from "../ui/kit";
 import { publishLive } from "../ui/botStatus";
 import { num, usd } from "../ui/fmt";
 import { clockUtc } from "../ui/fmtTime";
+import { heartbeatState } from "../ui/heartbeat";
 import {
-  closedKey, heartbeatState, isEventFilter, isRange, newClosedKeys, parseSeries, RANGES, tradeMarkers, type EventFilter, type RangeKey,
+  closedKey, isEventFilter, isRange, newClosedKeys, parseSeries, RANGES, tradeMarkers, type EventFilter, type RangeKey,
 } from "./liveCalc";
-import {
-  closedTradesCard, closedTradesLoading, eventsCountText, eventsList, fallbackHint, heroCard, killedBanner, noSnapshot, positionCard, riskCard, signalsCard, staleBanner, tickAll, tradesCard, type ClosedState,
-} from "./liveView";
+import { closedTradesCard, closedTradesLoading, fallbackHint, tradesCard, type ClosedState } from "./liveTrades";
+import { eventsCountText, eventsList, noSnapshot } from "./liveEvents";
+import { heroCard, killedBanner, staleBanner } from "./liveHero";
+import { positionCard } from "./livePosition";
+import { riskCard } from "./liveRisk";
+import { signalsCard } from "./liveSignals";
+import { tickAll } from "./liveTick";
 import { resolveWindow, statsNeeded, type Feeds, type FullRange } from "./liveWindow";
 import { loadStats } from "./statsFeed";
 import type { Tab } from "./tab";

@@ -1,4 +1,4 @@
-// Вкладка «Статистика»: диапазоны окна (чистая логика; barrel — statsLogic.ts).
+// Вкладка «Статистика»: диапазоны окна (чистая логика).
 import type { StatsRange } from "../types";
 
 export interface RangeDef { key: StatsRange; label: string; title: string; days: number | null }

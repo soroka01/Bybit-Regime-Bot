@@ -17,12 +17,4 @@ describe("слои модулей", () => {
       expect(bad).toEqual([]);
     });
   }
-
-  it("statsLogic остаётся barrel-ом: старые имена доступны", async () => {
-    const m = await import("../src/tabs/statsLogic");
-    for (const name of [
-      "fp", "fsp", "fsusd", "toneOf", "agoMs", "valueAt", "fmtDuration", "calendarGrid", "histModel", "heroKpis", "stTradesToCsv",
-      "moneySummary", "warningChips", "selectState", "STATS_RANGES", "bucketLabel", "tradeMarkers", "feeNote", "BACKTEST_TAKER",
-    ]) expect(typeof (m as Record<string, unknown>)[name], name).not.toBe("undefined");
-  });
 });

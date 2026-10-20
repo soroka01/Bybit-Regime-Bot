@@ -4,8 +4,9 @@ import type { LiveSnapshot } from "../types";
 import { h } from "../ui/dom";
 import { datetime, parseTime, pct, spct, susd, toneOf, usd } from "../ui/fmt";
 import { icon } from "../ui/icons";
+import { heartbeatState } from "../ui/heartbeat";
 import { badge, deltaChip, sectionLabel } from "../ui/kit";
-import { drawdownFrac, heartbeatState, plToday, rangeStart, sliceSeries, type Pt, type RangeKey } from "./liveCalc";
+import { drawdownFrac, plToday, rangeStart, sliceSeries, type Pt, type RangeKey } from "./liveCalc";
 import { tk } from "./liveTick";
 import { resolveWindow, todayLabel, type Feeds } from "./liveWindow";
 

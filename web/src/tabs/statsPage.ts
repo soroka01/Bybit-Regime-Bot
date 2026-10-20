@@ -1,4 +1,4 @@
-// Вкладка «Статистика»: выбор состояния страницы и тексты «данных нет» (чистая логика; barrel — statsLogic.ts).
+// Вкладка «Статистика»: выбор состояния страницы и тексты «данных нет» (чистая логика).
 import type { StatsResponse } from "../types";
 
 export interface ApiErrLike { status: number; code: string; message: string }

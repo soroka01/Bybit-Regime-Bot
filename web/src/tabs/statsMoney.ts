@@ -1,4 +1,4 @@
-// Вкладка «Статистика»: суммы в долларах по закрытым сделкам, итоги окна, результат сделки (чистая логика; barrel — statsLogic.ts).
+// Вкладка «Статистика»: суммы в долларах по закрытым сделкам, итоги окна, результат сделки (чистая логика).
 import type { Num, StatsResponse, StatsTradeRow } from "../types";
 import { isNum as ok, spctU, susd, toneOf } from "../ui/fmt";
 

@@ -1,12 +1,17 @@
 // Вкладка «Статистика»: построители DOM для плиток, карточек, предупреждений и состояний (ответ -> элемент). Без сети и состояния вкладки.
-// Логика вынесена в statsLogic.ts (тесты — tests/statsLogic.test.ts). Все тексты — по-русски; тексты сервера — только через textContent.
+// Логика вынесена в stats*.ts (statsKpi, statsMoney, statsWarnings, statsPage; тесты — tests/statsLogic.test.ts). Все тексты — по-русски; тексты сервера — только через textContent.
 import type { StatsPositionSide, StatsResponse, StatsTradeRow } from "../types";
 import { h } from "../ui/dom";
 import { badge, disclosure, emptyState, glyph } from "../ui/kit";
 import { icon } from "../ui/icons";
 import { sideBadge } from "../ui/side";
 import { agoMs, int, num, pctU, spctU, susd, toneOf, usd } from "../ui/fmt";
-import { cmpView, defText, FUNDING_HINT, feeNote, heroKpis, miniKpis, moneyLine, openAccountPct, rangeTitle, RECON_REASON, stamp, trimMessage, unavailableCopy, warningChips, ymdRu, type CmpView, type Kpi, type MoneySummary, type WarnChip } from "./statsLogic";
+import { cmpView, defText, heroKpis, miniKpis, type CmpView, type Kpi } from "./statsKpi";
+import { FUNDING_HINT, feeNote, RECON_REASON, warningChips, type WarnChip } from "./statsWarnings";
+import { moneyLine, openAccountPct, type MoneySummary } from "./statsMoney";
+import { rangeTitle } from "./statsRange";
+import { stamp, ymdRu } from "../ui/fmtTime";
+import { trimMessage, unavailableCopy } from "./statsPage";
 
 // ---------------------------------------------------------------- мелкие элементы
 /** Значок «i» с определением метрики (фокусируемый; текст — в title и aria-label). */

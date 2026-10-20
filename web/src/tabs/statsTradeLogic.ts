@@ -1,4 +1,4 @@
-// Вкладка «Статистика»: фильтры сделок, счётчики, CSV и подписи базы цены исполнения (чистая логика; barrel — statsLogic.ts).
+// Вкладка «Статистика»: фильтры сделок, счётчики, CSV и подписи базы цены исполнения (чистая логика).
 import type { StatsTradeRow } from "../types";
 import { isoUtc } from "../ui/fmtTime";
 import { csvCell, csvText } from "./tradesLogic";
