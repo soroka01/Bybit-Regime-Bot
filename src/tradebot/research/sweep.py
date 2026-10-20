@@ -4,7 +4,7 @@
 на out-of-sample (оставшаяся часть, которую подбор не видел). Именно OOS-колонки показывают,
 что можно ожидать в реальности.
 
-Запуск:  python sweep.py [--symbol BTCUSDT] [--tfs 15m 1h 4h] [--lev 1] [--long-only]
+Запуск:  python -m tradebot.research.sweep [--symbol BTCUSDT] [--tfs 15m 1h 4h] [--lev 1] [--long-only]
 """
 from __future__ import annotations
 

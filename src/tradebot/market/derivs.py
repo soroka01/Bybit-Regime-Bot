@@ -10,13 +10,11 @@ import requests
 
 from tradebot.market import guard
 from tradebot.market import klines as data
+from tradebot.market.klines import _atomic_parquet
 
 log = logging.getLogger("tradebot.market")
 
 BASE = "https://api.bybit.com/v5/market/"
-
-
-from tradebot.market.klines import _atomic_parquet  # noqa: E402
 
 
 def _get(path: str, params: dict) -> list:
@@ -59,7 +57,7 @@ FUNDING_STEP_MIN = 480       # расчёт фандинга Bybit каждые 
 
 
 def granularity_for(minutes: float) -> str:
-    """Период OI/LSR для свечей длиной `minutes`. Для 1h/4h — как и раньше ('1h'/'4h')."""
+    """Период OI/LSR для свечей длиной `minutes`. Для 1h/4h — '1h'/'4h'."""
     m = int(round(minutes))
     if m in GRANULARITY:
         return GRANULARITY[m]
@@ -193,7 +191,7 @@ def enrich(df: pd.DataFrame, symbol="BTCUSDT", refresh=True, days=1095) -> pd.Da
     bar_start = out.index
     close_t = bar_start + step
     f = funding(symbol, max(days, 1095), refresh)       # фандинг — один общий файл, всегда полная история
-    if int(bar_start[0].value) % int(step.value) == 0:   # сетка кратна эпохе (всё, кроме недельных) — прежний путь
+    if int(bar_start[0].value) % int(step.value) == 0:   # сетка кратна эпохе (всё, кроме недельных)
         out["funding"] = f.groupby(f.index.floor(step)).sum().reindex(bar_start).fillna(0.0)
     else:                                                # недельные свечи (понедельник): ищем свечу по позиции
         pos = bar_start.searchsorted(f.index, side="right") - 1

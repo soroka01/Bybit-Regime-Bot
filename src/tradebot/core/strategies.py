@@ -10,7 +10,8 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 
-from tradebot.core.indicators import (adx, atr, bollinger, ema, hold, macd, rsi, sma, supertrend)
+from tradebot.core.indicators import (adx, atr, bollinger, donchian_trail_state, ema, hold, kama, macd, parabolic_sar, rsi, sma, supertrend,
+                                       timed_hold, true_range, vol_scale)
 
 
 @dataclass
@@ -184,12 +185,8 @@ STRATEGIES: dict[str, Strategy] = {s.name: s for s in [
 
 
 # ======================================================================================================
-# Расширенный набор стратегий (добавлен позже; существующие функции/сетки выше не менялись).
-# Сигнал в момент t использует только данные <= t; NaN в прогреве => позиция 0.0.
+# Расширенный набор стратегий. Сигнал в момент t использует только данные <= t; NaN в прогреве => позиция 0.0.
 # ======================================================================================================
-from tradebot.core.indicators import (  # noqa: E402
-    donchian_trail_state, kama, parabolic_sar, timed_hold, true_range, vol_scale)
-
 POS_CAP = 1.5  # максимум |позиции| у стратегий с таргетом волатильности
 
 

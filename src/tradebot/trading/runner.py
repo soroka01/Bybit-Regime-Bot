@@ -214,8 +214,8 @@ class Runner:
                     self.notify("error", M.w_monitor_failed(5, e))
                     self._alerts["monitor_failed"] = time.monotonic()
                 elif self._fails > 5:
-                    # сбои идут и дальше: напоминаем раз в 30 минут простым предупреждением (раньше — только на ровно 5-м сбое,
-                    # и дальше долгая недоступность биржи/ошибка в тике оставались молчаливыми)
+                    # сбои идут и дальше: напоминаем раз в 30 минут простым предупреждением (иначе долгая недоступность
+                    # биржи/ошибка в тике после 5-го сбоя оставалась бы молчаливой)
                     self._alert("monitor_failed", f"Мониторинг не работает уже {self._fails} проверок подряд "
                                 f"(≈{self._fails * MONITOR_EVERY // 60} мин): {str(e) or type(e).__name__}", every=MONITOR_REALERT_S)
             self._maybe_maintain()

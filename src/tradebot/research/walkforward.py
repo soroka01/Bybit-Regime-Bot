@@ -2,7 +2,7 @@
 Тестовые куски склеиваются в единую «честную» кривую капитала. Это максимально близко к тому,
 как стратегия вела бы себя, если бы вы переподбирали параметры раз в квартал.
 
-Запуск:  python walkforward.py [--tfs 1h 4h] [--lev 1] [--long-only]
+Запуск:  python -m tradebot.research.walkforward [--tfs 1h 4h] [--lev 1] [--long-only]
 """
 from __future__ import annotations
 

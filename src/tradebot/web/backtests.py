@@ -83,7 +83,7 @@ def _marker_geometry(sub: pd.DataFrame, res, cap: int):
     t = res.trades
     _, ix, pe = _trade_geometry(sub, t)
     n = len(t)
-    first = max(n - cap, 0)               # усекаем ПО СДЕЛКАМ: входы и выходы остаются парами (раньше выходы сдвигались на одну сделку)
+    first = max(n - cap, 0)               # усекаем ПО СДЕЛКАМ: входы и выходы остаются парами
     open_last = bool(res.position.iloc[-1] != 0)
     ks = np.array([k for k in range(first, n) if not (open_last and k == n - 1)], dtype=int)
     return pe, ix, ks, n, first
@@ -141,7 +141,7 @@ def _trade_rows(sub: pd.DataFrame, res, limit: int = 2000) -> tuple[list, int]:
     return rows[-limit:], len(rows)
 
 
-SERIES_CAP = 2400    # максимум точек в рядах графика (раньше 1500); короче — отдаём все бары без прореживания
+SERIES_CAP = 2400    # максимум точек в рядах графика; короче — отдаём все бары без прореживания
 SERIES_N = 1000      # размер выборки min/max-бакетов отдельно для капитала и цены
 
 
