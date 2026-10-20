@@ -9,7 +9,8 @@ import pandas as pd
 import pytest
 
 from tradebot.core.portfolio import DEFAULT_LEGS
-from tradebot.trading.exchange import DryRunExchange, Instrument
+from tradebot.trading.exchange import Instrument
+from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor, target_qty
 from tradebot.trading.market_feed import (FETCH_DAYS, TF_DELTA, WARMUP_BARS, FeedData, FeedError, MarketFeed, closed_only,
                                           compute_target, expected_last_bar, validate_window, window_for)

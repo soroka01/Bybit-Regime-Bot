@@ -15,7 +15,8 @@ from tradebot.telegram.handlers import Controller
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram.notify import Notifier
 from tradebot.trading import pnl
-from tradebot.trading.exchange import BybitClient, DryRunExchange, ReadOnlyClient
+from tradebot.trading.exchange import BybitClient, ReadOnlyClient
+from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
 from tradebot.trading.market_feed import FeedData
 from tradebot.trading.runner import MANUAL_RECALC, Runner

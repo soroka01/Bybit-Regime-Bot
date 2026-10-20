@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
-from tradebot.trading.exchange import BybitClient, DryRunExchange, ExchangeError
+from tradebot.trading.exchange import BybitClient, ExchangeError
+from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
 from tradebot.trading.state import Store
 

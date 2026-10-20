@@ -8,7 +8,8 @@ import pandas as pd
 import pytest
 
 from tradebot.trading import runner as runner_mod
-from tradebot.trading.exchange import DryRunExchange, ExchangeError
+from tradebot.trading.exchange import ExchangeError
+from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
 from tradebot.trading.runner import MANUAL_RECALC, Runner
 from tradebot.trading.state import Store

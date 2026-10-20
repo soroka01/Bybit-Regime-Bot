@@ -14,7 +14,7 @@ from tradebot.telegram import keyboards as kb
 from tradebot.telegram import texts as tx
 from tradebot.telegram.handlers import Controller, build_router
 from tradebot.telegram.panel import Panel
-from tradebot.trading.exchange import DryRunExchange
+from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
 from tradebot.trading.legcheck import LegCheck
 from tradebot.trading.state import NO_ORDERS_MSG, Store

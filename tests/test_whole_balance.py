@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
-from tradebot.trading.exchange import BybitClient, DryRunExchange, ExchangeError, ReadOnlyClient
+from tradebot.trading.exchange import BybitClient, ExchangeError, ReadOnlyClient
+from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import SIZING_EQUITY_FRACTION, Executor
 from tradebot.trading.state import Store, read_snapshot
 

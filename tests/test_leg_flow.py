@@ -18,7 +18,7 @@ from tradebot.telegram.panel import Panel
 from tradebot.telegram.proposals import ProposalWatcher
 from tradebot.trading import legcheck
 from tradebot.trading import state as state_mod
-from tradebot.trading.exchange import DryRunExchange
+from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
 from tradebot.trading.legcheck import CheckError, LegCheck, check_leg
 from tradebot.trading.market_feed import window_for

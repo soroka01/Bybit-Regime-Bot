@@ -8,7 +8,8 @@ import pytest
 
 from tradebot.core.portfolio import DEFAULT_LEGS
 from tradebot.trading import risk
-from tradebot.trading.exchange import DryRunExchange, ExchangeError, Instrument, round_down
+from tradebot.trading.exchange import ExchangeError, Instrument, round_down
+from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import (SIZING_EQUITY_FRACTION, Executor, make_link_id, needs_trade, plan_orders, stop_price,
                                        target_qty)
 from tradebot.trading.market_feed import FeedError, compute_target, expected_last_bar, validate_window

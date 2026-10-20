@@ -206,7 +206,7 @@ def test_build_registers_startup_hook(tmp_path):
     from aiogram import Bot as AioBot
     from tradebot.telegram.bot import build
     from tradebot.telegram.handlers import Controller
-    from tradebot.trading.exchange import DryRunExchange
+    from fakes.exchange import DryRunExchange
     from tradebot.trading.executor import Executor
     st = Store(tmp_path / "b.db")
     ctl = Controller(st, Executor(DryRunExchange(equity=1000), st, lambda *a: None, "testnet"), NS(trigger=lambda: None), "testnet")

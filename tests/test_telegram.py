@@ -15,7 +15,8 @@ from tradebot.telegram.handlers import Controller, build_router
 from tradebot.telegram.middleware import OwnerOnly
 from tradebot.telegram.notify import Notifier
 from tradebot.telegram.panel import Panel, Screen
-from tradebot.trading.exchange import DryRunExchange, ExchangeError
+from tradebot.trading.exchange import ExchangeError
+from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
 from tradebot.trading.state import Store
 
