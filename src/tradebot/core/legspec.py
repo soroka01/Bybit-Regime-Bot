@@ -41,6 +41,14 @@ def _is_num(v) -> bool:
     return isinstance(v, _NUM) and not isinstance(v, bool)
 
 
+def _finite(v) -> bool:
+    """math.isfinite, но огромный int (сотни цифр) не даёт OverflowError, а просто «не конечное число»."""
+    try:
+        return math.isfinite(v)
+    except (OverflowError, ValueError, TypeError):
+        return False
+
+
 def _fields(line: str) -> dict[str, str]:
     """«Ключ: значение | Ключ: значение» -> словарь (значения без пробелов по краям)."""
     out: dict[str, str] = {}
@@ -89,7 +97,7 @@ def _parse_leg_line(line: str) -> Leg:
         raise ValueError("название стратегии и таймфрейм в Leg(...) должны быть строками")
     if not isinstance(params, dict) or not all(isinstance(k, str) and _is_num(v) for k, v in params.items()):
         raise ValueError("параметры в Leg(...) должны быть словарём «имя: число»")
-    if not _is_num(weight) or not math.isfinite(weight):
+    if not _is_num(weight) or not _finite(weight):
         raise ValueError("вес в Leg(...) должен быть числом")
     if not isinstance(long_only, bool):
         raise ValueError("long_only в Leg(...) должен быть True или False")
@@ -167,7 +175,7 @@ def validate_leg(leg: Leg) -> Leg:
     out: dict = {}
     for name, sp in specs.items():
         v = leg.params.get(name, sp["default"])
-        if not _is_num(v) or not math.isfinite(v):
+        if not _is_num(v) or not _finite(v):
             raise ValueError(f"параметр {name} должен быть конечным числом")
         if sp["kind"] == "int":
             if v != int(v):
@@ -178,7 +186,7 @@ def validate_leg(leg: Leg) -> Leg:
         if not (sp["min"] - 1e-9 <= v <= sp["max"] + 1e-9):
             raise ValueError(f"{name}={v:g} вне допустимого диапазона [{sp['min']:g}, {sp['max']:g}]")
         out[name] = v
-    if not _is_num(leg.weight) or not math.isfinite(leg.weight):
+    if not _is_num(leg.weight) or not _finite(leg.weight):
         raise ValueError("вес должен быть числом")
     return replace(leg, params=out, weight=min(1.0, max(0.0, float(leg.weight))), long_only=bool(leg.long_only))
 
