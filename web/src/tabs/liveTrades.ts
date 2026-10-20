@@ -1,7 +1,7 @@
 // Вкладка «Бот (live)»: «Закрытые сделки» (итоги окна 30 дн. из /api/stats) и откат к списку ордеров снимка.
 import type { LiveSnapshot, StatsResponse } from "../types";
 import { h } from "../ui/dom";
-import { ago, datetime, num, parseTime, spctU, susd, toneOf, usd } from "../ui/fmt";
+import { datetime, num, parseTime, spctU, susd, toneOf, usd } from "../ui/fmt";
 import { emptyState, glyph } from "../ui/kit";
 import { orderBadge, sideBadge } from "../ui/side";
 import { closedKey, isBuy, positionView, upnlAccountFrac, type LiveTrade } from "./liveCalc";
@@ -34,7 +34,7 @@ export function tradesCard(trades: readonly LiveTrade[] | undefined, limit: numb
       h("tbody", {}, ...shown.map((t) => {
         const d = parseTime(t.ts);
         return h("tr", {},
-          h("td", { class: "left", title: datetime(t.ts) }, h("time", { dateTime: d?.toISOString() ?? "" }, h("span", { text: ago(t.ts) }), h("span", { class: "lv-t-abs muted", text: d ? ` · ${dfShort.format(d).replace(",", "")}` : "" }))),
+          h("td", { class: "left", title: datetime(t.ts) }, h("time", { dateTime: d?.toISOString() ?? "" }, tk("age", t.ts, h("span")), h("span", { class: "lv-t-abs muted", text: d ? ` · ${dfShort.format(d).replace(",", "")}` : "" }))),
           h("td", { class: "left" }, orderBadge(isBuy(t.side))),
           h("td", { text: num(t.qty, 4) }), h("td", { text: num(t.price, 2) }), h("td", { class: "lv-notional", text: usd(t.qty * t.price, 2) }),
           h("td", { class: "left lv-reason", text: t.reason || "—" }));
@@ -93,7 +93,7 @@ function openRow(s: LiveSnapshot, res: StatsResponse): HTMLElement | null {
     h("td", { class: "lv-c-px", text: `${num(v.entry, 2)} → ${num(v.mark, 2)}`, title: "Вход → текущая цена (mark)" }),
     h("td", { class: `lv-res ${t}` }, h("div", { class: "lv-res-usd" }, t ? h("span", { class: "g", "aria-hidden": "true", text: glyph(t) + " " }) : null, susd(v.upnl)),
       h("div", { class: "lv-res-pct muted small", text: frac != null ? `${spctU(frac * 100, 2)} счёта · не зафиксирован` : "не зафиксирован" })),
-    h("td", { class: "lv-c-hold", text: opened ? fmtDuration(Date.now() / 1000 - opened) : "—" }),
+    h("td", { class: "lv-c-hold" }, opened ? tk("dur", opened * 1000, h("span")) : "—"),
     h("td", { class: "left lv-reason muted", text: "позиция ещё открыта" }));
 }
 

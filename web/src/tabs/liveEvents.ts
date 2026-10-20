@@ -1,8 +1,9 @@
 // Вкладка «Бот (live)»: лента событий и заглушка «бот ещё не запускался».
 import { h } from "../ui/dom";
-import { ago, datetime, parseTime } from "../ui/fmt";
+import { datetime, parseTime } from "../ui/fmt";
 import { icon } from "../ui/icons";
 import { emptyState } from "../ui/kit";
+import { tk } from "./liveTick";
 import { eventKind, filterEvents, isNoiseEvent, type EventFilter, type LiveEvent } from "./liveCalc";
 
 const EV_ICON: Record<string, string> = { info: "info", trade: "swap", signal: "pulse", warn: "warn", error: "error", daily: "chart" };
@@ -30,7 +31,7 @@ export function eventsList(events: readonly LiveEvent[] | undefined, mode: Event
     return h("li", { class: `lv-ev ${k}${noise ? " noise" : ""}` },
       h("span", { class: "lv-ev-ic", title: EV_WORD[k] }, icon(EV_ICON[k] ?? "info", 14), h("span", { class: "sr-only", text: EV_WORD[k] })),
       h("div", { class: "lv-ev-body" },
-        h("div", { class: "lv-ev-meta" }, h("span", { class: "lv-ev-kind", text: EV_WORD[k] }), h("time", { dateTime: parseTime(e.ts)?.toISOString() ?? "", title: datetime(e.ts), text: `${ago(e.ts)} · ${datetime(e.ts)}` })),
+        h("div", { class: "lv-ev-meta" }, h("span", { class: "lv-ev-kind", text: EV_WORD[k] }), h("time", { dateTime: parseTime(e.ts)?.toISOString() ?? "", title: datetime(e.ts) }, tk("age", e.ts, h("span")), ` · ${datetime(e.ts)}`)),
         h("div", { class: "lv-ev-text", text: e.text })));
   }));
 }

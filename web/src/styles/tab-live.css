@@ -1,5 +1,6 @@
 /* ---------- ВКЛАДКА «БОТ (LIVE)»: панель торговли. Только токены; раскладка — сетка, на телефоне всё в одну колонку ---------- */
 .live { gap: var(--sp-4); }
+.lv-slot { display: contents; }   /* слоты секций (обновляются на месте) не создают собственных блоков и не меняют раскладку */
 .lv-updated { white-space: nowrap; }
 .live .page-head { align-items: flex-start; }
 .live .page-actions { gap: var(--sp-3); }

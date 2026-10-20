@@ -9,12 +9,13 @@ import { errorBanner } from "../ui/banner";
 import { segmented } from "../ui/controls";
 import { h } from "../ui/dom";
 import { icon } from "../ui/icons";
+import { patchSection } from "../ui/keyed";
 import { emptyState, pageHead, skeletonChart, skeletonTile } from "../ui/kit";
 import { publishLive } from "../ui/botStatus";
 import { num, usd } from "../ui/fmt";
 import { clockUtc } from "../ui/fmtTime";
 import {
-  closedKey, heartbeatState, isEventFilter, isRange, newClosedKeys, parseSeries, RANGES, tradeMarkers, type EventFilter, type HbTone, type RangeKey,
+  closedKey, heartbeatState, isEventFilter, isRange, newClosedKeys, parseSeries, RANGES, tradeMarkers, type EventFilter, type RangeKey,
 } from "./liveCalc";
 import {
   closedTradesCard, closedTradesLoading, eventsCountText, eventsList, fallbackHint, heroCard, killedBanner, noSnapshot, positionCard, riskCard, signalsCard, staleBanner, tickAll, tradesCard, type ClosedState,
@@ -44,10 +45,11 @@ export function createLive(meta: Meta): Tab {
   let tickTimer = 0;
   let ctl: AbortController | null = null;
   let visible = false;
-  let lastJson = "";            // последний отрисованный снимок: если не изменился — DOM не трогаем
+  let lastJson = "";            // последний отрисованный снимок (JSON): если не изменился — не перерисовываем вовсе
   let lastSnap: LiveSnapshot | null = null;
-  let renderedHb: HbTone | null = null;
-  let heroEl: HTMLElement | null = null;     // герой пересобирается при смене периода графика (чип результата за выбранное окно)
+  let renderedKey = "";         // «временной» ключ последней отрисовки: сигнал жизни и минута; меняется — секции пересматриваются (неизменные не трогаются)
+  let chartSig = "";            // входы последней отрисовки графика: те же — график не перерисовывается
+  let mode: "boot" | "snap" | "nosnap" | "error" = "boot";
   let tradesShown = TRADES_STEP;
   // закрытые сделки: состояние блока, ключи уже виденных сделок (null — первый ответ ещё не пришёл), подсвеченные новые
   let closed: ClosedState = { kind: "loading" };
@@ -57,10 +59,14 @@ export function createLive(meta: Meta): Tab {
   const feeds: Feeds = {};                   // ответы /api/stats для окон «Всё» и «7 д» (снимок /api/live несёт только ~2000 последних точек)
   let fullTimer = 0;
   const tradesSlot = h("div", { class: "lv-trades-slot" });
+  // Постоянный каркас страницы: секции живут в слотах и обновляются на месте (patchSection) — фокус, прокрутка и озвучивание role=alert сохраняются
+  const slot = (cls = "") => h("div", { class: `lv-slot ${cls}`.trim() });
+  const staleSlot = slot(), killedSlot = slot(), heroSlot = slot(), posSlot = slot(), sigSlot = slot(), riskSlot = slot(), emptySlot = slot(), errorSlot = slot();
+  const cols = h("div", { class: "lv-cols" }, posSlot, sigSlot);
   const idle = { open: false, onToggle: (o: boolean) => { idle.open = o; } };   // «Неактивные ноги» не сворачиваются при автообновлении
   const lastFetch = h("span", { class: "muted small lv-updated" });
 
-  const head = () => pageHead("Бот (live)", SUB, [lastFetch,
+  const head = pageHead("Бот (live)", SUB, [lastFetch,
     h("button", { class: "btn ghost icon-btn sm", type: "button", "aria-label": "Обновить сейчас", "data-tip": "Обновить сейчас", "data-tip-pos": "left", onClick: () => void refresh() }, icon("refresh", 15))]);
 
   // ---------- график капитала
@@ -75,6 +81,10 @@ export function createLive(meta: Meta): Tab {
   function updateChart(s: LiveSnapshot) {
     const eqAll = parseSeries(s.equity_history);
     const win = resolveWindow(S.range, eqAll, s.equity, Date.now(), feeds);       // то же окно, что в чипе героя
+    const last = win.series[win.series.length - 1];
+    const sig = JSON.stringify([S.range, win.state, win.source, win.note, win.start, win.series.length, win.series[0]?.t, last?.t, last?.v, (s.trades ?? []).map((t) => [t.ts, t.side])]);
+    if (sig === chartSig) return;
+    chartSig = sig;
     rangeNote.textContent = win.note ?? "";
     rangeNote.hidden = !win.note;
     if (win.state === "loading") {
@@ -115,7 +125,7 @@ export function createLive(meta: Meta): Tab {
   const eventsCard = h("section", { class: "card lv-events", "aria-label": "События" },
     h("header", { class: "card-head" }, h("h3", { text: "События" }), evCount), evSeg.el, evHost);
   function paintEvents(s: LiveSnapshot) {
-    evHost.replaceChildren(eventsList(s.events, S.ev));
+    patchSection(evHost, eventsList(s.events, S.ev));
     evCount.textContent = eventsCountText(s.events, S.ev);
   }
 
@@ -125,9 +135,9 @@ export function createLive(meta: Meta): Tab {
     const s = lastSnap;
     if (!s?.available) return;
     const st = closed;
-    if (st.kind === "loading") tradesSlot.replaceChildren(closedTradesLoading());
-    else if (st.kind === "ok") tradesSlot.replaceChildren(closedTradesCard(s, st.res, { limit: tradesShown, onMore: moreTrades, fresh: freshClosed }));
-    else tradesSlot.replaceChildren(tradesCard(s.trades, tradesShown, moreTrades, fallbackHint(st)));
+    if (st.kind === "loading") patchSection(tradesSlot, closedTradesLoading());
+    else if (st.kind === "ok") patchSection(tradesSlot, closedTradesCard(s, st.res, { limit: tradesShown, onMore: moreTrades, fresh: freshClosed }));
+    else patchSection(tradesSlot, tradesCard(s.trades, tradesShown, moreTrades, fallbackHint(st)));
   }
 
   async function loadClosed() {
@@ -192,29 +202,35 @@ export function createLive(meta: Meta): Tab {
 
   // ---------- сборка страницы
   function paintHero(s: LiveSnapshot) {
-    if (!heroEl?.isConnected || !s.available) return;
-    const next = heroCard(s, parseSeries(s.equity_history), Date.now(), S.range, feeds);
-    heroEl.replaceWith(next);
-    heroEl = next;
+    if (mode !== "snap" || !s.available) return;
+    patchSection(heroSlot, heroCard(s, parseSeries(s.equity_history), Date.now(), S.range, feeds));
+  }
+  /** Что в разметке зависит от времени и не покрыто тикером: пересматриваем секции, когда меняется сигнал жизни или минута (неизменные секции DOM не трогают). */
+  const timeKey = (s: LiveSnapshot, now: number): string => `${heartbeatState(s.heartbeat, now).tone}|${Math.floor(now / 60_000)}`;
+  function enter(m: "snap" | "nosnap" | "error") {
+    if (mode === m) return;
+    mode = m;
+    chart?.destroy(); chart = null; chartSig = "";
+    root.replaceChildren(...(m === "snap" ? [head, staleSlot, killedSlot, heroSlot, cols, riskSlot, chartCard, tradesSlot, eventsCard] : [head, m === "nosnap" ? emptySlot : errorSlot]));
   }
   function render(s: LiveSnapshot) {
     lastSnap = s;
     if (!s.available) {
-      chart?.destroy(); chart = null;
-      renderedHb = null;
-      root.replaceChildren(head(), noSnapshot(s.reason));
+      renderedKey = "";
+      enter("nosnap");
+      patchSection(emptySlot, noSnapshot(s.reason));
       return;
     }
     const now = Date.now();
     const eq = parseSeries(s.equity_history);
-    renderedHb = heartbeatState(s.heartbeat, now).tone;
-    root.replaceChildren(
-      head(), staleBanner(s) ?? "", killedBanner(s) ?? "",
-      (heroEl = heroCard(s, eq, now, S.range, feeds)),
-      h("div", { class: "lv-cols" }, positionCard(s), signalsCard(s, meta, now, idle)),
-      riskCard(s, eq, now),
-      chartCard,
-      tradesSlot, eventsCard);
+    renderedKey = timeKey(s, now);
+    enter("snap");
+    patchSection(staleSlot, staleBanner(s));
+    patchSection(killedSlot, killedBanner(s));
+    patchSection(heroSlot, heroCard(s, eq, now, S.range, feeds));
+    patchSection(posSlot, positionCard(s));
+    patchSection(sigSlot, signalsCard(s, meta, now, idle));
+    patchSection(riskSlot, riskCard(s, eq, now));
     paintTrades();
     updateChart(s);
     paintEvents(s);
@@ -228,24 +244,28 @@ export function createLive(meta: Meta): Tab {
     try {
       const s = await api.live(c.signal);
       publishLive(s);
-      // та же картинка (и минутная корзина для «N мин назад») — DOM и график не трогаем
-      const sig = JSON.stringify(s) + "|" + Math.floor(Date.now() / 60_000);
+      // тот же снимок — ничего не перерисовываем («N мин назад» и отсчёты ведёт тикер, а не повторная отрисовка)
+      const sig = JSON.stringify(s);
       if (sig !== lastJson) { lastJson = sig; render(s); }
       lastFetch.textContent = `обновлено ${clockUtc(Date.now())} · авто каждые 10 с`;
     } catch (e) {
       if (c.signal.aborted) return;
       lastJson = "";
       lastSnap = null;
-      chart?.destroy(); chart = null;
-      root.replaceChildren(head(), errorBanner(asApiError(e), refresh));
+      enter("error");
+      patchSection(errorSlot, errorBanner(asApiError(e), refresh));      // та же ошибка на каждом опросе не переозвучивается (role=alert)
     }
   }
 
-  /** Раз в секунду: обратный отсчёт и «N с назад»; если сигнал жизни перешёл через порог — перерисовать страницу (баннер «не отвечает»). */
+  /**
+   * Раз в секунду: обратный отсчёт, «N с назад», длительности. Если сигнал жизни перешёл через порог или началась новая минута (свечи закрываются
+   * ровно на границе минуты — следующая цель отсчёта появляется тогда же) — секции пересматриваются: изменившиеся заменяются на месте, остальные нетронуты.
+   */
   function tick() {
     if (!visible || document.hidden) return;
-    tickAll(root);
-    if (lastSnap?.available && renderedHb != null && heartbeatState(lastSnap.heartbeat, Date.now()).tone !== renderedHb) { lastJson = ""; render(lastSnap); }
+    const now = Date.now();
+    tickAll(root, now);
+    if (lastSnap?.available && mode === "snap" && timeKey(lastSnap, now) !== renderedKey) render(lastSnap);
   }
 
   // Опрос не идёт в скрытой вкладке браузера; при возврате — сразу обновляемся и запускаем цикл заново.
@@ -258,7 +278,7 @@ export function createLive(meta: Meta): Tab {
       loop();
     }, REFRESH_MS);
   };
-  root.append(head(), h("div", { class: "cards lv-skel" }, ...Array.from({ length: 4 }, skeletonTile)), skeletonChart(260));
+  root.append(head, h("div", { class: "cards lv-skel" }, ...Array.from({ length: 4 }, skeletonTile)), skeletonChart(260));
   document.addEventListener("visibilitychange", () => {
     if (!visible) return;
     if (document.hidden) { clearTimeout(timer); clearTimeout(closedTimer); clearTimeout(fullTimer); ctl?.abort(); } else { tick(); void refresh().then(loop); void loadClosed().then(closedLoop); void loadFull().then(fullLoop); }

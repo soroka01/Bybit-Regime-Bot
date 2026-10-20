@@ -23,3 +23,47 @@ export function patchKeyed(host: HTMLElement, items: KeyedItem[]): void {
     if (host.children[i] !== el) host.insertBefore(el, host.children[i] ?? null);
   });
 }
+
+// ---------- секции страницы: замена на месте без потери фокуса, прокрутки и озвучивания
+const FOCUSABLE = "a[href], button, input, select, textarea, [tabindex]";
+const SCROLLERS = ".table-wrap, .lv-timeline, [tabindex='0']";
+
+/**
+ * Подпись содержимого секции для сравнения: outerHTML без текста «живых» элементов [data-tk] (его правит тикер раз в секунду, он не считается изменением).
+ * Одинаковая подпись = пользователь не увидит разницы.
+ */
+export function sectionSig(el: Element): string {
+  const c = el.cloneNode(true) as Element;
+  c.querySelectorAll("[data-tk]").forEach((n) => { n.textContent = ""; });
+  return c.outerHTML.replace(/\bsp\d+\b/g, "sp");       // id градиентов sparkline нумеруются при каждой сборке — на вид не влияют
+}
+
+/**
+ * Приводит содержимое слота (контейнер с одной секцией) к next. Если подпись не изменилась — DOM не трогается вовсе (фокус, прокрутка, анимации,
+ * role=alert/status не переозвучиваются). Иначе секция заменяется, а фокус и прокрутка внутри неё переносятся на тот же по порядку элемент.
+ * next === null — убрать секцию. Возвращает true, если DOM изменился.
+ */
+export function patchSection(slot: HTMLElement, next: HTMLElement | null): boolean {
+  const cur = slot.firstElementChild as HTMLElement | null;
+  if (!next) {
+    if (!cur) return false;
+    slot.replaceChildren();
+    return true;
+  }
+  if (!cur) { slot.replaceChildren(next); return true; }
+  if (sectionSig(cur) === sectionSig(next)) return false;
+  const ae = document.activeElement as HTMLElement | null;
+  const focusIdx = ae && cur.contains(ae) ? [cur, ...Array.from(cur.querySelectorAll<HTMLElement>(FOCUSABLE))].indexOf(ae) : -1;
+  const scrolls = [cur, ...Array.from(cur.querySelectorAll<HTMLElement>(SCROLLERS))].map((e) => [e.scrollTop, e.scrollLeft] as const);
+  cur.replaceWith(next);
+  [next, ...Array.from(next.querySelectorAll<HTMLElement>(SCROLLERS))].forEach((e, i) => {
+    const s = scrolls[i];
+    if (s && (s[0] || s[1])) { e.scrollTop = s[0]; e.scrollLeft = s[1]; }
+  });
+  if (focusIdx >= 0) {
+    const list = [next, ...Array.from(next.querySelectorAll<HTMLElement>(FOCUSABLE))];
+    const t = list[Math.min(focusIdx, list.length - 1)];
+    if (t && t.tabIndex >= 0) t.focus({ preventScroll: true });
+  }
+  return true;
+}
