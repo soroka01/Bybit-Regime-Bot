@@ -4,13 +4,13 @@ export type Num = number | null;
 export type Market = "perp" | "spot";
 
 /** Эффективные настройки расчёта (сервер): для спота плечо 1×, только лонг, комиссия. Для перпа в ответе не передаются. */
-export interface MarketEffective {
+interface MarketEffective {
   leverage: number;
   long_only: boolean;
   fee: number;
 }
 
-export interface ParamSpec {
+interface ParamSpec {
   min: number;
   max: number;
   step: number;
@@ -83,7 +83,7 @@ export interface PortfolioBody {
   market: Market;
 }
 
-export interface SweepAxis { name: string; min: number; max: number; n: number }
+interface SweepAxis { name: string; min: number; max: number; n: number }
 export interface SweepBody extends BacktestBody {
   x: SweepAxis;
   y?: SweepAxis; // нет y — одномерный профиль параметра x
@@ -117,7 +117,7 @@ export interface Metrics {
 /** Метрика по строковому ключу (для динамических колонок/критериев); отсутствующая — null. */
 export const metricAt = (m: Partial<Metrics> | null | undefined, key: string): Num => (m as Record<string, Num | undefined> | null | undefined)?.[key] ?? null;
 
-export interface Marker {
+interface Marker {
   t: number;
   p: Num;
   side: "long" | "short";
@@ -261,7 +261,7 @@ export interface OptRow {
   curve?: { t: number[]; equity: Num[]; bh: Num[] };
 }
 
-export interface Range { start: string; end: string; bars: number; days: number }
+interface Range { start: string; end: string; bars: number; days: number }
 
 export interface OptResult {
   results: OptRow[];
@@ -365,7 +365,7 @@ export interface LbCached {
 
 export type StatsRange = "1h" | "1d" | "3d" | "7d" | "30d" | "90d" | "180d" | "365d" | "730d" | "1095d" | "all";
 
-export type StatsWarningCode =
+type StatsWarningCode =
   | "starts_before_data" | "few_trades" | "funding_stale" | "candles_missing" | "position_mismatch"
   | "reconstructed_trades" | "equity_gaps" | "bad_fills";
 
@@ -387,7 +387,7 @@ export interface StatsWarning {
 
 export interface StatsPositionSide { side: "long" | "short"; qty: number }
 
-export interface StatsWindow {
+interface StatsWindow {
   start: number;
   /** Начало периода, за который реально есть данные equity (= start, если данные покрывают окно). */
   effective_start: number;
@@ -397,7 +397,7 @@ export interface StatsWindow {
   length_s: number;
 }
 
-export interface StatsConfig {
+interface StatsConfig {
   symbol: string;
   /** Оценочная ставка тейкера (0.001 = 0.1 %). */
   taker_fee_est: number;
@@ -405,7 +405,7 @@ export interface StatsConfig {
   stop_pct: number;
 }
 
-export interface StatsData {
+interface StatsData {
   first_trade_ts: number;
   last_trade_ts: number;
   first_equity_ts: number | null;
@@ -416,9 +416,9 @@ export interface StatsData {
   round_trips: number;
 }
 
-export interface StatsDay { date: string; ret_pct: Num }
+interface StatsDay { date: string; ret_pct: Num }
 
-export interface StatsEquity {
+interface StatsEquity {
   eq_start: Num;
   eq_end: Num;
   eq_start_ts: number;
@@ -443,7 +443,7 @@ export interface StatsEquity {
   gaps: { count: number; total_s: number };
 }
 
-export interface StatsTradeRef { n: number; net: Num; ret_pct: Num; exit_ts: number }
+interface StatsTradeRef { n: number; net: Num; ret_pct: Num; exit_ts: number }
 
 export interface StatsKpis {
   trades: number;
@@ -478,7 +478,7 @@ export interface StatsKpis {
   buy_hold_pct: Num;
 }
 
-export interface StatsOpenPosition {
+interface StatsOpenPosition {
   side: "long" | "short";
   qty: number;
   entry: Num;
@@ -494,9 +494,9 @@ export interface StatsOpenPosition {
   heartbeat: string | null;
 }
 
-export interface StatsPositionMismatch { replayed: StatsPositionSide | null; actual: StatsPositionSide | null }
+interface StatsPositionMismatch { replayed: StatsPositionSide | null; actual: StatsPositionSide | null }
 
-export interface StatsReconciliation {
+interface StatsReconciliation {
   wallet_delta: Num;
   bot_pnl_est: Num;
   /** Δкошелька - оценка P/L бота; в основном внебот-движение кошелька и ошибка оценок. null — см. reason. */
@@ -505,9 +505,9 @@ export interface StatsReconciliation {
   flat_at_start: boolean | null;
 }
 
-export interface StatsCmpRow { cur: Num; prev: Num; delta: Num }
+interface StatsCmpRow { cur: Num; prev: Num; delta: Num }
 
-export interface StatsComparison {
+interface StatsComparison {
   available: boolean;
   reason?: "range_too_short" | "all_range" | "no_previous_data";
   prev_start?: number;
@@ -516,13 +516,13 @@ export interface StatsComparison {
   equity?: Record<string, StatsCmpRow>;
 }
 
-export interface StatsEquitySeries { t: number[]; v: Num[]; lo: Num[]; hi: Num[] }
-export interface StatsDrawdownSeries { t: number[]; dd_pct: Num[] }
+interface StatsEquitySeries { t: number[]; v: Num[]; lo: Num[]; hi: Num[] }
+interface StatsDrawdownSeries { t: number[]; dd_pct: Num[] }
 export interface StatsPnlBucket { t: number; n: number; wins: number; net: Num }
 export interface StatsCalendarCell { date: string; net: Num; trades: number }
 export interface StatsHistogram { edges: Num[]; counts: number[] }
 
-export interface StatsSeries {
+interface StatsSeries {
   /** Не более 600 точек: последняя точка бакета + min/max за бакет. */
   equity: StatsEquitySeries;
   drawdown: StatsDrawdownSeries;
@@ -533,9 +533,9 @@ export interface StatsSeries {
   histogram: StatsHistogram;
 }
 
-export interface StatsGroupRow { key: string; count: number; win_rate_pct: Num; net: Num; avg_net: Num }
+interface StatsGroupRow { key: string; count: number; win_rate_pct: Num; net: Num; avg_net: Num }
 
-export interface StatsBreakdown { by_reason: StatsGroupRow[]; by_side: StatsGroupRow[] }
+interface StatsBreakdown { by_reason: StatsGroupRow[]; by_side: StatsGroupRow[] }
 
 export interface StatsFill {
   /** id в trades; null у синтетического закрытия. */
@@ -582,7 +582,7 @@ export interface StatsTradeRow {
   fills: StatsFill[];
 }
 
-export interface StatsTrades { total: number; truncated: boolean; rows: StatsTradeRow[] }
+interface StatsTrades { total: number; truncated: boolean; rows: StatsTradeRow[] }
 
 /** available:false -> заполнены только reason/message/range/computed_at/definitions/warnings. */
 export interface StatsResponse {

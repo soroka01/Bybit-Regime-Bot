@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { contrast, inkOn, luminance, mix, parseColor, withAlpha } from "../src/charts/colors";
 import { niceScale } from "../src/charts/scale";
-import { badge, deltaChip, emptyState, glyph, metricTile } from "../src/ui/kit";
+import { badge, deltaChip, emptyState, glyph } from "../src/ui/kit";
 
 describe("charts/colors", () => {
   it("разбирает hex и rgb() в старом и новом синтаксисе", () => {
@@ -40,13 +40,6 @@ describe("charts/scale niceScale", () => {
 });
 
 describe("ui/kit", () => {
-  it("metricTile: тон окрашивает значение и добавляет чип со стрелкой", () => {
-    const t = metricTile({ label: "Доход", value: "+5%", tone: "pos", sub: "B&H" });
-    expect(t.querySelector(".metric-value")!.className).toContain("pos");
-    expect(t.querySelector(".delta.pos .g")!.textContent).toBe("▲");
-    expect(metricTile({ label: "x", value: "1" }).querySelector(".delta")).toBeNull();
-    expect(metricTile({ label: "x", value: "1", tone: "neg", delta: false }).querySelector(".delta")).toBeNull();
-  });
   it("glyph / deltaChip / badge", () => {
     expect(glyph("pos")).toBe("▲");
     expect(glyph("neg")).toBe("▼");

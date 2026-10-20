@@ -9,7 +9,7 @@ import { binLabel, binTone, histModel } from "../src/charts/histModel";
 import { bucketLabel, bucketTitle, bucketValues } from "../src/tabs/statsBuckets";
 import { calendarGrid, calendarIsCompact, calendarList, calendarSections, calLevel } from "../src/charts/calendarModel";
 import { cmpView, defText, heroKpis, miniKpis } from "../src/tabs/statsKpi";
-import { compareSupported, DEFAULT_STATS_RANGE, isStatsRange, rangeDef, rangeLabel, STATS_RANGES } from "../src/tabs/statsRange";
+import { DEFAULT_STATS_RANGE, isStatsRange, rangeDef, rangeLabel, STATS_RANGES } from "../src/tabs/statsRange";
 import { csvText, fillBasisText, filterStTrades, isStTradeFilter, stTradeCounts, stTradesToCsv } from "../src/tabs/statsTradeLogic";
 import { equityMapper, tradeMarkers, valueAt } from "../src/tabs/statsMarkers";
 import { fmtDuration } from "../src/ui/fmtTime";
@@ -37,12 +37,6 @@ describe("диапазоны", () => {
     expect(isStatsRange(7)).toBe(false);
     expect(rangeLabel("7d")).toBe("1н");
     expect(rangeDef("zzz" as never).key).toBe("30d");
-  });
-  it("сравнение с предыдущим окном — от 7 дней и не для «Всё»", () => {
-    expect(["1h", "1d", "3d"].some((k) => compareSupported(k as never))).toBe(false);
-    expect(compareSupported("7d")).toBe(true);
-    expect(compareSupported("1095d")).toBe(true);
-    expect(compareSupported("all")).toBe(false);
   });
 });
 

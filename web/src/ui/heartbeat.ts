@@ -2,11 +2,11 @@
 import { parseTime } from "./fmt";
 
 /** Сигнал жизни старше этого — «нет ответа» (янтарный), старше DEAD_S — красный. */
-export const STALE_S = 180;
-export const DEAD_S = 600;
+const STALE_S = 180;
+const DEAD_S = 600;
 
-export type HbTone = "ok" | "warn" | "bad";
-export interface Heartbeat { ageS: number | null; tone: HbTone }
+type HbTone = "ok" | "warn" | "bad";
+interface Heartbeat { ageS: number | null; tone: HbTone }
 
 /** Свежесть heartbeat: < 3 мин — зелёный, 3–10 мин — янтарный, дольше (или нет данных) — красный. */
 export function heartbeatState(hb: string | null | undefined, nowMs: number): Heartbeat {

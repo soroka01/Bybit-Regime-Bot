@@ -3,8 +3,8 @@ import type { Num, StatsResponse } from "../types";
 import { isNum as ok, num, pctU, snum, spctU, susd, toneOf, usd } from "../ui/fmt";
 import { ddmm, ddmmyy, fmtDuration, ymdRu } from "../ui/fmtTime";
 
-export type CmpGroup = "kpis" | "equity";
-export interface CmpSpec { group: CmpGroup; field: string; kind: "pp" | "ratio" | "usd" | "count"; better: "up" | "none" }
+type CmpGroup = "kpis" | "equity";
+interface CmpSpec { group: CmpGroup; field: string; kind: "pp" | "ratio" | "usd" | "count"; better: "up" | "none" }
 export interface Kpi {
   key: string; label: string; def: string; value: string; tone: "pos" | "neg" | ""; sub?: string;
   /** Почему значения нет (подсказка к «—»). */
@@ -21,13 +21,13 @@ const CMP: Record<string, CmpSpec> = {
   costs: { group: "kpis", field: "fees_total", kind: "usd", better: "none" },
 };
 
-export const NEED_SHARPE = "нужно ≥ 14 торговых дней (дневных доходностей кошелька)";
-export const NEED_CALMAR = "нужно ≥ 30 торговых дней и ненулевая просадка";
-export const NEED_SORTINO = "нужно ≥ 14 торговых дней и хотя бы один убыточный день";
-export const NEED_PF = "нет убытков (или нет сделок): делить не на что";
+const NEED_SHARPE = "нужно ≥ 14 торговых дней (дневных доходностей кошелька)";
+const NEED_CALMAR = "нужно ≥ 30 торговых дней и ненулевая просадка";
+const NEED_SORTINO = "нужно ≥ 14 торговых дней и хотя бы один убыточный день";
+const NEED_PF = "нет убытков (или нет сделок): делить не на что";
 
 /** Тексты определений для метрик, которых нет в `definitions` сервера (локальные запасные). */
-export const LOCAL_DEFS: Record<string, string> = {
+const LOCAL_DEFS: Record<string, string> = {
   avg_win: "Средний Net прибыльной сделки, USDT (комиссии и фандинг вычтены; по данным Bybit, где они есть).",
   avg_loss: "Средний Net убыточной сделки, USDT.",
   best_trade: "Сделка с наибольшим Net в окне.",
@@ -132,7 +132,7 @@ export type CmpView =
   | { kind: "chip"; dir: "up" | "down" | "flat"; good: "pos" | "neg" | ""; text: string; title: string }
   | { kind: "na"; title: string };
 
-export const CMP_REASON: Record<string, string> = {
+const CMP_REASON: Record<string, string> = {
   range_too_short: "Сравнение с предыдущим окном доступно от диапазона 1н",
   all_range: "Для диапазона «Всё» предыдущего окна нет",
   no_previous_data: "Нет данных за предыдущее окно такой же длины",

@@ -1,7 +1,7 @@
 // Вкладка «Статистика»: диапазоны окна (чистая логика).
 import type { StatsRange } from "../types";
 
-export interface RangeDef { key: StatsRange; label: string; title: string; days: number | null }
+interface RangeDef { key: StatsRange; label: string; title: string; days: number | null }
 
 export const STATS_RANGES: readonly RangeDef[] = [
   { key: "1h", label: "1ч", title: "последний час", days: 1 / 24 },
@@ -21,5 +21,3 @@ export const isStatsRange = (v: unknown): v is StatsRange => STATS_RANGES.some((
 export const rangeDef = (k: StatsRange): RangeDef => STATS_RANGES.find((r) => r.key === k) ?? STATS_RANGES[4]!;
 export const rangeLabel = (k: StatsRange): string => rangeDef(k).label;
 export const rangeTitle = (k: StatsRange): string => rangeDef(k).title;
-/** Диапазоны, для которых сервер считает сравнение с предыдущим окном (от 7 дней, кроме «Всё»). */
-export const compareSupported = (k: StatsRange): boolean => { const d = rangeDef(k).days; return d != null && d >= 7; };

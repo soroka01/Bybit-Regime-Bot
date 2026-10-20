@@ -2,7 +2,7 @@
 import { h } from "./dom";
 import { icon } from "./icons";
 
-export interface PanelSection {
+interface PanelSection {
   el: HTMLDetailsElement;
   setSummary(text: string): void;
 }

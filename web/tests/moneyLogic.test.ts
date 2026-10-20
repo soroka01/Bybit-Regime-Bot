@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StatsResponse, StatsTradeRow } from "../src/types";
 import { closedKey, newClosedKeys, upnlAccountFrac } from "../src/tabs/liveCalc";
 import { filterStTrades, stTradesToCsv, ST_CSV_HEADER } from "../src/tabs/statsTradeLogic";
-import { moneyLine, moneySummary, openAccountPct, periodParts, periodSummary, resultText, resultTone } from "../src/tabs/statsMoney";
+import { moneyLine, moneySummary, openAccountPct, periodSummary, resultText, resultTone } from "../src/tabs/statsMoney";
 import { freshStats, loadStats, rememberStats, resetStatsFeed } from "../src/tabs/statsFeed";
 import golden from "./fixtures/stats_all.json";
 
@@ -57,9 +57,6 @@ describe("итоги окна (шапка блока «Закрытые сдел
     r.trades = { total: 900, truncated: true, rows: r.trades!.rows.slice(0, 2) };
     r.kpis = { ...r.kpis!, trades: 900, wins: 500, losses: 400, profit_sum_usdt: 1234.5, loss_sum_usdt: -234.5, net_pnl: 1000 };
     expect(periodSummary(r)).toEqual({ count: 900, wins: 500, losses: 400, profit: 1234.5, loss: -234.5, net: 1000 });
-    const p = periodParts(periodSummary(r)!);
-    expect(p.count).toBe("900");
-    expect([p.profit, p.loss, p.net].map((x) => x.replace(/\s/g, " "))).toEqual(["+1 234,50 $", "−234,50 $", "+1 000,00 $"]);
   });
 
   it("нет полей суммы: по строкам, если они не обрезаны; обрезаны — null (не выдумываем)", () => {

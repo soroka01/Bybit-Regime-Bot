@@ -2,8 +2,7 @@
 //
 // ВРЕМЯ. Сервер отдаёт моменты времени в UTC (ISO-строки с «+00:00» либо «наивные» строки «YYYY-MM-DD HH:MM:SS» — они тоже UTC).
 // Везде в таблицах, рейтинге и полосе свежести показываем UTC с явным суффиксом « UTC» (fmtUtc / utcShort).
-// fmtLocal — то же в часовом поясе браузера, суффикс — аббревиатура пояса (например «GMT+3»). Полоса свежести дополнительно
-// показывает подсказку «МСК». date() и datetime() — UTC-вариант по умолчанию (datetime = fmtUtc).
+// Полоса свежести дополнительно показывает подсказку «МСК». date() и datetime() — UTC-вариант (datetime = fmtUtc).
 import type { Num } from "../types";
 
 const MINUS = "−";
@@ -86,9 +85,6 @@ const dfDateUtc = new Intl.DateTimeFormat("ru-RU", { timeZone: "UTC", year: "num
 const dfTimeUtc = new Intl.DateTimeFormat("ru-RU", {
   timeZone: "UTC", year: "2-digit", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
 });
-const dfTimeLocal = new Intl.DateTimeFormat("ru-RU", {
-  year: "2-digit", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", timeZoneName: "short",
-});
 
 /** Дата (UTC), «дд.мм.гггг». */
 export function date(s: string | number | null | undefined): string {
@@ -99,11 +95,6 @@ export function date(s: string | number | null | undefined): string {
 export function fmtUtc(s: string | number | null | undefined): string {
   const d = parseTime(s);
   return d ? dfTimeUtc.format(d).replace(",", "") + " UTC" : "—";
-}
-/** Дата и время в часовом поясе браузера с суффиксом пояса. */
-export function fmtLocal(s: string | number | null | undefined): string {
-  const d = parseTime(s);
-  return d ? dfTimeLocal.format(d).replace(",", "") : "—";
 }
 /** Синоним fmtUtc: во всех таблицах время — UTC. */
 export const datetime = fmtUtc;

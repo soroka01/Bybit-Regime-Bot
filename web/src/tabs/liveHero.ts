@@ -10,7 +10,7 @@ import { drawdownFrac, plToday, rangeStart, sliceSeries, type Pt, type RangeKey 
 import { tk } from "./liveTick";
 import { resolveWindow, todayLabel, type Feeds } from "./liveWindow";
 
-export const LATCH_TIP = "Защёлка (latch): после срабатывания стопа или ручного закрытия бот не входит в рынок повторно, пока целевая экспозиция не изменится.";
+const LATCH_TIP = "Защёлка (latch): после срабатывания стопа или ручного закрытия бот не входит в рынок повторно, пока целевая экспозиция не изменится.";
 
 export function staleBanner(s: LiveSnapshot): HTMLElement | null {
   const hb = heartbeatState(s.heartbeat, Date.now());

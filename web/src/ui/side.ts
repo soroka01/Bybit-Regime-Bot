@@ -4,7 +4,7 @@
 // Тесты: tests/side.test.ts.
 import { h } from "./dom";
 
-export type Side = "long" | "short";
+type Side = "long" | "short";
 
 export const SIDE_WORD: Record<Side, string> = { long: "ЛОНГ", short: "ШОРТ" };
 /** Контурные треугольники: отличаются от закрашенных ▲/▼ результата (прибыль/убыток). */

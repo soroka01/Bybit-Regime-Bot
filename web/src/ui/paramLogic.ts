@@ -1,5 +1,5 @@
 // Параметры стратегий: отличие значения от умолчания (для пометки «изменено» и сводки секции).
-export interface ParamSpecLite { default: number; step: number }
+interface ParamSpecLite { default: number; step: number }
 
 /** Значение считается изменённым, если оно отличается от умолчания больше чем на полшага (шум округления не в счёт). */
 export const isChanged = (value: number, def: number, step: number): boolean =>

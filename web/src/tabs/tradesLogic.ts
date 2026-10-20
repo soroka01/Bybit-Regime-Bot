@@ -39,7 +39,7 @@ export function csvCell(v: string | number | null | undefined): string {
 /** Ячейка CSV для текста (в т.ч. от сервера): защита от формул (=, +, -, @, таб, CR в начале) + RFC 4180. Числа — через csvCell: их минус не экранируется. */
 export const csvText = (s: string | null | undefined): string => csvCell(s != null && /^[=+\-@\t\r]/.test(s) ? "'" + s : s);
 
-export const CSV_HEADER = ["entry", "exit", "side", "return", "bars", "entry_price", "exit_price"] as const;
+const CSV_HEADER = ["entry", "exit", "side", "return", "bars", "entry_price", "exit_price"] as const;
 
 /** CSV сделок: машинный формат (точка в числах, доходность — доля, время — как пришло от сервера, UTC), разделитель строк CRLF. */
 export function tradesToCsv(rows: readonly TradeRow[]): string {

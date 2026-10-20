@@ -13,7 +13,7 @@ export interface TipRow {
   /** "pos" | "neg" — окрашивает значение. */
   tone?: string;
 }
-export interface TipData { title?: string; rows: TipRow[]; note?: string }
+interface TipData { title?: string; rows: TipRow[]; note?: string }
 
 export interface ChartTip {
   el: HTMLElement;

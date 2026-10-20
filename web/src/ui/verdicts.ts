@@ -3,7 +3,7 @@
 // чтобы не расходились с core.optimize на сервере.
 import type { Verdict } from "../types";
 
-export interface VerdictInfo { text: string; tone: string; /** знак в бейдже (смысл не только цветом) */ glyph: string; hint: string; warnTitle: string; warnBody: string }
+interface VerdictInfo { text: string; tone: string; /** знак в бейдже (смысл не только цветом) */ glyph: string; hint: string; warnTitle: string; warnBody: string }
 
 export const VERDICTS: Record<Verdict, VerdictInfo> = {
   robust: {

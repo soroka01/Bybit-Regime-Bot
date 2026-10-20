@@ -3,13 +3,13 @@
 // совпадение проверяет tests/test_leverage_market.py::test_ts_constants_match_server.
 import { num } from "./ui/fmt";
 
-export const MIN_LEVERAGE = 1;
+const MIN_LEVERAGE = 1;
 export const MAX_LEVERAGE = 100;         // максимум Bybit для BTCUSDT
 export const BOT_MAX_LEVERAGE = 3;       // живой бот ограничен 3× (trading.config.MAX_LEVERAGE) — здесь только для подсказок
 export const MMR = 0.005;                // поддерживающая маржа 0.5 % (core.engine.MAINT_MARGIN_RATE)
 export const LEV_PRESETS: readonly number[] = [1, 2, 3, 5, 10, 20, 50, 100];
-export const WARN_AT = 10;               // янтарный с 10×
-export const DANGER_AT = 25;             // красный с 25×
+const WARN_AT = 10;               // янтарный с 10×
+const DANGER_AT = 25;             // красный с 25×
 
 /** Участки шкалы: [от, до, шаг]. Низкие плечи остаются точными: 0.5 до 5×, 1 до 10×, 5 до 25×, 25 до 100×. */
 const SEGMENTS: readonly (readonly [number, number, number])[] = [[1, 5, 0.5], [5, 10, 1], [10, 25, 5], [25, 100, 25]];
@@ -45,7 +45,7 @@ export function posFromLev(lev: number): number {
 /** Движение цены против позиции (в %), после которого срабатывает ликвидация: (1/плечо − MMR) · 100. */
 export const liqMovePct = (lev: number): number => (1 / clampLev(lev) - MMR) * 100;
 
-export type RiskLevel = "ok" | "warn" | "danger";
+type RiskLevel = "ok" | "warn" | "danger";
 export const riskLevel = (lev: number): RiskLevel => (lev >= DANGER_AT ? "danger" : lev >= WARN_AT ? "warn" : "ok");
 
 export const liqHintText = (lev: number): string => `ликвидация ≈ при движении против позиции на ${num(liqMovePct(lev), 1)} %`;

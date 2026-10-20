@@ -44,12 +44,12 @@ const MINIS: Mini[] = [
   { label: "B&H просадка", value: (m) => pct(m.bh_max_drawdown, 0), tone: () => "neg" },
 ];
 
-export interface ResultViewOpts {
+interface ResultViewOpts {
   /** Части имени файла CSV (символ, стратегия, таймфрейм…). */
   fileHint?: () => (string | number | null | undefined)[];
 }
 
-export interface ResultView {
+interface ResultView {
   el: HTMLElement;
   /** text — необязательная подпись поверх результата (например, «ожидаю сервер, попытка 2/3»). */
   setBusy(b: boolean, text?: string): void;

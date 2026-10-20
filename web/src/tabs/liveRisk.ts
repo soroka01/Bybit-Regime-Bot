@@ -31,7 +31,7 @@ const pctShort = (x: number): string => pct(x, Math.abs(x * 100 - Math.round(x *
  * Предупреждение «стоп × плечо × веса»: один сработавший биржевой стоп съедает долю счёта не меньше меньшего из лимитов kill-switch.
  * Нет настроек или ног — null (строки просто нет).
  */
-export function stopRiskNote(s: LiveSnapshot): HTMLElement | null {
+function stopRiskNote(s: LiveSnapshot): HTMLElement | null {
   const w = stopRiskWarning(s.settings, s.legs);
   if (!w) return null;
   const cmp = w.risk > w.limit + 1e-9 ? "больше лимита" : "равно лимиту";

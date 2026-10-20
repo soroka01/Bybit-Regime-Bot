@@ -26,7 +26,7 @@ export function rankValue(it: LbItem | null | undefined, rank: unknown): number 
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-export interface Ranked { name: string; it: LbItem; v: number; tier: number }
+interface Ranked { name: string; it: LbItem; v: number; tier: number }
 
 /** Делит стратегии на ранжированные (с метрикой) и «остальные» (ожидают/ошибка/пропуск); ранжированные отсортированы. */
 export function splitRanked(order: readonly string[], itemOf: (name: string) => LbItem | null, rank: unknown): { ranked: Ranked[]; rest: string[] } {

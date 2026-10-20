@@ -16,7 +16,7 @@ const fin = (v: unknown): v is number => typeof v === "number" && Number.isFinit
 export type FullRange = "7d" | "all";
 
 /** Состояние запроса /api/stats для диапазона. Нет записи — ещё не запрашивали (для окна это то же, что «загрузка»). */
-export type FeedState =
+type FeedState =
   | { kind: "loading" }
   | { kind: "ok"; res: StatsResponse }
   | { kind: "error"; message?: string };                // сеть, 5xx, available:false (нет БД / сделок / equity)
@@ -30,7 +30,7 @@ export function fmtSpan(ms: number): string {
   return `${num(ms / DAY_MS, 1)} дн.`;
 }
 
-export interface Coverage {
+interface Coverage {
   /** Снимок покрывает окно целиком (первая точка не позже начала окна + допуск). Для «Всё» всегда false: полноту истории снимок не гарантирует. */
   full: boolean;
   /** Сколько реально есть данных: от первой точки до якоря. */
@@ -52,9 +52,9 @@ export function statsNeeded(range: RangeKey, pts: readonly Pt[], anchorMs: numbe
   return null;
 }
 
-export interface WindowPl { abs: number; pct: number | null; base: number; cur: number; since: number }
+interface WindowPl { abs: number; pct: number | null; base: number; cur: number; since: number }
 
-export interface WindowInfo {
+interface WindowInfo {
   /** ok — окно определено (pl может быть null: мало точек); loading — ждём /api/stats и ничего не показываем под видом полного периода. */
   state: "ok" | "loading";
   pl: WindowPl | null;

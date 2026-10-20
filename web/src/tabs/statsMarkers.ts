@@ -2,8 +2,8 @@
 import type { Num, StatsTradeRow } from "../types";
 import { stepValueAt } from "../charts/align";
 
-export interface EqMarker { t: number; p: number; kind: "entry" | "exit"; side: "long" | "short"; active?: boolean }
-export const MAX_AUTO_MARKERS = 150;
+interface EqMarker { t: number; p: number; kind: "entry" | "exit"; side: "long" | "short"; active?: boolean }
+const MAX_AUTO_MARKERS = 150;
 
 /** Значение ряда на момент t: последняя точка ≤ t (до начала ряда — первая). */
 export const valueAt = (t: readonly number[], v: readonly Num[], at: number): number | null => stepValueAt(t.length, (i) => t[i]!, (i) => v[i], at);

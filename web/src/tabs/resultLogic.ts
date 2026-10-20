@@ -2,7 +2,7 @@
 import type { BacktestResult, Num } from "../types";
 import { num, parseTime } from "../ui/fmt";
 
-export interface Versus { tone: "pos" | "neg" | ""; text: string }
+interface Versus { tone: "pos" | "neg" | ""; text: string }
 
 const pp = (x: number): string => {
   const s = num(x * 100, Math.abs(x * 100) < 10 ? 1 : 0);
@@ -25,7 +25,7 @@ export function ddVersus(dd: Num | undefined, bhDd: Num | undefined): Versus {
   return { tone: d > 0 ? "pos" : "neg", text: d > 0 ? `на ${num(d * 100, 0)} п.п. мельче B&H` : `на ${num(-d * 100, 0)} п.п. глубже B&H` };
 }
 
-export const SHORT_DAYS = 180;
+const SHORT_DAYS = 180;
 /** Длина периода данных в сутках; строки без часового пояса — UTC (parseTime), иначе браузер читал бы их как местное время и сдвигал на DST. */
 export const periodDays = (r: Pick<BacktestResult, "data_range">): number =>
   (+(parseTime(r.data_range.end) ?? NaN) - +(parseTime(r.data_range.start) ?? NaN)) / 86400000;

@@ -13,9 +13,9 @@ export type Entry =
   | { k: "none" }
   | { k: "busy" };
 
-export interface Retry { k: number; n: number; name: string; waitedS?: number }
+interface Retry { k: number; n: number; name: string; waitedS?: number }
 
-export interface LbModel {
+interface LbModel {
   phase: Phase;
   plan: LbPlan | null;
   entries: Map<string, Entry>;

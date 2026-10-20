@@ -11,7 +11,7 @@ import { applyTheme, currentMode } from "./theme";
 import { toast } from "./toast";
 
 const RECENT_KEY = "tb.palette.recent";
-export const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform || "");
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform || "");
 export const PALETTE_KEYS: string[] = [IS_MAC ? "⌘" : "Ctrl", "K"];
 
 let meta: Meta | null = null;

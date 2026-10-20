@@ -68,7 +68,7 @@ const heroNum = (label: string, value: string, tone: string, subs: string[], tip
     ...subs.map((t) => h("div", { class: "lb-num-s", text: t })));
 
 /** Медаль для первой тройки (число внутри — смысл не держится на цвете), у остальных — просто номер. */
-export const rankBadge = (rank: number): HTMLElement =>
+const rankBadge = (rank: number): HTMLElement =>
   h("div", { class: "lb-rank" }, h("span", { class: rank <= 3 ? `medal m${rank}` : "rank-n", title: rank <= 3 ? `Место ${rank}` : "", text: String(rank) }));
 
 /** Отпечаток карточки: если не изменился — DOM переиспользуется (см. ui/keyed.ts). */

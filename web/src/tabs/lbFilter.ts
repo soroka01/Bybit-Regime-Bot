@@ -7,10 +7,10 @@ export type VFilter = Verdict | "";
 export const isVFilter = (v: unknown): v is VFilter => v === "" || (typeof v === "string" && (VERDICT_ORDER as readonly string[]).includes(v));
 
 /** Слабые вердикты: мало сделок и убыточные (идут в конце рейтинга). */
-export const WEAK: readonly Verdict[] = ["few", "loss"];
+const WEAK: readonly Verdict[] = ["few", "loss"];
 export const isWeak = (v: unknown): boolean => (WEAK as readonly unknown[]).includes(v);
 
-export interface RankedLike { it: LbItem }
+interface RankedLike { it: LbItem }
 const verdictOf = (x: RankedLike): string => String(x.it.result?.verdict ?? "");
 
 export type VerdictCounts = Record<Verdict, number> & { other: number };

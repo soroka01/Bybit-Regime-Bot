@@ -3,7 +3,7 @@ import { api, ApiError, asApiError, dataJobsActive } from "../api";
 import type { FetchEstimate } from "../types";
 import { h } from "./dom";
 
-export const estimateText = (e: FetchEstimate): string =>
+const estimateText = (e: FetchEstimate): string =>
   `≈ ${e.requests} запросов к Bybit (свечи ${e.klines_requests} + деривативы ${e.derivs_requests}), до ${e.minutes} мин`;
 
 export function errorBanner(err: ApiError, onRetry: () => void): HTMLElement {

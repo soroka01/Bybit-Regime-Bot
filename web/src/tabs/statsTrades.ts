@@ -15,7 +15,7 @@ import { toast } from "../ui/toast";
 import { orderBadge } from "../ui/side";
 import { moneyStrip, reasonCell, sideBadge } from "./statsView";
 
-export interface TradesCard {
+interface TradesCard {
   el: HTMLElement;
   update(res: StatsResponse): void;
   setSelected(n: number | null): void;

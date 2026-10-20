@@ -103,7 +103,7 @@ export function takeFlag(route: Route, flag: string): boolean {
 }
 
 /** Передача настроек из «Лучших стратегий» в Лабораторию (Лаборатория забирает при показе). */
-export interface LabPreset {
+interface LabPreset {
   symbol: string; tf: string; strategy: string; params: Record<string, number>; days: number;
   longOnly: boolean; leverage: number; htf: number | null; stop: number | null; market: Market;
 }

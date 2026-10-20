@@ -1,5 +1,5 @@
 // Поиск по списку стратегий (комбобокс выбора): все слова запроса обязательны; имя важнее описания, начало слова важнее подстроки.
-export interface StratLike { name: string; desc: string; derivative: boolean }
+interface StratLike { name: string; desc: string; derivative: boolean }
 
 const norm = (s: string): string => s.toLowerCase().replace(/ё/g, "е");
 const KEYWORDS = "деривативы дериватив derivative";

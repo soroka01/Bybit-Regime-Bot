@@ -22,7 +22,7 @@ const CRITERIA: { value: Criterion; label: string; hint: string }[] = [
 
 let lastCriterion: Criterion = "robust";
 
-export interface OptimizeCtx {
+interface OptimizeCtx {
   title: string;
   body(): Omit<OptBody, "criterion" | "top">;
   onApply(params: Record<string, number>): void;

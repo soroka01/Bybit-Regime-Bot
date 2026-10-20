@@ -23,7 +23,7 @@ const sec = (title: string, body: HTMLElement[], head: (HTMLElement | null)[] = 
   h("section", { class: `card st-chart ${cls}`.trim(), "aria-label": title }, h("header", { class: "card-head" }, h("h3", { text: title }), ...head), ...body);
 const sr = (): HTMLElement => h("p", { class: "sr-only" });
 
-export interface StatsCharts {
+interface StatsCharts {
   equity: HTMLElement; drawdown: HTMLElement; pnl: HTMLElement; hist: HTMLElement; daily: HTMLElement; calendar: HTMLElement;
   update(res: StatsResponse, selected: number | null): void;
   setSelected(res: StatsResponse, selected: number | null): void;

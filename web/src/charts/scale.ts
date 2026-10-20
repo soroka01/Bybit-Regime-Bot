@@ -1,6 +1,6 @@
 // «Красивые» деления оси: шаг из {1, 2, 2.5, 5}·10^k, границы кратны шагу, ноль попадает на деление, если лежит внутри диапазона.
 
-export interface NiceScale { lo: number; hi: number; step: number; ticks: number[] }
+interface NiceScale { lo: number; hi: number; step: number; ticks: number[] }
 
 export function niceScale(min: number, max: number, target = 5): NiceScale {
   if (!isFinite(min) || !isFinite(max)) return { lo: 0, hi: 1, step: 0.25, ticks: [0, 0.25, 0.5, 0.75, 1] };

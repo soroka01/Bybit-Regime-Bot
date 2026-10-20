@@ -4,12 +4,12 @@ import { SPOT_LEV_NOTE } from "../market";
 import { syncRange, type Control } from "./controls";
 import { h } from "./dom";
 
-export interface LevControl extends Control<number> {
+interface LevControl extends Control<number> {
   /** Заблокировать выбор плеча (спот): показывает note вместо подсказки о ликвидации. */
   setDisabled(on: boolean, note?: string): void;
 }
 
-export interface LevOpts {
+interface LevOpts {
   value: number;
   /** Подсказка «бот ограничен 3×» при плече выше потолка бота. */
   botNote?: boolean;

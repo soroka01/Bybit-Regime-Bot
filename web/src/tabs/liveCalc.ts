@@ -8,8 +8,8 @@ import { isLongSide } from "../ui/heartbeat";
 
 export const DAY_MS = 86_400_000;
 /** Порог цвета индикатора лимита: с 60 % — предупреждение, с 85 % — опасно. */
-export const RISK_WARN = 0.6;
-export const RISK_BAD = 0.85;
+const RISK_WARN = 0.6;
+const RISK_BAD = 0.85;
 
 const fin = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
@@ -45,7 +45,7 @@ export function plToday(series: readonly Pt[], equity: Num | undefined, nowMs: n
   return { base: first.v, cur, abs, pct: first.v > 0 ? abs / first.v : null, since: first.t };
 }
 
-export interface PlTotal { base: number; cur: number; abs: number; pct: number; since: number }
+interface PlTotal { base: number; cur: number; abs: number; pct: number; since: number }
 
 /**
  * Результат за период графика: текущий кошелёк минус кошелёк в начале окна (первая точка ряда внутри окна [start, ∞);
@@ -164,8 +164,8 @@ export function positionView(pos: LiveSnapshot["position"], settings: LiveSnapsh
 }
 
 // ---------- лимиты риска
-export type RiskTone = "ok" | "warn" | "bad";
-export interface RiskMeter { ratio: number; tone: RiskTone; left: number }
+type RiskTone = "ok" | "warn" | "bad";
+interface RiskMeter { ratio: number; tone: RiskTone; left: number }
 
 /** Заполнение шкалы лимита: ratio = value/limit (может быть > 1), tone по порогам 60 % / 85 %, left — запас до лимита в долях. */
 export function riskMeter(value: number | null | undefined, limit: number | null | undefined): RiskMeter | null {
@@ -192,7 +192,7 @@ export function stopRisk(stopPct: Num | undefined, leverage: Num | undefined, we
   return stopPct * leverage * weights;
 }
 
-export interface StopRiskWarning {
+interface StopRiskWarning {
   stopPct: number; leverage: number; weights: number;
   /** Потеря счёта при срабатывании стопа, доля. */
   risk: number;
@@ -216,11 +216,11 @@ export function stopRiskWarning(settings: LiveSnapshot["settings"] | null | unde
 }
 
 // ---------- ноги
-export interface LegRow {
+interface LegRow {
   key: string; name: string; tf: string; params: Record<string, number>; weight: number; enabled: boolean;
   signal: number | null; traded: boolean; contribution: number | null; updated: string | null; nextClose: number | null;
 }
-export type SignalWord = "long" | "short" | "flat" | "none";
+type SignalWord = "long" | "short" | "flat" | "none";
 export const signalWord = (s: Num | undefined): SignalWord => (!fin(s) ? "none" : s > 0 ? "long" : s < 0 ? "short" : "flat");
 
 export function legRows(legs: LiveSnapshot["legs"], nowMs: number): LegRow[] {
@@ -245,7 +245,7 @@ export function legTotals(rows: readonly LegRow[]): { weights: number; contribut
 }
 
 // ---------- события и сделки
-export type EventKind = "info" | "trade" | "signal" | "warn" | "error" | "daily";
+type EventKind = "info" | "trade" | "signal" | "warn" | "error" | "daily";
 export type EventFilter = "all" | "alerts" | "trades";
 export const isEventFilter = (v: unknown): v is EventFilter => v === "all" || v === "alerts" || v === "trades";
 

@@ -2,8 +2,8 @@
 import type { StatsCalendarCell } from "../types";
 import { isNum as ok, MONTHS } from "../ui/fmt";
 
-export interface CalDay { date: string; row: number; col: number; net: number | null; trades: number; inRange: boolean }
-export interface CalGrid { cols: number; days: CalDay[]; months: { col: number; label: string }[]; maxAbs: number }
+interface CalDay { date: string; row: number; col: number; net: number | null; trades: number; inRange: boolean }
+interface CalGrid { cols: number; days: CalDay[]; months: { col: number; label: string }[]; maxAbs: number }
 
 const DAY = 86400000;
 const ymdToMs = (s: string): number => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s); return m ? Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!) : NaN; };
@@ -53,7 +53,7 @@ export function calLevel(net: number | null, maxAbs: number): number {
   return Math.sign(net) * Math.max(0.22, k);
 }
 
-export interface CalSection { year: number | null; grid: CalGrid }
+interface CalSection { year: number | null; grid: CalGrid }
 /** Периоды до ~12 месяцев — одна сетка; длиннее — по календарному году (свежий год сверху), чтобы клетки оставались читаемыми. */
 export function calendarSections(startDate: string, endDate: string, cells: readonly StatsCalendarCell[]): CalSection[] {
   const s = ymdToMs(startDate), e = ymdToMs(endDate);

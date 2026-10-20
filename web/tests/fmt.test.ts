@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, agoMs, date, datetime, fixSign, fmtLocal, fmtUtc, int, num, parseTime, pct, pctU, sgn, snum, spct, spctU, susd, toneOf, usd, utcShort } from "../src/ui/fmt";
+import { ago, agoMs, date, datetime, fixSign, fmtUtc, int, num, parseTime, pct, pctU, sgn, snum, spct, spctU, susd, toneOf, usd, utcShort } from "../src/ui/fmt";
 import { alignSeries, stepValueAt, stride } from "../src/charts/align";
 import { clockUtc } from "../src/ui/fmtTime";
 
@@ -72,7 +72,6 @@ describe("время (UTC)", () => {
     expect(fmtUtc("мусор")).toBe("—");
     expect(date(undefined)).toBe("—");
     expect(utcShort(null)).toBe("—");
-    expect(fmtLocal(null)).toBe("—");
   });
   it("явный суффикс UTC", () => {
     expect(fmtUtc("2025-03-01T12:30:00+00:00")).toMatch(/^01\.03\.25 12:30 UTC$/);

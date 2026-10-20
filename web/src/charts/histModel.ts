@@ -2,8 +2,8 @@
 import type { StatsHistogram } from "../types";
 import { isNum as ok, num } from "../ui/fmt";
 
-export type BinTone = "neg" | "pos" | "mixed";
-export interface HistBin { lo: number; hi: number; count: number; tone: BinTone; label: string; share: number }
+type BinTone = "neg" | "pos" | "mixed";
+interface HistBin { lo: number; hi: number; count: number; tone: BinTone; label: string; share: number }
 export interface HistModel { bins: HistBin[]; min: number; max: number; zeroPos: number | null; total: number; maxCount: number }
 
 export const binTone = (lo: number, hi: number): BinTone => (hi <= 0 ? "neg" : lo >= 0 ? "pos" : "mixed");

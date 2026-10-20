@@ -49,7 +49,7 @@ export async function sendToBotWithToast(text: string): Promise<void> {
 const py = (v: unknown): string =>
   typeof v === "boolean" ? (v ? "True" : "False") : typeof v === "string" ? JSON.stringify(v) : String(v);
 
-export const pyParams = (p: Record<string, number>): string =>
+const pyParams = (p: Record<string, number>): string =>
   "{" + Object.entries(p).map(([k, v]) => `${JSON.stringify(k)}: ${py(v)}`).join(", ") + "}";
 
 export const pyLeg = (l: LegCfg, weight: number = l.weight): string =>
@@ -86,7 +86,7 @@ export async function sendGuarded(btn: HTMLButtonElement, build: () => string): 
   try { await sendToBotWithToast(build()); } finally { setLoading(btn, false); }
 }
 
-export interface LabPayload {
+interface LabPayload {
   strategy: string; tf: string; params: Record<string, number>; symbol: string; longOnly: boolean;
   leverage: number; feePct: number; slipPct: number; days: number; overlays: Overlays; result: string;
   /** Рынок бэктеста (по умолчанию перп). Для спота плечо/лонг уже эффективные (1×, только лонг). */

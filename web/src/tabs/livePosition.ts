@@ -9,7 +9,7 @@ import { positionView, upnlAccountFrac, type PosView } from "./liveCalc";
 const rLabel = (k: string) => ({ liq: "Ликвид.≈", stop: "Стоп*", entry: "Вход", mark: "Mark" }[k] ?? k);
 
 /** Линейка цены: ликвидация (оценка) … стоп (расчёт) … вход … текущая цена. Подписи — ровной строкой под шкалой, в порядке цен. */
-export function priceRuler(v: PosView): HTMLElement {
+function priceRuler(v: PosView): HTMLElement {
   const items = ([["liq", v.liq], ["stop", v.stop], ["entry", v.entry], ["mark", v.mark]] as [string, number | null][])
     .filter((x): x is [string, number] => x[1] != null && Number.isFinite(x[1]));
   const lo = Math.min(...items.map((x) => x[1])), hi = Math.max(...items.map((x) => x[1]));

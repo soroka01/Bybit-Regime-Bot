@@ -39,7 +39,7 @@ export function append(el: Element, children: Child[]): void {
   }
 }
 
-export const NS = "http://www.w3.org/2000/svg";
+const NS = "http://www.w3.org/2000/svg";
 export function svg<K extends keyof SVGElementTagNameMap>(
   tag: K, attrs: Record<string, string | number> = {}, ...children: (Node | string)[]
 ): SVGElementTagNameMap[K] {

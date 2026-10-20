@@ -19,7 +19,7 @@ export const infoMark = (text: string): HTMLElement | null =>
   text ? h("span", { class: "st-info", tabindex: 0, role: "img", "aria-label": text, title: text, text: "i" }) : null;
 
 /** Пометка «оценка»: комиссии, фандинг и реконструированные сделки считаются приблизительно (у сделок с данными Bybit её нет). */
-export const estMark = (title = "Оценка: комиссии = объём × ставка тейкера, фандинг по локальным данным; точность ниже, чем у данных биржи"): HTMLElement =>
+const estMark = (title = "Оценка: комиссии = объём × ставка тейкера, фандинг по локальным данным; точность ниже, чем у данных биржи"): HTMLElement =>
   h("span", { class: "st-est", title, text: "оценка" });
 
 export { sideBadge };
@@ -54,7 +54,7 @@ function cmpChip(v: CmpView | null): HTMLElement | null {
 }
 
 // ---------------------------------------------------------------- плитки
-export function kpiTile(k: Kpi, res: StatsResponse, hero: boolean): HTMLElement {
+function kpiTile(k: Kpi, res: StatsResponse, hero: boolean): HTMLElement {
   const info = infoMark(defText(res.definitions, k.def));
   const chip = hero ? cmpChip(cmpView(res, k.cmp)) : null;
   const val = h("div", { class: `metric-value ${k.tone}${k.why ? " muted-val" : ""}`, title: k.why ?? "" },
@@ -73,7 +73,7 @@ export function heroGrid(res: StatsResponse): HTMLElement {
     cmpNote ? h("p", { class: "muted small st-cmp-note", text: cmpNote }) : null);
 }
 
-export function miniGrid(res: StatsResponse): HTMLElement {
+function miniGrid(res: StatsResponse): HTMLElement {
   return h("div", { class: "minis st-minis" }, ...miniKpis(res).map((k) =>
     h("div", { class: "mini", "data-kpi": k.key, title: k.why ?? "" },
       h("div", { class: "st-lab" }, h("span", { class: "metric-label", text: k.label }), infoMark(defText(res.definitions, k.def)), k.est ? estMark() : null),

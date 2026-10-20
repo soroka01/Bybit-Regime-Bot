@@ -84,7 +84,7 @@ export function sanitizeLegs(legs: readonly LegCfg[], strategies: ReadonlyMap<st
   return out;
 }
 
-export interface ImportResult {
+interface ImportResult {
   ok: boolean;
   legs: LegCfg[];
   /** Ноги, которые не удалось перенести (причина — в тексте). */

@@ -35,7 +35,7 @@ export function panelLayout(panel: HTMLElement[], main: HTMLElement[], opts: { h
 }
 
 /** Предел истории таймфрейма (дней) — из /api/meta, единый с сервером. */
-export const capFor = (meta: Meta, tf: string): number => meta.history_days[tf] ?? 1095;
+const capFor = (meta: Meta, tf: string): number => meta.history_days[tf] ?? 1095;
 export const capReason = (meta: Meta, tf: string, days: number): string | null =>
   days > capFor(meta, tf) ? `для ${tf} доступно до ${capFor(meta, tf)} дн.` : null;
 export const DAY_OPTIONS = [

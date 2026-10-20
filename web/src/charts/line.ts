@@ -8,7 +8,7 @@ import { date, fmtUtc, MONTHS } from "../ui/fmt";
 import { withAlpha } from "./colors";
 import { chartTip, type TipRow } from "./tooltip";
 
-export interface LineSpec {
+interface LineSpec {
   label: string;
   /** Имя CSS-переменной цвета, например "--c1". */
   color: string;
@@ -24,7 +24,7 @@ export interface LineSpec {
   quiet?: boolean;
 }
 
-export interface ChartMarker {
+interface ChartMarker {
   t: number;
   p: number;
   kind: "entry" | "exit";
@@ -34,9 +34,9 @@ export interface ChartMarker {
 }
 
 /** Закрашенная полоса между двумя рядами (индексы в `series`): например, мин…макс капитала внутри интервала. */
-export interface LineBand { hi: number; lo: number; color: string; alpha?: number }
+interface LineBand { hi: number; lo: number; color: string; alpha?: number }
 
-export interface LineOpts {
+interface LineOpts {
   height: number;
   series: LineSpec[];
   yFmt: (v: number) => string;

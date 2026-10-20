@@ -2,7 +2,7 @@
 import { asApiError, type ApiError } from "../api";
 import { isBusyCode } from "./retry";
 
-export interface RunnerOpts<B, R> {
+interface RunnerOpts<B, R> {
   delay: number;
   run(body: B, signal: AbortSignal): Promise<R>;
   onStart(): void;

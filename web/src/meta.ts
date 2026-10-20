@@ -17,7 +17,7 @@ export function onMetaChange(fn: () => void): () => void {
   return () => { subs.delete(fn); };
 }
 
-export async function reloadMeta(): Promise<void> {
+async function reloadMeta(): Promise<void> {
   if (!current) return;
   try {
     Object.assign(current, await api.meta(undefined, true)); // fresh: перепроверка у сервера (ETag/304), мимо max-age

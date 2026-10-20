@@ -12,7 +12,7 @@ export const isMarket = (v: unknown): v is Market => v === "perp" || v === "spot
 /** Комиссия taker по умолчанию, % (реальный taker аккаунта; зеркало core.engine.DEFAULT_PERP_FEE / schemas): перп 0.10, спот 0.10. */
 export const FEE_PCT: Record<Market, number> = { perp: 0.1, spot: 0.1 };
 export const SPOT_APPROX_NOTE = "свечи перпа как приближение спота";
-export const SPOT_DERIV_NOTE = "сигналы фандинга/OI/LSR считаются по данным перпа";
+const SPOT_DERIV_NOTE = "сигналы фандинга/OI/LSR считаются по данным перпа";
 export const SPOT_LEV_NOTE = "спот: плечо 1×, ликвидации нет";
 export const SPOT_LONG_NOTE = "спот: короткие позиции невозможны";
 export const SPOT_RULES = "Спот: плечо 1×, только лонг, фандинг не начисляется, комиссия по умолчанию 0,10 %. Бот торгует только перп.";
@@ -21,7 +21,7 @@ export const effLeverage = (m: Market, lev: number): number => (m === "spot" ? 1
 export const effLongOnly = (m: Market, longOnly: boolean): boolean => (m === "spot" ? true : longOnly);
 export const marketLabel = (m: Market): string => (m === "spot" ? "Спот" : "Перп");
 
-export interface MarketUi { levDisabled: boolean; longLocked: boolean }
+interface MarketUi { levDisabled: boolean; longLocked: boolean }
 export const marketUi = (m: Market): MarketUi => ({ levDisabled: m === "spot", longLocked: m === "spot" });
 
 export interface MarketFields { market: Market; fee: number; feeTouched: boolean }

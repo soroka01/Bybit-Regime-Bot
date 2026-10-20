@@ -47,7 +47,7 @@ export function tradesCard(trades: readonly LiveTrade[] | undefined, limit: numb
     all.length > shown.length ? h("button", { class: "btn ghost sm lv-more", type: "button", text: `Показать ещё ${Math.min(20, all.length - shown.length)}`, onClick: onMore }) : null);
 }
 
-export const CLOSED_RANGE_LABEL = "За 30 дн.";
+const CLOSED_RANGE_LABEL = "За 30 дн.";
 
 /** Скелетон блока «Закрытые сделки» до первого ответа. */
 export function closedTradesLoading(): HTMLElement {
@@ -56,7 +56,7 @@ export function closedTradesLoading(): HTMLElement {
     h("div", { class: "skeleton skel-line", style: "height:34px;margin-bottom:8px" }), h("div", { class: "skeleton skel-line", style: "height:120px" }));
 }
 
-export interface ClosedOpts { limit: number; onMore(): void; fresh: ReadonlySet<string> }
+interface ClosedOpts { limit: number; onMore(): void; fresh: ReadonlySet<string> }
 
 const signedM = (v: number, strong = false): HTMLElement => {
   const t = toneOf(v, 0.005);
@@ -64,7 +64,7 @@ const signedM = (v: number, strong = false): HTMLElement => {
 };
 
 /** Шапка: «За 30 дн.: закрыто N · плюс +A $ · минус −B $ · итого ±C $» (+ ROI счёта за окно — отдельной приглушённой подписью). */
-export function closedStrip(res: StatsResponse): HTMLElement | null {
+function closedStrip(res: StatsResponse): HTMLElement | null {
   const sm = periodSummary(res);
   if (!sm) return null;
   const dot = () => h("span", { class: "lv-dot muted", "aria-hidden": "true", text: "·" });

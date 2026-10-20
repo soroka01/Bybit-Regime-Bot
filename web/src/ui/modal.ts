@@ -7,7 +7,7 @@ import { verdictInfo } from "./verdicts";
 
 let modalUid = 0;
 
-export interface Modal {
+interface Modal {
   body: HTMLElement;
   close(): void;
 }

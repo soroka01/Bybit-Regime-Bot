@@ -8,7 +8,7 @@ import { gaugePos, legRows, legTotals, nextClose, signalWord, splitLegs } from "
 import { tk } from "./liveTick";
 
 /** Раскрыт ли блок «Неактивные ноги»: вкладка перерисовывается на каждый новый снимок, состояние хранит вызывающий. */
-export interface IdleState { open: boolean; onToggle(open: boolean): void }
+interface IdleState { open: boolean; onToggle(open: boolean): void }
 
 export function signalsCard(s: LiveSnapshot, meta: Meta | null, now: number, idleState?: IdleState): HTMLElement {
   const t = s.target_exposure;

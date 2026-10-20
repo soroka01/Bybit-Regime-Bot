@@ -5,8 +5,8 @@
 import { h } from "./dom";
 import { icon } from "./icons";
 
-export type ThemeMode = "auto" | "light" | "dark";
-export type Resolved = "light" | "dark";
+type ThemeMode = "auto" | "light" | "dark";
+type Resolved = "light" | "dark";
 
 const KEY = "tb.theme";
 /** Цвет интерфейса браузера (meta theme-color) — по теме. Должен совпадать с --bg в styles/tokens.css. */
@@ -19,7 +19,7 @@ const MODES: { mode: ThemeMode; label: string; ico: string }[] = [
 
 const isMode = (v: unknown): v is ThemeMode => v === "light" || v === "dark" || v === "auto";
 
-export function urlOverride(): Resolved | null {
+function urlOverride(): Resolved | null {
   try {
     const v = new URLSearchParams(location.search).get("theme");
     return v === "light" || v === "dark" ? v : null;

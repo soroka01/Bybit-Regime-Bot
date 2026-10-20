@@ -4,9 +4,9 @@ import type { Control } from "./controls";
 import { h } from "./dom";
 import { badge } from "./kit";
 
-export interface ComboItem { value: string; label: string; desc?: string; tag?: string }
+interface ComboItem { value: string; label: string; desc?: string; tag?: string }
 
-export interface ComboOpts {
+interface ComboOpts {
   label: string;
   items: readonly ComboItem[];
   value: string;

@@ -6,7 +6,7 @@ import { cssVar, h, observeWidth } from "../ui/dom";
 import { date, num } from "../ui/fmt";
 import { chartTip } from "./tooltip";
 
-export interface StripRow {
+interface StripRow {
   label: string;
   values: Num[];
   max: number; // |значение| для полной насыщенности

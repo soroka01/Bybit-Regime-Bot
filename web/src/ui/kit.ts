@@ -18,27 +18,6 @@ export function deltaChip(tone: string, text?: string): HTMLElement {
   return h("span", { class: `delta ${tone}` }, tone ? h("span", { class: "g", "aria-hidden": "true", text: glyph(tone) }) : null, text ?? null);
 }
 
-export interface TileOpts {
-  label: string;
-  value: string;
-  /** "pos" | "neg" | "" — окрашивает значение и добавляет чип ▲/▼ (если delta !== false). */
-  tone?: string;
-  sub?: string;
-  hint?: string;
-  /** Показывать чип ▲/▼ у подписи (по умолчанию да, если задан tone). */
-  delta?: boolean;
-  big?: boolean;
-}
-
-/** Плитка метрики: подпись, крупное значение, чип-дельта, строка-пояснение. */
-export function metricTile(o: TileOpts): HTMLElement {
-  const tone = o.tone ?? "";
-  return h("div", { class: `metric${o.big ? " big" : ""}`, title: o.hint ?? "" },
-    h("div", { class: "metric-top" }, h("div", { class: "metric-label", text: o.label }), tone && o.delta !== false ? deltaChip(tone) : null),
-    h("div", { class: `metric-value ${tone}`, text: o.value }),
-    o.sub ? h("div", { class: "metric-sub", text: o.sub }) : null);
-}
-
 /** Заголовок страницы: title + подзаголовок слева, действия справа. */
 export function pageHead(title: string, sub?: string, actions: (HTMLElement | null)[] = []): HTMLElement {
   return h("div", { class: "page-head" },

@@ -1,7 +1,7 @@
 // Цветовые утилиты для графиков: разбор CSS-цвета, смешивание, контраст WCAG, выбор читаемого цвета текста поверх заливки.
 // Графики берут цвета только из токенов (cssVar), а эти функции дают производные (прозрачность, середина шкалы, цвет подписи).
 
-export type RGBA = [number, number, number, number];
+type RGBA = [number, number, number, number];
 
 /** Разбор #rgb, #rrggbb, rgb()/rgba() (в т.ч. «rgb(255 255 255 / 6%)»). null — если не распознано. */
 export function parseColor(input: string): RGBA | null {

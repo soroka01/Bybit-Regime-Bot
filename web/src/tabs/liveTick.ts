@@ -4,7 +4,7 @@ import { ago } from "../ui/fmt";
 import { fmtDuration } from "../ui/fmtTime";
 import { fmtCountdown } from "./liveCalc";
 
-export type TkKind = "cd" | "age" | "dur";
+type TkKind = "cd" | "age" | "dur";
 
 /** Текст «живого» элемента на момент now: cd — обратный отсчёт до метки (мс), age — «N с назад» от ISO-времени, dur — длительность с метки (мс) до now. */
 const tkText = (kind: string | undefined, v: string, now: number): string =>

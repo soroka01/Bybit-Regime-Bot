@@ -35,11 +35,6 @@ export function periodSummary(r: StatsResponse | null | undefined): MoneySummary
   return t && !t.truncated ? moneySummary(t.rows) : null;
 }
 
-/** «За 30 дн.: закрыто 12 · плюс +40,00 $ · минус −15,00 $ · итого +25,00 $» (части — отдельно, чтобы вёрстка могла красить числа). */
-export function periodParts(s: MoneySummary): { count: string; profit: string; loss: string; net: string } {
-  return { count: String(s.count), profit: susd(s.profit), loss: susd(s.loss), net: susd(s.net) };
-}
-
 /** Результат сделки: доллары (главное) и «% счёта» (ret_account_pct) — вместе. Нет кошелька на входе — «% счёта: —». */
 export function resultText(net: Num | undefined, accountPct: Num | undefined): { usd: string; pct: string; tone: "pos" | "neg" | "" } {
   return { usd: susd(net), pct: ok(accountPct) ? `${spctU(accountPct, 2)} счёта` : "% счёта: —", tone: toneOf(net, 0.005) };

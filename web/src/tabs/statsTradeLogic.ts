@@ -46,7 +46,7 @@ export function stTradesToCsv(rows: readonly StatsTradeRow[]): string {
   return lines.join("\r\n") + "\r\n";
 }
 
-export const FILL_BASIS: Record<string, string> = {
+const FILL_BASIS: Record<string, string> = {
   stop_level: "по стоп-уровню", candle_close: "по закрытию свечи", candle_open: "по открытию свечи", entry: "по цене входа",
 };
 export const fillBasisText = (b: string | undefined): string => (b ? (FILL_BASIS[b] ?? b) : "");

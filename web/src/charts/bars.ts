@@ -6,14 +6,14 @@ import { cssVar, h, observeWidth, svg } from "../ui/dom";
 import { niceScale } from "./scale";
 import { chartTip } from "./tooltip";
 
-export interface BarSeries {
+interface BarSeries {
   name: string;
   color: string; // CSS-переменная
   values: Num[];
   titles?: string[];
 }
 
-export interface BarOpts {
+interface BarOpts {
   categories: string[];
   series: BarSeries[];
   fmt(v: number): string;

@@ -6,11 +6,11 @@ import { ORDER_TEXT, VERDICTS, VERDICT_ORDER } from "../ui/verdicts";
 import { type VFilter, type VerdictCounts } from "./lbFilter";
 
 /** Названия вердиктов во множественном числе — для сводки (в карточке остаётся «устойчива», «подозрение на подгонку»…). */
-export const VERDICT_PLURAL: Record<Verdict, string> = { robust: "устойчивые", overfit: "подгонка", few: "мало сделок", loss: "убыточные" };
+const VERDICT_PLURAL: Record<Verdict, string> = { robust: "устойчивые", overfit: "подгонка", few: "мало сделок", loss: "убыточные" };
 
-export interface SummaryHandlers { onFilter(v: VFilter): void; onWeak(on: boolean): void; onGroup(on: boolean): void }
+interface SummaryHandlers { onFilter(v: VFilter): void; onWeak(on: boolean): void; onGroup(on: boolean): void }
 
-export interface Summary {
+interface Summary {
   el: HTMLElement;
   update(counts: VerdictCounts, o: { filter: VFilter; hideWeak: boolean; group: boolean; shown: number; total: number }): void;
 }

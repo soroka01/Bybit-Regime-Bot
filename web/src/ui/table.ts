@@ -1,7 +1,7 @@
 // Сортируемая таблица с ограничением числа отображаемых строк.
 import { h } from "./dom";
 
-export interface Column<T> {
+interface Column<T> {
   key: string;
   label: string;
   /** Значение для сортировки. */
@@ -16,7 +16,7 @@ export interface Column<T> {
   title?: string;
 }
 
-export interface TableOpts<T> {
+interface TableOpts<T> {
   columns: Column<T>[];
   sort?: { key: string; dir: 1 | -1 };
   limit?: number;

@@ -22,7 +22,7 @@ const decimals = (step: number) => {
   return s.includes(".") ? s.split(".")[1]!.length : 0;
 };
 
-export interface SliderOpts {
+interface SliderOpts {
   label: string;
   min: number;
   max: number;
@@ -90,7 +90,7 @@ export function slider(o: SliderOpts): Control<number> {
   };
 }
 
-export interface Option { value: string; label: string; disabled?: boolean }
+interface Option { value: string; label: string; disabled?: boolean }
 
 export function select(o: { label: string; options: Option[]; value: string; onChange(v: string): void }): Control<string> & { setOptions(opts: Option[], value?: string): void } {
   const id = nextId();

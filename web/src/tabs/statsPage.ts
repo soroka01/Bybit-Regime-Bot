@@ -1,8 +1,8 @@
 // Вкладка «Статистика»: выбор состояния страницы и тексты «данных нет» (чистая логика).
 import type { StatsResponse } from "../types";
 
-export interface ApiErrLike { status: number; code: string; message: string }
-export type PageState =
+interface ApiErrLike { status: number; code: string; message: string }
+type PageState =
   | { kind: "loading" }
   | { kind: "error"; message: string; code: string }
   | { kind: "unavailable"; reason: string; message: string }
@@ -16,7 +16,7 @@ export function selectState(input: { res: StatsResponse | null; err: ApiErrLike 
   return { kind: "ready" };
 }
 
-export const UNAVAILABLE_COPY: Record<string, { title: string; hint: string; icon: string }> = {
+const UNAVAILABLE_COPY: Record<string, { title: string; hint: string; icon: string }> = {
   no_db: { title: "База бота не найдена", hint: "Бот ещё не запускался. Запустите его (run.bat): он создаст storage/state/bot.db и начнёт записывать сделки и капитал — статистика появится сама.", icon: "power" },
   no_trades: { title: "Закрытых сделок пока нет", hint: "Статистика строится по сделкам бота. Она появится после первой завершённой сделки (вход и выход).", icon: "chart" },
   no_equity: { title: "Нет истории капитала", hint: "Бот записывает капитал кошелька в таблицу equity; подождите несколько минут работы бота — график и ROI появятся.", icon: "chart" },

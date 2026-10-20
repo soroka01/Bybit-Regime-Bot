@@ -2,7 +2,7 @@
 // Каждая попытка на сервере может ждать очередь до ~20 с, поэтому без предела по времени цикл мог висеть минутами.
 import { asApiError, type ApiError } from "../api";
 
-export interface BusyRetryOpts {
+interface BusyRetryOpts {
   /** Максимум попыток (по умолчанию 4). */
   attempts?: number;
   /** Предел суммарного времени от первой попытки, мс (по умолчанию 60 000). */
@@ -16,7 +16,7 @@ export interface BusyRetryOpts {
   sleep?(ms: number, signal?: AbortSignal): Promise<void>;
 }
 
-export type BusyResult<T> = { ok: true; value: T } | { ok: false; reason: "busy"; attempts: number; error: ApiError };
+type BusyResult<T> = { ok: true; value: T } | { ok: false; reason: "busy"; attempts: number; error: ApiError };
 
 export const isBusyCode = (code: string) => code === "busy" || code === "superseded";
 

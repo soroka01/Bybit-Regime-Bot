@@ -9,9 +9,9 @@ import { icon } from "../ui/icons";
 import { emptyState, skeletonChart } from "../ui/kit";
 
 /** Часть состояния Лаборатории, которой владеет панель (хранится вместе с остальным состоянием вкладки). */
-export interface SweepState { sx: string; sy: string; sMetric: string; sN: number }
+interface SweepState { sx: string; sy: string; sMetric: string; sN: number }
 
-export interface SweepHostApi {
+interface SweepHostApi {
   state: SweepState;
   save(): void;
   strat(): StrategyMeta;

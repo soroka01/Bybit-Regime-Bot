@@ -7,7 +7,7 @@ import type { Meta } from "./types";
 import { crashBanner } from "./ui/banner";
 import { h } from "./ui/dom";
 
-export interface TabHostOpts {
+interface TabHostOpts {
   meta: Meta;
   factories: Record<Route, TabFactory>;
   titles: Record<Route, string>;
@@ -17,7 +17,7 @@ export interface TabHostOpts {
   layoutTabs(scrollToActive: boolean): void;
 }
 
-export interface TabHost {
+interface TabHost {
   /** Показать вкладку текущего маршрута (по hash); та же вкладка повторно — ничего не делает. */
   show(): void;
   active(): Route | null;

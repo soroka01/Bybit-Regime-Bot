@@ -2,7 +2,7 @@
 import { h } from "./dom";
 import { icon } from "./icons";
 
-export type ToastKind = "ok" | "error" | "info";
+type ToastKind = "ok" | "error" | "info";
 const ICON: Record<ToastKind, string> = { ok: "ok", error: "error", info: "info" };
 const MAX = 4;
 

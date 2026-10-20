@@ -7,7 +7,7 @@ import { chartTip } from "./tooltip";
 import type { HistModel } from "./histModel";
 
 const TONE_VAR = { neg: "--neg", pos: "--pos", mixed: "--ref" } as const;
-export const TONE_WORD = { neg: "убыток", pos: "прибыль", mixed: "содержит 0" } as const;
+const TONE_WORD = { neg: "убыток", pos: "прибыль", mixed: "содержит 0" } as const;
 
 export function histogramChart(host: HTMLElement, getModel: () => HistModel | null, o: { height?: number; unit?: string } = {}): { redraw(): void; destroy(): void } {
   let width = 0;
