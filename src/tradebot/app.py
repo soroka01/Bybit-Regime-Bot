@@ -1,7 +1,9 @@
 """Точка входа: один процесс — раннер + мониторинг + Telegram-polling + (опционально) веб на 127.0.0.1:8000.
-Запуск: python -m tradebot.app (или run.bat). Управление — только через Telegram."""
+Запуск: python -m tradebot.app (или run.bat). Управление — только через Telegram.
+Проверка без запуска: python -m tradebot.app --check (см. tradebot/check.py)."""
 from __future__ import annotations
 
+import argparse
 import asyncio
 import logging
 import logging.handlers
@@ -207,7 +209,15 @@ async def amain(env) -> None:
         store.close()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="python -m tradebot.app", description="Бот торговли BTCUSDT на Bybit (только mainnet, реальные деньги)")
+    ap.add_argument("--check", action="store_true",
+                    help="проверить .env, права API-ключа и настройки аккаунта (только чтение) и выйти; бот не запускается: "
+                         "без bot.db, без блокировки bot.lock, без Telegram и ордеров. Коды: 0 - в порядке, 4 - есть проблема, 1 - биржа недоступна")
+    args = ap.parse_args(argv)
+    if args.check:
+        from tradebot.check import check_main
+        return check_main()
     disable_quickedit()
     from tradebot.trading.config import ConfigError, load_env
     # Блокировка — ДО открытия лога: второй экземпляр не должен открывать/ротировать bot.log работающего бота (на Windows

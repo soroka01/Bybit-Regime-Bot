@@ -19,7 +19,8 @@ from typing import Callable
 from tradebot.telegram import messages as M
 from tradebot.trading import pnl, state
 from tradebot.trading.config import MAX_LEVERAGE
-from tradebot.trading.exchange import (AmbiguousOrder, Exchange, ExchangeError, Instrument, Position, round_down)
+from tradebot.trading.exchange import (AmbiguousOrder, Exchange, ExchangeError, Instrument, Position, key_block_reason,
+                                       round_down)
 
 log = logging.getLogger("executor")
 EPS = 1e-9
@@ -133,10 +134,11 @@ class Executor:
         except Exception as e:
             self.notify("warn", M.w_key_check_failed(e))
             return True
-        if ki.get("read_only"):
+        reason = key_block_reason(ki)
+        if reason == "read_only":
             self.notify("error", M.w_key_read_only())
             return False
-        if ki.get("withdraw"):
+        if reason == "withdraw":
             self.notify("error", M.w_key_withdraw())
             return False
         return True            # привязка к IP не требуется (владелец сидит за VPN с меняющимся адресом)

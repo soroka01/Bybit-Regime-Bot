@@ -32,6 +32,10 @@ class AmbiguousOrder(ExchangeError):
     """Таймаут/сетевой сбой при POST: неизвестно, дошёл ли ордер."""
 
 
+class NetworkError(ExchangeError):
+    """Сетевой сбой/5xx/429 при GET после всех повторов (биржа недоступна, а не отвергла запрос)."""
+
+
 @dataclass
 class Instrument:
     qty_step: float
@@ -54,6 +58,16 @@ class Position:
 
     def as_dict(self) -> dict:
         return {"side": self.side, "qty": self.qty, "entry": self.entry, "upnl": self.upnl, "mark": self.mark}
+
+
+def key_block_reason(ki: dict) -> str | None:
+    """Блокирует ли торговлю то, что сказала биржа о правах API-ключа (результат BybitClient.key_info): 'read_only' - ключ только
+    на чтение, 'withdraw' - у ключа есть право вывода, None - можно. Единое правило для запуска бота и для `--check`."""
+    if ki.get("read_only"):
+        return "read_only"
+    if ki.get("withdraw"):
+        return "withdraw"
+    return None
 
 
 def round_down(x: float, step: float) -> float:
@@ -160,7 +174,7 @@ class BybitClient:
                     continue
                 if method == "POST":
                     raise AmbiguousOrder(f"неоднозначный ответ: {type(e).__name__}") from None
-                raise ExchangeError(f"сеть: {type(e).__name__}") from None
+                raise NetworkError(f"сеть: {type(e).__name__}") from None
         raise ExchangeError("недостижимо")
 
     async def _ok(self, method, path, params=None, signed=True, benign: set | None = None) -> dict:
