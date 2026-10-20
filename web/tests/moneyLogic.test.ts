@@ -59,11 +59,9 @@ describe("итоги окна (шапка блока «Закрытые сдел
     expect(periodSummary(r)).toEqual({ count: 900, wins: 500, losses: 400, profit: 1234.5, loss: -234.5, net: 1000 });
   });
 
-  it("нет полей суммы: по строкам, если они не обрезаны; обрезаны — null (не выдумываем)", () => {
+  it("нет полей суммы в kpis: null (по строкам, в том числе обрезанным, не выдумываем)", () => {
     const r = JSON.parse(JSON.stringify(g)) as StatsResponse;
     delete (r.kpis as unknown as Record<string, unknown>).profit_sum_usdt;
-    expect(periodSummary(r)?.count).toBe(r.trades!.rows.length);
-    r.trades!.truncated = true;
     expect(periodSummary(r)).toBeNull();
     expect(periodSummary({ available: false } as StatsResponse)).toBeNull();
     expect(periodSummary(null)).toBeNull();

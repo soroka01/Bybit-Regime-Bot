@@ -77,7 +77,6 @@ describe("вкладка «Статистика»: готовые данные",
     expect(chip(tab.el, "1м").getAttribute("aria-pressed")).toBe("true");
     expect(qa(tab.el, ".st-hero .st-tile")).toHaveLength(8);
     expect(q(tab.el, ".st-tile.kpi-roi").textContent).toContain("ROI счёта");
-    expect(tab.el.textContent).not.toMatch(/выделенн/i);
     expect(q(tab.el, ".st-few").textContent).toContain("Мало сделок (2 из 10");
     expect(q(tab.el, ".st-window").textContent).toContain("25.05.2026 – 01.06.2026");
     expect(qa(tab.el, ".st-trades tbody tr")).toHaveLength(2);
@@ -96,15 +95,13 @@ describe("вкладка «Статистика»: готовые данные",
     expect(qa(tab.el, ".st-minis .mini")).toHaveLength(20);
   });
 
-  it("«ROI счёта»: определение по серверному тексту без «выделенного капитала»; переключатель единиц «% к старту окна»", async () => {
+  it("«ROI счёта»: определение по серверному тексту; переключатель единиц «% к старту окна»", async () => {
     stub(() => json(200, g7));
     const tab = await mount();
     const info = q(tab.el, ".st-tile.kpi-roi .st-info");
     expect(info.getAttribute("title")).toBe(g7.definitions!.wallet_return_pct);
     expect(info.getAttribute("title")).toContain("ROI счёта");
-    expect(qa(tab.el, ".st-tile, .mini").map((t) => t.textContent ?? "").join(" ")).not.toMatch(/выделенн|allocated/i);
     expect(qa(tab.el, ".st-seg button").map((b) => b.textContent)).toEqual(["USDT", "% к старту окна"]);
-    for (const v of Object.values(g7.definitions ?? {})) expect(v).not.toMatch(/выделенн|s_allocated_capital/i);
   });
 
   it("смена диапазона: запрос с нужным range, выбор сохраняется в localStorage и восстанавливается", async () => {

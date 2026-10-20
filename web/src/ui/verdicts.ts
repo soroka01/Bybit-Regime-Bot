@@ -1,6 +1,6 @@
 // Вердикты стратегий: порядок ярусов, подписи, пороги. Единый источник для бейджей, рейтинга, подбора параметров.
-// TODO: тексты порогов (Sharpe > 0,5, зелёных месяцев ≥ 40%, минимум сделок и т.д.) шаблонизировать из /api/meta,
-// чтобы не расходились с core.optimize на сервере.
+// Пороги в подсказках (Sharpe OOS > 0,5, зелёных месяцев ≥ 40%, окно OOS < 90 дн.) дублируют core/optimize.py: расхождение ловит
+// tests/verdictsContract.test.ts (читает константы прямо из исходника сервера).
 import type { Verdict } from "../types";
 
 interface VerdictInfo { text: string; tone: string; /** знак в бейдже (смысл не только цветом) */ glyph: string; hint: string; warnTitle: string; warnBody: string }
@@ -29,7 +29,7 @@ export const VERDICTS: Record<Verdict, VerdictInfo> = {
   },
 };
 
-/** Порядок ярусов рейтинга: устойчивые > подгонка > мало сделок > убыточные (зеркало core.optimize.rank_items). */
+/** Порядок ярусов рейтинга: устойчивые > подгонка > мало сделок > убыточные (эталон — tests/test_optimize.py и web/tests/fixtures/rank.json). */
 export const VERDICT_ORDER: readonly Verdict[] = ["robust", "overfit", "few", "loss"];
 
 /** Ярус вердикта (меньше — лучше). Неизвестный/пустой вердикт — в самый конец, без исключений. */

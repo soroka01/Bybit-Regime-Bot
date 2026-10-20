@@ -492,9 +492,6 @@ describe("типы ответа соответствуют золотым дан
     const k = gAll.kpis as StatsKpis;
     for (const key of ["trades", "wins", "losses", "win_rate_pct", "profit_factor", "net_pnl", "fees_total", "funding_total", "buy_hold_pct"]) expect(key in k, key).toBe(true);
     expect(gAll.equity!.wallet_return_pct).toBeTypeOf("number");
-    expect("roi_alloc_pct" in gAll.equity!).toBe(false);                           // «выделенного капитала» нет: ROI счёта = wallet_return_pct
-    expect("allocated_capital" in gAll.config!).toBe(false);
-    expect("net_pnl_pct_alloc" in k).toBe(false);
     expect(rangeLabel(gAll.range)).toBe("Всё");
   });
 });

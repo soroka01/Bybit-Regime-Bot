@@ -22,17 +22,13 @@ export function moneyLine(s: MoneySummary, label = "Закрыто"): string {
 }
 
 /**
- * Итоги окна ответа /api/stats по ВСЕМ сделкам окна (kpis; строки таблицы обрезаны до 500). Нет полей kpis (старый ответ) — считаем по строкам,
- * если они не обрезаны; иначе null.
+ * Итоги окна ответа /api/stats по ВСЕМ сделкам окна (kpis; строки таблицы обрезаны до 500). Нет сумм в kpis — null (по обрезанным строкам не считаем).
  */
 export function periodSummary(r: StatsResponse | null | undefined): MoneySummary | null {
   if (!r?.available || !r.kpis) return null;
   const k = r.kpis;
-  if (ok(k.profit_sum_usdt) && ok(k.loss_sum_usdt) && ok(k.net_pnl)) {
-    return { count: k.trades, wins: k.wins, losses: k.losses, profit: k.profit_sum_usdt, loss: k.loss_sum_usdt, net: k.net_pnl };
-  }
-  const t = r.trades;
-  return t && !t.truncated ? moneySummary(t.rows) : null;
+  if (!ok(k.profit_sum_usdt) || !ok(k.loss_sum_usdt) || !ok(k.net_pnl)) return null;
+  return { count: k.trades, wins: k.wins, losses: k.losses, profit: k.profit_sum_usdt, loss: k.loss_sum_usdt, net: k.net_pnl };
 }
 
 /** Результат сделки: доллары (главное) и «% счёта» (ret_account_pct) — вместе. Нет кошелька на входе — «% счёта: —». */

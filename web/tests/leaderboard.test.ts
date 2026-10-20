@@ -31,7 +31,7 @@ describe("rankKey / rankValue", () => {
   it("ключи метрик", () => {
     expect(Object.fromEntries(RANKS.map((r) => [r.value, r.key]))).toEqual({ calmar: "calmar", sharpe: "sharpe", return: "total_return", dd: "max_drawdown" });
   });
-  it("устаревший/неизвестный ранг не бросает и даёт Calmar", () => {
+  it("неизвестный ранг не бросает и даёт Calmar", () => {
     expect(rankKey("zzz")).toBe("calmar");
     expect(rankKey(undefined)).toBe("calmar");
     expect(isRank("zzz")).toBe(false);
@@ -47,7 +47,7 @@ describe("rankKey / rankValue", () => {
   });
 });
 
-describe("splitRanked: порядок равен серверному rank_items (fixture из Python)", () => {
+describe("splitRanked: порядок равен эталону из tests/test_optimize.py (fixtures/rank.json)", () => {
   type FxItem = { name: string; verdict: string; oos: Record<string, number | null> };
   const items = fixture.items as FxItem[];
   const byName = new Map(items.map((i) => [i.name, mkItem(i.name, i.verdict, i.oos)]));
@@ -115,7 +115,7 @@ describe("автомат состояний", () => {
     warn.mockRestore();
   });
 
-  it("исключение в отрисовке не ломает состояние (A1: нет зависания в running)", () => {
+  it("исключение в отрисовке не ломает состояние: нет зависания в running", () => {
     const onRenderError = vi.fn();
     const s = createLbStore(() => { throw new Error("render"); }, onRenderError);
     s.set({ phase: "loading" });
@@ -201,7 +201,7 @@ describe("карточки и патчинг списка", () => {
 
 describe("периоды и fitDays", () => {
   const meta = (cap: Record<string, number>) => ({ history_days: cap }) as unknown as Meta;
-  it("рейтинг не получает значение вне своих вариантов (раньше для 1m получалось 90 и select был пустым)", () => {
+  it("рейтинг не получает значение вне своих вариантов (для 1m при пределе 90 дн. берётся вариант списка, select не остаётся пустым)", () => {
     expect(fitDays(meta({ "1m": 90 }), "1m", 730, LB_DAYS)).toBe(180);
     expect(LB_DAYS).toContain(fitDays(meta({ "1m": 90 }), "1m", 730, LB_DAYS));
     expect(fitDays(meta({ "1h": 1095 }), "1h", 730, LB_DAYS)).toBe(730);
