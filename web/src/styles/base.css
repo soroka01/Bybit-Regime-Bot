@@ -39,7 +39,7 @@ code, kbd, .mono { font-family: var(--font-mono); font-size: .92em; }
 ::-webkit-scrollbar-track { background: transparent; }
 
 /* ---------- утилиты ---------- */
-.muted { color: var(--fg-muted); } .subtle { color: var(--fg-subtle); }
+.muted { color: var(--fg-muted); }
 .small { font-size: var(--fs-12); } .strong { font-weight: 600; }
 /* .pos/.neg — ТОЛЬКО прибыль/убыток. Сторона (лонг/шорт) этими цветами не красится: см. .side-badge и DESIGN.md §1a */
 .pos { color: var(--pos); } .neg { color: var(--neg); }
@@ -49,8 +49,6 @@ code, kbd, .mono { font-family: var(--font-mono); font-size: .92em; }
   position: fixed; top: 8px; left: 8px; z-index: 100; padding: 8px 14px; border-radius: var(--r-2);
   background: var(--surface-3); border: 1px solid var(--border-strong); box-shadow: var(--shadow-2); color: var(--fg);
 }
-.divider { height: 1px; background: var(--border); border: 0; margin: var(--sp-3) 0; }
-.divider.v { width: 1px; height: 1em; margin: 0 var(--sp-2); display: inline-block; vertical-align: middle; }
 .section-label {
   font-size: var(--fs-11); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--fg-muted);
   margin: 0 0 var(--sp-2);

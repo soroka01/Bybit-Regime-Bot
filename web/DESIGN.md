@@ -15,8 +15,6 @@
    графики: `--grid`, `--axis`, `--crosshair`, `--track`, `--ref` (эталонный ряд), `--heat-neg/mid/pos`, категориальные `--c1..--c8`.
 3. **Компоненты** (`components.css`, `shell.css`, `charts.css`, `tabs.css`) — только `var(--токен)`, без `#hex`.
 
-Старые имена (`--surface`, `--muted`, `--accent-fg`, `--shadow`) оставлены как алиасы; в новом коде не использовать.
-
 ### Тема
 `<html data-theme="dark|light" data-theme-mode="dark|light|auto">`. Атрибуты ставит inline-скрипт в `index.html` до первой отрисовки
 (`?theme=dark|light` в адресе → `localStorage["tb.theme"]` (`light|dark|auto`) → `dark`), далее — `ui/theme.ts` (`applyTheme`, `themeSwitch`).

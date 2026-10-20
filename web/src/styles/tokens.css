@@ -17,7 +17,7 @@
   --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", "JetBrains Mono", Consolas, "Liberation Mono", Menlo, monospace;
   --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-16: 16px; --fs-20: 20px; --fs-28: 28px; --fs-36: 36px;
   /* z-слои */
-  --z-sticky: 20; --z-topbar: 30; --z-popover: 40; --z-tooltip: 50; --z-modal: 60; --z-toast: 70;
+  --z-sticky: 20; --z-topbar: 30; --z-popover: 40; --z-tooltip: 50; --z-toast: 70;
   /* движение */
   --dur-1: 120ms; --dur-2: 150ms; --dur-3: 180ms; --ease: cubic-bezier(.2, .7, .2, 1);
   --t1: 120ms cubic-bezier(.2, .7, .2, 1); --t3: 180ms cubic-bezier(.2, .7, .2, 1);
@@ -167,12 +167,4 @@ html.theme-anim, html.theme-anim *, html.theme-anim *::before, html.theme-anim *
 }
 @media (prefers-reduced-motion: reduce) {
   html.theme-anim, html.theme-anim *, html.theme-anim *::before, html.theme-anim *::after { transition: none !important; }
-}
-
-/* Устаревшие имена токенов (до редизайна) — оставлены как алиасы, в новом коде не использовать. */
-:root, :root[data-theme] {
-  --surface: var(--surface-1);
-  --muted: var(--fg-muted);
-  --accent-fg: var(--fg-on-accent);
-  --shadow: var(--shadow-1);
 }

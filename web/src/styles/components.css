@@ -21,7 +21,6 @@
 .btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--neg) 20%, transparent); border-color: var(--neg); color: var(--neg); }
 .btn.sm { height: var(--h-sm); padding: 0 10px; font-size: var(--fs-12); border-radius: var(--r-1); }
 .btn.lg { height: var(--h-lg); padding: 0 20px; font-size: var(--fs-14); }
-.btn.wide { width: 100%; margin-top: var(--sp-2); }
 .icon-btn { width: var(--h-md); padding: 0; flex: none; }
 .icon-btn.sm { width: var(--h-sm); }
 .btn.is-loading { pointer-events: none; color: transparent !important; }
@@ -115,7 +114,7 @@ input[type="range"]:disabled { opacity: .45; cursor: not-allowed; }
 .segmented button:disabled { opacity: .4; cursor: not-allowed; }
 .field > .segmented { margin-bottom: 0; }
 
-/* ===== карточка: .card > .card-head + тело + .card-foot ; модификаторы .accent-edge, .interactive ===== */
+/* ===== карточка: .card > .card-head + тело; модификатор .accent-edge ===== */
 .card {
   position: relative; background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--r-3);
   padding: var(--sp-4) var(--sp-5) var(--sp-4); box-shadow: var(--shadow-1), var(--hl); min-width: 0;
@@ -123,11 +122,7 @@ input[type="range"]:disabled { opacity: .45; cursor: not-allowed; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-3); flex-wrap: wrap; min-height: 28px; }
 .card-head h3 { font-size: var(--fs-14); }
 .card-head .toggle { margin: 0; }
-.card-sub { margin: -6px 0 var(--sp-3); font-size: var(--fs-12); color: var(--fg-muted); }
-.card-foot { margin: var(--sp-4) calc(-1 * var(--sp-5)) calc(-1 * var(--sp-4)); padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--border); background: var(--surface-2); border-radius: 0 0 var(--r-3) var(--r-3); }
 .card.accent-edge::before { content: ""; position: absolute; left: -1px; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; background: var(--edge, var(--accent)); }
-.card.interactive { transition: transform var(--dur-2) var(--ease), border-color var(--dur-2), box-shadow var(--dur-2); }
-.card.interactive:hover { transform: translateY(-2px); border-color: var(--accent-border); box-shadow: var(--shadow-2), var(--hl); }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(156px, 1fr)); gap: var(--sp-3); }
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-4); }
 
@@ -285,7 +280,6 @@ th.left .th-btn { text-align: left; }
 tr.clickable { cursor: pointer; }
 table.data tbody tr { transition: background-color var(--dur-1); }
 table.data tbody tr:hover td { background: var(--surface-hover); }
-table.data.zebra tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
 tr[aria-selected="true"] td { background: var(--accent-soft) !important; }
 tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 tr.clickable:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: 0; }
