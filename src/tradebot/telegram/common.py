@@ -8,12 +8,10 @@ from tradebot.trading.executor import SIZING_EQUITY_FRACTION
 ENV_MSG_STALE = "Подтверждение устарело"
 ENV_MSG_DONE = "Уже выполнено"          # повторный тап «Подтвердить» сразу после успешного
 EXECUTING_MSG = "Выполняю…"            # ранний ответ на callback для долгих подтверждённых действий
-STALE_BUTTON_MSG = "Эта кнопка больше не используется — обновил панель"
 PRESET_WEIGHTS = (0, 25, 50, 75, 100)
 TOAST_MAX = 200  # лимит Telegram на текст answerCallbackQuery
 RESERVE_PCT = round((1 - SIZING_EQUITY_FRACTION) * 100)       # технический резерв, %: 3
 WORK_PCT = round(SIZING_EQUITY_FRACTION * 100)                # в работе, %: 97
-RETIRED_CAP_MSG = "Капитал больше не настраивается: бот торгует всем балансом счёта. Панель обновлена."
 VIEW_HOME = ("h",)       # callback идемпотентного просмотра экрана: по нему идёт автообновление панели
 VIEW_POS = ("pos",)
 VIEW_SIGNALS = ("sg",)

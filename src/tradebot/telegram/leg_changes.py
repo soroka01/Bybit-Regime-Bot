@@ -52,16 +52,16 @@ class LegChanges:
 
     # --- расчёт изменений ног (общий для подтверждения и применения) ---
     def _leg_index(self, p: tuple[str, ...]) -> int | None:
-        """Индекс ноги из callback (новый lg:<i>… и старый lg:t:<i>/lg:w:<i>:<p|m>); None для lg / lg:eq."""
+        """Индекс ноги из callback lg:<i>…; None для lg / lg:eq."""
         if len(p) < 2 or p[0] != "lg" or p[1] == "eq":
             return None
-        return self._leg_idx(p[2] if p[1] in ("t", "w") else p[1])
+        return self._leg_idx(p[1])
 
     @staticmethod
     def _is_leg_change(p: tuple[str, ...]) -> bool:
         if p[0] != "lg" or len(p) < 2:
             return False
-        return p[1] in ("eq", "t", "w") or (len(p) >= 3 and p[2] in ("t", "w"))
+        return p[1] == "eq" or (len(p) >= 3 and p[2] in ("t", "w"))
 
     def _leg_changes(self, p: tuple[str, ...]) -> list[LegChange]:
         """Что изменится по callback (без :y). Проверяет индекс и границы веса, но не сумму."""
@@ -74,12 +74,7 @@ class LegChanges:
             return [LegChange(i, l, w, en, each, en) for i, l, w, en in act]
         i = self._leg_index(p)
         leg, w, en = cfg[i]
-        # Ветки "t" и "w" ниже — для старых callback lg:t:<i>, lg:w:<i>:<p|m>; условие их удаления описано в keyboards.PATTERNS.
-        if p[1] == "t":                                              # старый lg:t:<i>
-            return [LegChange(i, leg, w, en, w, not en)]
-        if p[1] == "w":                                              # старый lg:w:<i>:<p|m>
-            return [LegChange(i, leg, w, en, round(w + (0.1 if p[3] == "p" else -0.1), 2), en)]
-        if p[2] == "t":
+        if p[2] == "t":                                              # lg:<i>:t
             return [LegChange(i, leg, w, en, w, not en)]
         return [LegChange(i, leg, w, en, int(p[3]) / 100, en)]       # lg:<i>:w:<pct>
 

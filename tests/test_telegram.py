@@ -56,11 +56,12 @@ def test_owner_filter():
 
 # ---------- callback_data ----------
 def test_callback_validation():
-    for ok in ("h", "tr:on:y", "lv:s:3", "lv:s:2:y", "lg:t:1", "lg:w:0:p", "lg", "lg:0", "lg:9", "lg:2:t", "lg:2:t:y", "lg:1:w:0", "lg:1:w:35", "lg:1:w:100:y",
-               "lg:eq", "lg:eq:y", "lg:t:1:y", "lg:w:0:m:y",
+    for ok in ("h", "tr:on:y", "lv:s:3", "lv:s:2:y", "lg", "lg:0", "lg:9", "lg:2:t", "lg:2:t:y", "lg:1:w:0", "lg:1:w:35", "lg:1:w:100:y",
+               "lg:eq", "lg:eq:y",
                "sl:a:m1", "sl:s:8", "rk:dd:p5", "rk:dd:s:25", "rk:da:s:10:y", "pn:y", "tx:0", "ev:9", "sg", "np"):
         assert kb.parse_cb(ok) is not None, ok
     for bad in ("lv:s:4", "lv:s:0", "cap", "cap:a:p100", "cap:s:150", "cap:s:1000:y", "cap:a:p99999", "cap:s:75",      # cap удалён
+                "lg:t:1", "lg:t:1:y", "lg:w:0:p", "lg:w:0:m:y",                 # старые кнопки ног (до экрана стратегии) удалены
                 "sl:s:7", "sl:s:50",
                 "rk:dd:s:99", "rk:da:s:25", "tr:on:n", "x", "", None, "lg:t:-1", "lg:w:1:x", "lg:10", "lg:1:w:101", "lg:1:w:005", "lg:1:w:-5", "lg:1:w", "lg:1:x", "lg:eq:n", "lg:1:t:n", "rk:dd:p50", "m" * 100,
                 "lv:s:3:y:z", "pn:Y", "lг", "sl:a:p5", "tx:10", "tx:-1", "tx", "ev:a", "m", "st",
@@ -213,26 +214,27 @@ def test_min_order_warning_uses_live_account_balance(ctl):
     assert "минимального ордера" not in h(c, "lg").text
 
 
-def test_stale_capital_callbacks_degrade_to_polite_toast(tmp_path):
+def test_removed_buttons_degrade_to_generic_unknown_toast(tmp_path):
+    """Кнопки, удалённые из бота (капитал, экран режима, старые кнопки ног lg:t:<i> / lg:w:<i>:<p|m>), из старых сообщений дают
+    общую подсказку «Неизвестная кнопка» и перерисовывают панель; настройки не меняются, исключений нет."""
     c, p, r = _router(tmp_path)
     bot = FakeBot()
     cb = r.callback_query.handlers[0].callback
+    before = (c.st.settings(), c.st.leg_cfg())
 
     async def go():
         await p.open(bot, OWNER, c.home())
         mid = p.ref["msg"]
-        for data in ("cap", "cap:s:250", "cap:a:p100", "cap:s:1000:y"):          # кнопки из старого сообщения
+        for data in ("cap", "cap:s:250", "cap:a:p100", "cap:s:1000:y", "pp", "lg:t:1", "lg:t:2:y", "lg:w:0:p", "lg:w:0:m:y"):
             q, ans = _fake_q(bot, data, mid)
-            await cb(q)                                                           # исключения нет
-            assert "Капитал больше не настраивается" in ans[0][0] and "🏠 Главная" in bot.edits[-1][1], data
-        q, ans = _fake_q(bot, "cap:s:250", 999)                                   # и из чужого/устаревшего сообщения
+            await cb(q)
+            assert ans[0][0] == "Неизвестная кнопка — обновил панель" and "🏠 Главная" in bot.edits[-1][1], data
+        q, ans = _fake_q(bot, "lg:t:1", 999)                                      # и из чужого/устаревшего сообщения
         await cb(q)
-        assert "Капитал больше не настраивается" in ans[0][0]
+        assert ans[0][0] == "Неизвестная кнопка — обновил панель"
         p.cancel()
     run(go())
-    scr = run(c.handle(("cap",)))                                                 # прямой вызов контроллера тоже безопасен
-    assert scr.toast.startswith("Отклонено") and "🏠 Главная" in scr.text
-    assert "allocated_capital" not in c.st.settings()
+    assert (c.st.settings(), c.st.leg_cfg()) == before
 
 
 def test_stop_leverage_weight_warning_in_screens_and_confirm(ctl):
@@ -367,19 +369,6 @@ def test_equalize_floors_and_skips_zero_weight_legs(ctl):
     assert h(c, "lg:eq").toast.startswith("Отклонено")
 
 
-def test_old_leg_callbacks_still_work_and_show_detail(ctl):
-    c, st, *_ = ctl
-    s = h(c, "lg:w:0:m")
-    assert st.leg_cfg()[0][1] == 0.4 and "Главная › Стратегии › SMA cross · 4h" in s.text and s.toast.startswith("Сохранено")
-    h(c, "lg:w:0:p")
-    assert st.leg_cfg()[0][1] == 0.5
-    assert h(c, "lg:w:0:p").toast.startswith("Отклонено")                  # 0.6 + 0.5 > 1
-    s = h(c, "lg:t:2")
-    assert st.leg_cfg()[2][2] is False and "Regime switch (CHOP) · 6h" in s.text
-    assert h(c, "lg:w:1:m").toast.startswith("Отклонено")                  # вес 0 -> −10% невозможен
-    assert "вес не может быть меньше 0%" in h(c, "lg:w:1:m").toast
-
-
 def test_reset_peak_two_step(ctl):
     c, st, *_ = ctl
     h(c, "pk")
@@ -438,7 +427,7 @@ def _mainnet(tmp_path, name="m.db"):
 
 def test_mainnet_requires_confirm_for_setting_changes(tmp_path):
     c, st, _ = _mainnet(tmp_path)
-    for data in ("lg:t:1", "lg:w:0:m", "lg:0:w:25", "lg:2:t", "lg:eq", "sl:a:p1", "sl:s:5",
+    for data in ("lg:0:w:25", "lg:2:t", "lg:eq", "sl:a:p1", "sl:s:5",
                  "rk:dd:p5", "rk:dd:s:20"):
         if data == "lg:eq":                                   # чтобы «Поровну» что-то меняло
             st.set_leg("SMA cross@4h", weight=0.3)
@@ -678,9 +667,6 @@ def test_stale_and_unknown_callbacks_rerender_panel_with_toast(tmp_path):
         q, ans = _fake_q(bot, "set", 999)                                   # нажата старая копия меню
         await cb(q)
         assert "старое меню" in ans[0][0] and bot.edits[-1][0] == mid and "🏠 Главная" in bot.edits[-1][1]
-        q, ans = _fake_q(bot, "pp", mid)                                    # кнопка удалённого экрана «Режим PAPER»
-        await cb(q)
-        assert "больше не используется" in ans[0][0] and "🏠 Главная" in bot.edits[-1][1]
         q, ans = _fake_q(bot, "evil:data", mid)                             # не из белого списка
         await cb(q)
         assert "Неизвестная" in ans[0][0] and "🏠 Главная" in bot.edits[-1][1]

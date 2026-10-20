@@ -11,7 +11,7 @@ from aiogram.types import CallbackQuery, Message
 
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram import texts as tx
-from tradebot.telegram.common import EXECUTING_MSG, ONBOARDING, RETIRED_CAP_MSG, STALE_BUTTON_MSG, TOAST_MAX, VIEW_HOME
+from tradebot.telegram.common import EXECUTING_MSG, ONBOARDING, TOAST_MAX, VIEW_HOME
 from tradebot.telegram.panel import Panel, Screen
 from tradebot.telegram.texts import esc
 
@@ -102,12 +102,7 @@ def build_router(ctl: Controller, panel: Panel) -> Router:
         try:
             if parts is None or (stale and parts != ("np",) and not notice):
                 s = await ctl.handle(VIEW_HOME)
-                toast = "Неизвестная кнопка — обновил панель" if parts is None else "Это старое меню — обновил панель"
-                if parts is None and isinstance(q.data, str) and q.data.split(":")[0] == "cap":
-                    toast = RETIRED_CAP_MSG       # кнопка из старого сообщения: настройка капитала удалена
-                elif parts is None and q.data == "pp":
-                    toast = STALE_BUTTON_MSG      # кнопка удалённого экрана о режиме запуска
-                s.toast = toast
+                s.toast = "Неизвестная кнопка — обновил панель" if parts is None else "Это старое меню — обновил панель"
             else:
                 if parts[-1] == "y" and parts[0] in SLOW_CONFIRMED and ctl.is_armed(":".join(parts[:-1])):
                     answered = await _answer(q, EXECUTING_MSG)      # долгое действие на бирже: отпускаем «часики» сразу

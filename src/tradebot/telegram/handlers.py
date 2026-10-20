@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram import messages as M
 from tradebot.telegram import texts as tx
-from tradebot.telegram.common import ENV_MSG_STALE, ONBOARDING, RETIRED_CAP_MSG, STALE_BUTTON_MSG, TOAST_MAX  # noqa: F401  (реэкспорт)
+from tradebot.telegram.common import ENV_MSG_STALE, ONBOARDING, TOAST_MAX  # noqa: F401  (реэкспорт)
 from tradebot.telegram.confirm import BACK, CONFIRM_TTL, GUARDED, Confirm  # noqa: F401  (реэкспорт)
 from tradebot.telegram.leg_changes import LegChange, LegChanges  # noqa: F401  (реэкспорт)
 from tradebot.telegram.legflow import LegFlow, is_active  # noqa: F401  (реэкспорт)
@@ -28,8 +28,7 @@ from tradebot.trading.executor import Executor
 from tradebot.trading.runner import Runner
 from tradebot.trading.state import NO_ORDERS_MSG, Store
 
-__all__ = ["Controller", "build_router", "ONBOARDING", "LegChange", "CONFIRM_TTL", "TOAST_MAX", "ENV_MSG_STALE", "RETIRED_CAP_MSG",
-           "STALE_BUTTON_MSG", "BACK", "GUARDED", "Panel", "Screen", "is_active"]
+__all__ = ["Controller", "build_router", "ONBOARDING", "LegChange", "CONFIRM_TTL", "TOAST_MAX", "ENV_MSG_STALE", "BACK", "GUARDED", "Panel", "Screen", "is_active"]
 log = logging.getLogger("tg")
 NO_ORDERS_ACTIONS = ("cl", "pn")        # ручное закрытие/паника без права на ордера: отказ до подтверждения
 
