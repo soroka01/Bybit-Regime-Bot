@@ -5,8 +5,8 @@ import math
 from datetime import datetime, timezone
 
 
-# Реальная ставка тейкера аккаунта (Bybit fee-rate API) = 0.1 %, проверено 2026-10-09 — это НЕ 0.055 %, которые используют
-# бэктесты. Наблюдаемые fills: execFee == notional*0.001 в точности.
+# Реальная ставка тейкера аккаунта (Bybit fee-rate API) = 0.1 %, проверено 2026-10-09; бэктесты считают с той же ставкой
+# (core.engine.DEFAULT_PERP_FEE), а не с базовой 0.055 %. Наблюдаемые fills: execFee == notional*0.001 в точности.
 TAKER_FEE_EST = 0.001
 
 RANGE_SECONDS: dict[str, int | None] = {

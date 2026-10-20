@@ -71,6 +71,15 @@ def test_env_example_documents_scopes_without_values():
             assert line.split("=", 1)[1] == ""                                  # только имена, значений нет
 
 
+def test_env_example_lists_exactly_the_variables_the_bot_reads():
+    """В .env.example только живые переменные (без PAPER / BYBIT_ENV / I_UNDERSTAND_MAINNET), и каждую читает config.py."""
+    txt = (ROOT / ".env.example").read_text(encoding="utf-8")
+    names = {l.split("=", 1)[0] for l in txt.splitlines() if l.strip() and not l.lstrip().startswith("#") and "=" in l}
+    assert names == {"TELEGRAM_BOT_TOKEN", "TELEGRAM_OWNER_ID", "BYBIT_API_KEY", "BYBIT_API_SECRET", "TZ_NAME"}
+    cfg = (ROOT / "src" / "tradebot" / "trading" / "config.py").read_text(encoding="utf-8")
+    assert all(f'"{n}"' in cfg for n in names)
+
+
 # ---------- amain: завершение рабочих задач ----------
 def _tasks(**coros):
     async def go():
