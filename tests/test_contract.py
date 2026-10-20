@@ -57,10 +57,10 @@ def _split_members(body: str) -> list[str]:
 
 
 def parse_interfaces(src: str) -> dict[str, dict]:
-    """{имя: {"required": set, "optional": set, "extends": [имена]}} для всех `export interface`."""
+    """{имя: {"required": set, "optional": set, "extends": [имена]}} для всех `interface` (с export и без)."""
     src = _strip_comments(src)
     res = {}
-    for m in re.finditer(r"export interface (\w+)(?:\s+extends\s+([\w\s,]+?))?\s*\{", src):
+    for m in re.finditer(r"(?:export )?interface (\w+)(?:\s+extends\s+([\w\s,]+?))?\s*\{", src):
         end = _match_brace(src, m.end() - 1)
         req, opt = set(), set()
         for member in _split_members(src[m.end():end]):
@@ -249,8 +249,8 @@ def test_contract_leaderboard(synth_market):
 
 def test_contract_lb_item_without_result_is_declared(synth_market, monkeypatch):
     """Карточка без результата (мало сделок на IS): реальный ответ эндпоинта, те же правила, плюс `reason`."""
-    from tradebot.web import service
-    monkeypatch.setattr(service, "_optimize", lambda *a, **k: {"results": [], "n_combos": 1})
+    from tradebot.web import research
+    monkeypatch.setattr(research, "_optimize", lambda *a, **k: {"results": [], "n_combos": 1})
     c = Contract()
     item = post("/api/leaderboard/item", {"tf": "1h", "strategy": "Supertrend", "days": 120})
     assert item["result"] is None and item["reason"]
