@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from typing import Awaitable, Callable
 
-from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
+from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter, TelegramServerError
 from aiogram.types import InlineKeyboardMarkup
 
 from tradebot.telegram.texts import fit_html, strip_html
@@ -19,6 +19,9 @@ SLOW_FOR_S = 60
 IDLE_S = 300               # без нажатий дольше — режим ожидания
 IDLE_NOTE = "\n\n<i>💤 Панель в режиме ожидания — нажмите ↻</i>"
 MAX_LEN = 4000             # лимит Telegram 4096 после разбора; небольшой запас
+RETRY_CAP_S = 15.0         # потолок паузы перед единственным повтором правки/отправки (по retry_after от Telegram)
+NET_RETRY_S = 1.0          # пауза перед повтором после сетевой ошибки
+START_NOTE_TIMEOUT_S = 10.0  # правка старой панели при старте не должна задерживать запуск polling
 
 
 @dataclass
@@ -42,7 +45,7 @@ def is_parse_error(e: Exception) -> bool:
 
 def _is_gone(e: TelegramBadRequest) -> bool:
     m = str(e).lower()
-    return "not found" in m or "can't be edited" in m or "message to edit" in m or "deleted" in m
+    return "not found" in m or "can't be edited" in m or "message to edit" in m or "deleted" in m or "message_id_invalid" in m
 
 
 class Panel:
@@ -52,6 +55,7 @@ class Panel:
         self._task: asyncio.Task | None = None
         self._hash: int | None = None
         self._last_tap = clock()
+        self._lock = asyncio.Lock()      # show/open не идут одновременно: два тапа не оставят два цикла автообновления
 
     # ---------- идентификатор панели ----------
     @property
@@ -92,12 +96,26 @@ class Panel:
             await bot.edit_message_text(strip_html(text), chat_id=chat_id, message_id=msg_id, reply_markup=markup,
                                         parse_mode=None)
 
+    async def _retry(self, fn):
+        """Один повтор после TelegramRetryAfter (ждём, но не дольше RETRY_CAP_S) или сетевого сбоя/5xx."""
+        try:
+            return await fn()
+        except TelegramRetryAfter as e:
+            await self.sleep(min(max(float(e.retry_after), 0.0), RETRY_CAP_S))
+        except (TelegramNetworkError, TelegramServerError, asyncio.TimeoutError):
+            await self.sleep(NET_RETRY_S)
+        return await fn()
+
     async def open(self, bot, chat_id: int, screen: Screen) -> None:
         """/start: отправить НОВУЮ панель, закрепить, старую удалить."""
+        async with self._lock:
+            await self._open(bot, chat_id, screen)
+
+    async def _open(self, bot, chat_id: int, screen: Screen) -> None:
         self.cancel()
         old = self.ref
         text = fit_html(screen.text, MAX_LEN)
-        msg = await self._send(bot, chat_id, text, screen.markup)
+        msg = await self._retry(lambda: self._send(bot, chat_id, text, screen.markup))
         self.store.set("panel", {"chat": chat_id, "msg": msg.message_id})
         self._hash = _sig(text, screen.markup)
         self.touch()
@@ -113,27 +131,57 @@ class Panel:
         self._maybe_start(bot, chat_id, screen)
 
     async def show(self, bot, chat_id: int, screen: Screen) -> None:
-        """Правит панель на месте. «Not modified» — молча; потерянное сообщение — отправить новую панель."""
+        """Правит панель на месте. «Not modified» — молча; сообщение потеряно/не редактируется — новая панель. Любой другой сбой
+        (лимит, сеть, детерминированный BadRequest) НОВОЕ сообщение не создаёт: экран остаётся прежним, для живого экрана
+        автообновление дорисует его само."""
+        async with self._lock:
+            await self._show(bot, chat_id, screen)
+
+    async def _show(self, bot, chat_id: int, screen: Screen) -> None:
         self.cancel()
         self.touch()
         ref = self.ref
         text = fit_html(screen.text, MAX_LEN)
         if ref and ref["chat"] == chat_id:
             try:
-                await self._edit(bot, chat_id, ref["msg"], text, screen.markup)
+                await self._retry(lambda: self._edit(bot, chat_id, ref["msg"], text, screen.markup))
                 self._hash = _sig(text, screen.markup)
-                self._maybe_start(bot, chat_id, screen)
-                return
+            except asyncio.CancelledError:
+                raise
             except TelegramBadRequest as e:
                 if "not modified" in str(e).lower():
                     self._hash = _sig(text, screen.markup)
-                    self._maybe_start(bot, chat_id, screen)
+                elif _is_gone(e):
+                    log.debug("edit failed (%s) — отправляю новую панель", e)
+                    await self._open(bot, chat_id, screen)
                     return
-                log.debug("edit failed (%s) — отправляю новую панель", e)
-        await self.open(bot, chat_id, screen)
+                else:
+                    log.warning("panel: правка отклонена (%s) — экран не изменён", e)
+                    self._hash = None
+            except Exception as e:
+                log.warning("panel: правка не удалась (%s) — экран не изменён", type(e).__name__)
+                self._hash = None
+            self._maybe_start(bot, chat_id, screen)
+            return
+        await self._open(bot, chat_id, screen)
+
+    async def mark_idle_on_start(self, bot) -> None:
+        """Старт бота: панель из прошлого запуска показывает устаревшие данные как живые — один раз обновляем её и
+        помечаем «режим ожидания» (кнопки работают, ↻ вернёт живой экран). Сбой не мешает запуску."""
+        ref = self.ref
+        if not ref:
+            return
+        try:
+            s = await asyncio.wait_for(self.render(("h",)), START_NOTE_TIMEOUT_S)
+            text = fit_html(s.text, MAX_LEN - len(IDLE_NOTE)) + IDLE_NOTE
+            await asyncio.wait_for(self._edit(bot, ref["chat"], ref["msg"], text, s.markup), START_NOTE_TIMEOUT_S)
+            self._hash = None
+        except Exception as e:
+            log.info("panel: не удалось пометить старую панель при старте (%s)", type(e).__name__)
 
     # ---------- автообновление ----------
     def _maybe_start(self, bot, chat_id: int, screen: Screen) -> None:
+        self.cancel()                  # на экране не бывает двух циклов: предыдущий всегда останавливается
         if screen.live and screen.view:
             self._task = asyncio.create_task(self._loop(bot, chat_id, screen.view), name="panel-refresh")
 

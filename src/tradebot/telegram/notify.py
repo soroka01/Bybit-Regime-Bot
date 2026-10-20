@@ -8,7 +8,8 @@ import logging
 import re
 import time
 
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import (TelegramAPIError, TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter,
+                                 TelegramServerError)
 
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram import messages as M
@@ -18,6 +19,9 @@ from tradebot.trading.state import Store
 log = logging.getLogger("notify")
 ICONS = {"info": "ℹ️", "trade": "💱", "warn": "⚠️", "error": "🚨", "signal": "📈", "daily": "📅"}
 DEDUP_S = 600.0
+PERSISTENT_LEVELS = ("error", "trade")     # такие сообщения нельзя терять при сбое сети: повторяем до RETRY_WINDOW_S
+RETRY_WINDOW_S = 300.0                     # сколько всего пытаемся доставить одно сообщение
+MAX_SLEEP_S = 60.0                         # потолок одной паузы (в том числе по retry_after от Telegram)
 MAX_LEN = 500
 _TAG = re.compile(r"^\[[A-Za-z]+\]\s*")
 
@@ -32,8 +36,8 @@ class Notifier:
     data — структурное событие (словарь с ключом kind); без него текст выводится как есть."""
 
     def __init__(self, store: Store, owner_id: int, env_name: str = "mainnet", paper: bool = False,
-                 maxsize: int = 200, clock=time.monotonic):
-        self.store, self.owner_id, self.clock = store, owner_id, clock
+                 maxsize: int = 200, clock=time.monotonic, sleep=asyncio.sleep):
+        self.store, self.owner_id, self.clock, self.sleep = store, owner_id, clock, sleep
         self.env_name, self.paper = env_name, paper      # режим в сообщениях не показывается; предупреждение строит messages
         self.queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue(maxsize)
         self.bot = None
@@ -96,21 +100,49 @@ class Notifier:
             log.warning("notify: ошибка разбора HTML — повтор простым текстом")
             await self.bot.send_message(self.owner_id, tx.strip_html(text), parse_mode=None, **self._kwargs(level))
 
+    @staticmethod
+    def _transient(e: Exception) -> bool:
+        """Сбой, который может пройти сам (сеть, 5xx, лимит, неизвестная ошибка). Ответ Telegram «запрос неверен / запрещён /
+        не найдено» повтором не лечится — такое сообщение сразу считается недоставленным, очередь не стоит."""
+        if isinstance(e, (TelegramRetryAfter, TelegramNetworkError, TelegramServerError)):
+            return True
+        return not isinstance(e, TelegramAPIError)
+
+    async def _deliver(self, level: str, text: str) -> bool:
+        """Доставка одного сообщения. TelegramRetryAfter ждём целиком (не больше MAX_SLEEP_S за раз) и в число попыток не
+        считаем. Остальные сбои: error/trade повторяем с нарастающей паузой до RETRY_WINDOW_S, прочие уровни — 3 попытки."""
+        persistent = level in PERSISTENT_LEVELS
+        t0, fails = self.clock(), 0
+        while True:
+            try:
+                await self._send(level, text)
+                return True
+            except asyncio.CancelledError:
+                raise
+            except TelegramRetryAfter as e:
+                wait = min(max(float(e.retry_after), 1.0), MAX_SLEEP_S)
+                log.warning("telegram: лимит запросов, жду %.0f с (повтор не считается попыткой)", wait)
+            except Exception as e:
+                if not self._transient(e):
+                    log.error("notify: сообщение уровня %s не доставлено (%s) — отброшено", level, type(e).__name__)
+                    return False
+                fails += 1
+                if not persistent and fails >= 3:
+                    log.error("notify: сообщение уровня %s не доставлено за 3 попытки (%s) — отброшено", level, type(e).__name__)
+                    return False
+                wait = min(2.0 * 2 ** (fails - 1), 30.0)
+                log.warning("telegram send failed (%s), retry in %ss", type(e).__name__, wait)
+            if self.clock() + wait - t0 > RETRY_WINDOW_S:
+                log.error("notify: сообщение уровня %s не доставлено за %.0f с — отброшено", level, RETRY_WINDOW_S)
+                return False
+            await self.sleep(wait)
+
     async def worker(self) -> None:
         await self._ready.wait()
         while True:
             level, text = await self.queue.get()
-            for attempt in range(3):
-                try:
-                    await self._send(level, text)
-                    break
-                except asyncio.CancelledError:
-                    raise
-                except Exception as e:
-                    wait = getattr(e, "retry_after", 2 * (attempt + 1))
-                    log.warning("telegram send failed (%s), retry in %ss", type(e).__name__, wait)
-                    await asyncio.sleep(min(float(wait), 30))
-            await asyncio.sleep(0.05)
+            await self._deliver(level, text)
+            await self.sleep(0.05)
 
     async def flush(self, timeout: float = 5.0) -> None:
         """Best-effort дослать очередь при остановке."""

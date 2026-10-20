@@ -14,4 +14,9 @@ def build(token: str, owner_id: int, ctl: Controller) -> tuple[Bot, Dispatcher, 
     dp.update.outer_middleware(OwnerOnly(owner_id))
     panel = Panel(ctl.st, ctl.handle)
     dp.include_router(build_router(ctl, panel))
+
+    async def _mark_old_panel(bot: Bot) -> None:
+        await panel.mark_idle_on_start(bot)      # панель из прошлого запуска не должна выглядеть живой
+
+    dp.startup.register(_mark_old_panel)
     return bot, dp, panel
