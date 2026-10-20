@@ -6,6 +6,7 @@ import time
 import pytest
 from fastapi import HTTPException
 
+from helpers import run
 from tradebot.web import api as api_mod, backtests, lanes as lanes_mod
 
 
@@ -39,10 +40,6 @@ class Blocker:
         self.started.set()
         assert self.release.wait(10), "тест не отпустил блокировку"
         return self.result
-
-
-def run(coro):
-    return asyncio.run(coro)
 
 
 async def wait_started(b: Blocker):

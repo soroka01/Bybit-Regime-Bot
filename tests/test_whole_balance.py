@@ -1,36 +1,18 @@
 """Торговля на ВЕСЬ баланс счёта (без «выделенного капитала»): размер от sizing_balance, удержание acted_qty, переворот,
 миграция, сбой чтения баланса, маржинальная модель DryRunExchange и разбор wallet-balance у BybitClient."""
-import asyncio
 import sqlite3
 from datetime import datetime, timezone
 
 import httpx
 import pytest
 
-from tradebot.trading.exchange import BybitClient, ExchangeError
+from helpers import bybit_client, run, Sink
+from tradebot.trading.exchange import ExchangeError
 from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import SIZING_EQUITY_FRACTION, Executor
 from tradebot.trading.state import Store, read_snapshot
 
 BAR = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
-
-
-def run(coro):
-    return asyncio.run(coro)
-
-
-class Sink:
-    def __init__(self):
-        self.msgs = []
-
-    def __call__(self, level, text):
-        self.msgs.append((level, text))
-
-    def has(self, s, level=None):
-        return any(s in t and (level is None or lv == level) for lv, t in self.msgs)
-
-    def count(self, level):
-        return sum(1 for lv, _ in self.msgs if lv == level)
 
 
 def mk(tmp_path, equity=1100.0, lev=2, mark=100_000.0, **kw):
@@ -152,7 +134,7 @@ def test_sizing_balance_failure_means_no_orders_and_alert(tmp_path, how):
     res = run(exe.reconcile(0.5, BAR))
     assert res.startswith("баланс недоступен") and not ex.orders and ex.qty == 0
     assert st.get("acted_exposure") is None and st.get("acted_qty") is None          # acted_* не тронуты
-    assert sink.has("Баланс счёта недоступен", "warn") and sink.count("warn") == 1
+    assert sink.has("Баланс счёта недоступен", "warn") and sink.count_level("warn") == 1
     ex.sizing_error = None
     ex.sizing_balance = DryRunExchange.sizing_balance.__get__(ex)
     assert run(exe.reconcile(0.5, BAR)) == "выполнено" and ex.qty == pytest.approx(0.010)       # следующий цикл — повтор
@@ -164,7 +146,7 @@ def test_balance_not_needed_while_exposure_unchanged(tmp_path):
     n = ex.sizing_calls
     ex.sizing_error = ExchangeError("сеть", -1)
     assert run(exe.reconcile(0.5, BAR)) == "без изменений"      # баланс даже не запрашивается
-    assert ex.sizing_calls == n and not sink.count("warn")
+    assert ex.sizing_calls == n and not sink.count_level("warn")
 
 
 # ---------- удержание размера ----------
@@ -279,7 +261,7 @@ def test_flip_open_leg_failure_leaves_flat_alerts_once_keeps_acted(tmp_path, fai
     assert res.startswith("ошибка")
     assert ex.qty == 0 and [o["reduce_only"] for o in ex.orders[-1:]] == [True]      # закрыли, открыть не смогли
     assert st.get("acted_exposure") == 0.5 and st.get("acted_qty") == pytest.approx(0.010)    # acted_* не обновлены
-    assert sink.count("error") == 1 and sink.has("Ошибка биржи при сверке", "error")  # тревога ровно одна за бар
+    assert sink.count_level("error") == 1 and sink.has("Ошибка биржи при сверке", "error")  # тревога ровно одна за бар
     assert not st.get("latch") and not st.get("stop_armed")
     if fail == "balance":
         ex.sizing_balance = real
@@ -353,10 +335,6 @@ def test_dryrun_wallet_vs_equity_and_unrealised_pnl_is_not_free_margin():
 
 
 # ---------- BybitClient.sizing_balance ----------
-def _client(handler):
-    c = BybitClient("https://x", "K", "S", httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-    c._synced = 1e18
-    return c
 
 
 def _wb(coins, req_log=None):
@@ -370,10 +348,10 @@ def _wb(coins, req_log=None):
 def test_bybit_sizing_balance_is_min_of_wallet_and_equity_of_usdt():
     log = []
     coins = [{"coin": "BTC", "walletBalance": "5", "equity": "5"}, {"coin": "USDT", "walletBalance": "160.5", "equity": "158.2"}]
-    assert run(_client(_wb(coins, log)).sizing_balance()) == pytest.approx(158.2)       # убыток: equity < wallet
+    assert run(bybit_client(_wb(coins, log), synced=True).sizing_balance()) == pytest.approx(158.2)       # убыток: equity < wallet
     assert log == [("GET", "/v5/account/wallet-balance", {"accountType": "UNIFIED"})]   # один запрос, без CONTRACT-запасного
     coins[1].update(walletBalance="160.5", equity="190.0")                              # прибыль: wallet < equity
-    assert run(_client(_wb(coins)).sizing_balance()) == pytest.approx(160.5)
+    assert run(bybit_client(_wb(coins), synced=True).sizing_balance()) == pytest.approx(160.5)
 
 
 @pytest.mark.parametrize("coins", [[], [{"coin": "BTC", "walletBalance": "1", "equity": "1"}],
@@ -381,7 +359,7 @@ def test_bybit_sizing_balance_is_min_of_wallet_and_equity_of_usdt():
                                     [{"coin": "USDT", "walletBalance": "10"}], [{"coin": "USDT", "walletBalance": "x", "equity": "1"}]])
 def test_bybit_sizing_balance_requires_usdt_numbers(coins):
     with pytest.raises(ExchangeError):
-        run(_client(_wb(coins)).sizing_balance())
+        run(bybit_client(_wb(coins), synced=True).sizing_balance())
 
 
 def test_bybit_sizing_balance_error_does_not_fall_back_to_contract_account():
@@ -391,7 +369,7 @@ def test_bybit_sizing_balance_error_does_not_fall_back_to_contract_account():
         log.append(dict(req.url.params).get("accountType"))
         return httpx.Response(200, json={"retCode": 10001, "retMsg": "accountType error", "result": {}})
     with pytest.raises(ExchangeError):
-        run(_client(handler).sizing_balance())
+        run(bybit_client(handler, synced=True).sizing_balance())
     assert log == ["UNIFIED"]
 
 
@@ -413,7 +391,7 @@ def test_full_close_does_not_need_balance(tmp_path):
     ex.sizing_error = ExchangeError("сеть", -1)                 # чтение баланса сломано
     assert run(exe.reconcile(0.0, BAR)) == "выполнено"          # позицию против нулевой цели не держим
     assert ex.qty == 0 and ex.sizing_calls == n
-    assert st.get("acted_exposure") == 0.0 and st.get("acted_qty") == 0.0 and not sink.count("warn")
+    assert st.get("acted_exposure") == 0.0 and st.get("acted_qty") == 0.0 and not sink.count_level("warn")
 
 
 def test_flip_close_goes_out_when_balance_is_broken_open_leg_fails_flat(tmp_path):
@@ -423,7 +401,7 @@ def test_flip_close_goes_out_when_balance_is_broken_open_leg_fails_flat(tmp_path
     sink.msgs.clear()
     res = run(exe.reconcile(-0.5, BAR))
     assert res.startswith("ошибка") and ex.qty == 0 and ex.orders[-1]["reduce_only"] is True   # reduce-only ушёл
-    assert sink.count("error") == 1                             # одна тревога
+    assert sink.count_level("error") == 1                             # одна тревога
     assert st.get("acted_exposure") == 0.5 and st.get("acted_qty") == pytest.approx(0.010)
     ex.sizing_error = None
     assert run(exe.reconcile(-0.5, BAR)) == "выполнено" and ex.qty == pytest.approx(-0.010)     # следующий цикл открывает
@@ -435,7 +413,7 @@ def test_partial_reduction_with_nonzero_target_still_needs_balance_and_holds(tmp
     ex.sizing_error = ExchangeError("сеть", -1)
     sink.msgs.clear()
     assert run(exe.reconcile(0.5, BAR)).startswith("баланс недоступен")
-    assert ex.qty == pytest.approx(0.021) and sink.count("warn") == 1
+    assert ex.qty == pytest.approx(0.021) and sink.count_level("warn") == 1
     assert st.get("acted_exposure") == 1.0 and st.get("acted_qty") == pytest.approx(0.021)
 
 
@@ -475,7 +453,7 @@ def test_flip_second_leg_ambiguous_timeout_leaves_flat_one_error_then_opens(tmp_
     sink.msgs.clear()
     res = run(exe.reconcile(-0.5, BAR))
     assert res.startswith("ошибка") and ex.qty == 0 and ex.orders[-1]["reduce_only"] is True
-    assert sink.count("error") == 1
+    assert sink.count_level("error") == 1
     assert st.get("acted_exposure") == 0.5 and st.get("acted_qty") == pytest.approx(0.010)
     ex.market = real_market
     assert run(exe.reconcile(-0.5, BAR)) == "выполнено" and ex.qty == pytest.approx(-0.010)
@@ -507,7 +485,7 @@ def test_addon_rejected_110007_retries_every_bar_without_writing_acted(tmp_path)
         n = len(ex.orders)
         res = run(exe.reconcile(1.0, BAR))
         assert res.startswith("ошибка") and "ab not enough" in res
-        assert sink.count("error") == 1 and sink.has("Ошибка биржи при сверке", "error")
+        assert sink.count_level("error") == 1 and sink.has("Ошибка биржи при сверке", "error")
         assert len(ex.orders) == n and ex.qty == pytest.approx(0.010)
         assert st.get("acted_exposure") == 0.5 and st.get("acted_qty") == pytest.approx(0.010)
     ex.market = real_market

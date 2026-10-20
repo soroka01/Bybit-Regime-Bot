@@ -8,10 +8,10 @@ from pathlib import Path
 import httpx
 import pytest
 
+from helpers import bybit_client
 from tradebot import app, check
 from tradebot.trading import exchange
 from tradebot.trading.config import load_env
-from tradebot.trading.exchange import BybitClient
 
 TOKEN = "123456789:AAFakeTokenForTestsOnly_0123456789abc"
 KEY, SECRET = "AKEYabc123456", "ASECRETdef7890123"
@@ -51,7 +51,7 @@ def mock_client(*, key=None, account=None, wallet=WALLET, position=FLAT, fail=No
         res = {"/v5/market/time": {"timeNano": str(int(now * 1e9))}, "/v5/user/query-api": key, "/v5/account/info": account,
                "/v5/position/list": position, "/v5/account/wallet-balance": wallet}.get(req.url.path, {})
         return httpx.Response(200, json={"retCode": 0, "retMsg": "OK", "result": res, "time": int(now * 1000)})
-    return BybitClient("https://x", KEY, SECRET, httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    return bybit_client(handler, KEY, SECRET)
 
 
 def run_check(client):

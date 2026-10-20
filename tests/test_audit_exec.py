@@ -6,30 +6,13 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
-from tradebot.trading.exchange import BybitClient, ExchangeError
+from helpers import bybit_client, run, Sink
+from tradebot.trading.exchange import ExchangeError
 from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
 from tradebot.trading.state import Store
 
 BAR = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
-
-
-def run(coro):
-    return asyncio.run(coro)
-
-
-class Sink:
-    def __init__(self):
-        self.msgs = []
-
-    def __call__(self, level, text, *data):
-        self.msgs.append((level, text))
-
-    def has(self, s, level=None):
-        return any(s in t and (level is None or lv == level) for lv, t in self.msgs)
-
-    def count(self, level):
-        return sum(1 for lv, _ in self.msgs if lv == level)
 
 
 def mk(tmp_path, equity=1100.0, lev=2, mark=100_000.0):
@@ -52,8 +35,6 @@ def break_setup(ex, exe):
 
 
 # ---------- T2: equity только UTA ----------
-def _client(handler):
-    return BybitClient("https://x", "K", "S", httpx.AsyncClient(transport=httpx.MockTransport(handler)))
 
 
 def test_equity_uta_only_no_contract_fallback():
@@ -64,8 +45,7 @@ def test_equity_uta_only_no_contract_fallback():
         if req.url.params.get("accountType") == "UNIFIED":
             return httpx.Response(200, json={"retCode": 0, "result": {"list": [{"coin": []}]}})      # нет totalEquity
         return httpx.Response(200, json={"retCode": 0, "result": {"list": [{"coin": [{"equity": "5.0"}]}]}})
-    c = _client(handler)
-    c._synced = 1e18
+    c = bybit_client(handler, synced=True)
     with pytest.raises(ExchangeError, match="totalEquity"):
         run(c.equity())
     assert [p["accountType"] for p in paths] == ["UNIFIED"]          # CONTRACT-аккаунт не запрашивался
@@ -74,8 +54,7 @@ def test_equity_uta_only_no_contract_fallback():
 @pytest.mark.parametrize("body", [{"list": []}, {}, {"list": [{"totalEquity": ""}]}, {"list": [{"totalEquity": "nan"}]},
                                   {"list": [{"totalEquity": None}]}])
 def test_equity_raises_on_missing_or_garbage(body):
-    c = _client(lambda req: httpx.Response(200, json={"retCode": 0, "result": body}))
-    c._synced = 1e18
+    c = bybit_client(lambda req: httpx.Response(200, json={"retCode": 0, "result": body}), synced=True)
     with pytest.raises(ExchangeError):
         run(c.equity())
 
@@ -86,16 +65,14 @@ def test_equity_error_does_not_fall_back():
     def handler(req: httpx.Request):
         calls.append(req.url.params.get("accountType"))
         return httpx.Response(200, json={"retCode": 10001, "retMsg": "boom"})
-    c = _client(handler)
-    c._synced = 1e18
+    c = bybit_client(handler, synced=True)
     with pytest.raises(ExchangeError):
         run(c.equity())
     assert calls == ["UNIFIED"]
 
 
 def test_equity_ok():
-    c = _client(lambda req: httpx.Response(200, json={"retCode": 0, "result": {"list": [{"totalEquity": "155.5"}]}}))
-    c._synced = 1e18
+    c = bybit_client(lambda req: httpx.Response(200, json={"retCode": 0, "result": {"list": [{"totalEquity": "155.5"}]}}), synced=True)
     assert run(c.equity()) == 155.5
 
 

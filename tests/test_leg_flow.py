@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
+from helpers import h, run
 from tradebot.core.legspec import draft_payload, parse_leg_text
 from tradebot.core.portfolio import DEFAULT_LEGS, Leg
 from tradebot.core.strategies import STRATEGIES, Strategy
@@ -32,10 +33,6 @@ LAB = ('Стратегия: EMA cross | Таймфрейм: 1h | Парамет�
        'Плечо: 1x | Период: 365 дн. | Результат: доход +10%, макс. просадка 5%, сделок 40 | Оверлеи: нет\n' + EMA)
 FRESH = (pd.Timestamp.now(tz="UTC").floor("1h") - pd.Timedelta(hours=1)).isoformat()          # последняя закрытая 1h свеча
 OK_CHECK = LegCheck(True, 480, 120, 0, 1.0, False, "окно 480 свечей воспроизводит бэктест (0 расхождений; точек: 120)", FRESH)
-
-
-def run(c):
-    return asyncio.run(c)
 
 
 def keys(st):
@@ -232,10 +229,6 @@ def _ctl(tmp_path, monkeypatch=None, check=OK_CHECK):
     if monkeypatch:
         monkeypatch.setattr("tradebot.telegram.legflow.check_leg", lambda leg: check)
     return c, st
-
-
-def h(c, data):
-    return run(c.handle(kb.parse_cb(data)))
 
 
 def cbs(screen):

@@ -1,5 +1,4 @@
 """Третья нога (Regime switch (CHOP)@6h): живые данные 6h, окна, пропуск при сбое, эффективные веса, размер позиции."""
-import asyncio
 import dataclasses
 from datetime import datetime, timezone
 from types import SimpleNamespace as NS
@@ -8,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from helpers import run, Sink
 from tradebot.core.portfolio import DEFAULT_LEGS
 from tradebot.trading.exchange import Instrument
 from fakes.exchange import DryRunExchange
@@ -21,21 +21,6 @@ INST = Instrument(0.001, 0.001, 0.1)
 BAR = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
 K6 = "Regime switch (CHOP)@6h"
 NOW6 = pd.Timestamp("2026-03-01 06:00:10", tz="UTC")     # только что закрылась 6h свеча 00:00 (и 4h 00:00, и 1h 05:00)
-
-
-def run(c):
-    return asyncio.run(c)
-
-
-class Sink:
-    def __init__(self):
-        self.msgs = []
-
-    def __call__(self, level, text):
-        self.msgs.append((level, text))
-
-    def has(self, s):
-        return any(s in t for _, t in self.msgs)
 
 
 def bars_end(tf, last_start, n):

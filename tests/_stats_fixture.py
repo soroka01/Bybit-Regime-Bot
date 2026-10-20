@@ -5,6 +5,8 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 from tradebot.trading import state
 
 UTC = timezone.utc
@@ -72,6 +74,21 @@ PLAN = [
 ]
 SCALE = 1.5
 STOP_EVENT_H = 430
+
+
+@pytest.fixture
+def stats_isolated(monkeypatch, tmp_path):
+    """Кэш статистики чистый; реальные свечи/parquet не читаются (тесты сами подставляют рынок); «сейчас» = NOW1; БД бота — во tmp."""
+    from tradebot.web import stats
+    stats._cache.clear()
+    stats._inflight.clear()
+    monkeypatch.setattr(stats, "load_market", lambda: (None, "disabled"))
+    monkeypatch.setattr(stats, "_market_sig", lambda: ())
+    monkeypatch.setattr(stats, "_now", lambda: NOW1)
+    monkeypatch.setattr(state, "DB_PATH", tmp_path / "bot.db")
+    yield
+    stats._cache.clear()
+    stats._inflight.clear()
 
 
 def golden_db(path: Path) -> Path:

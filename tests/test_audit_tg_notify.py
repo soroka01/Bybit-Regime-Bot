@@ -6,13 +6,10 @@ from types import SimpleNamespace as NS
 import pytest
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramNetworkError, TelegramRetryAfter
 
+from helpers import run
 from tradebot.telegram import notify as nt
 from tradebot.telegram.notify import Notifier
 from tradebot.trading.state import Store
-
-
-def run(c):
-    return asyncio.run(c)
 
 
 class Bot:

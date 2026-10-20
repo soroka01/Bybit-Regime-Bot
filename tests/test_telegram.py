@@ -7,6 +7,7 @@ from html.parser import HTMLParser
 
 from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
 
+from helpers import bad, h, run
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram import panel as panel_mod
 from tradebot.telegram import texts as tx
@@ -22,10 +23,6 @@ from tradebot.trading.executor import Executor
 from tradebot.trading.state import Store
 
 OWNER = 42
-
-
-def run(c):
-    return asyncio.run(c)
 
 
 # ---------- фильтр владельца ----------
@@ -97,10 +94,6 @@ def ctl(tmp_path):
     c = Controller(st, exe, NS(trigger=lambda: trig.append(1)), mono=lambda: clk.t)
     c.clk = clk
     return c, st, ex, trig
-
-
-def h(c, data):
-    return run(c.handle(kb.parse_cb(data)))
 
 
 def hy(c, data):
@@ -497,10 +490,6 @@ class FakeBot:
 
     async def delete_message(self, chat, msg): self.deleted.append(msg)
     async def pin_chat_message(self, chat, msg, disable_notification=True): self.pinned.append(msg)
-
-
-def bad(msg):
-    return TelegramBadRequest(method=NS(), message=msg)
 
 
 def mk_screen(text, live=False):

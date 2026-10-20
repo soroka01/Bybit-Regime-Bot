@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from helpers import bybit_client, run, Sink
 from tradebot.core.portfolio import DEFAULT_LEGS
 from tradebot.trading import risk
 from tradebot.trading.exchange import ExchangeError, Instrument, round_down
@@ -16,21 +17,6 @@ from tradebot.trading.state import Store, read_snapshot
 
 INST = Instrument(0.001, 0.001, 0.1)
 BAR = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
-
-
-def run(coro):
-    return asyncio.run(coro)
-
-
-class Sink:
-    def __init__(self):
-        self.msgs = []
-
-    def __call__(self, level, text):
-        self.msgs.append((level, text))
-
-    def has(self, s):
-        return any(s in t for _, t in self.msgs)
 
 
 @pytest.fixture
@@ -290,7 +276,7 @@ def test_single_instance_lock(tmp_path):
 
 def test_bybit_client_signing_and_retries():
     import httpx
-    from tradebot.trading.exchange import AmbiguousOrder, BybitClient
+    from tradebot.trading.exchange import AmbiguousOrder
     calls = []
 
     def handler(req: httpx.Request):
@@ -302,8 +288,7 @@ def test_bybit_client_signing_and_retries():
         return httpx.Response(200, json={"retCode": 0, "result": {"list": [{"size": "0"}]}})
 
     async def go():
-        c = BybitClient("https://x", "KEY", "SECRET", httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-        c._synced = 1e18
+        c = bybit_client(handler, "KEY", "SECRET", synced=True)
         c._inst = INST
         assert await c.position() is None                      # GET: 503 -> повтор
         n = len(calls)
@@ -451,7 +436,6 @@ def test_shutdown_data_only_claims_verified_stop(env):
 
 def test_uta_isolated_via_account_info():
     import httpx
-    from tradebot.trading.exchange import BybitClient
     seen = []
 
     def handler(req: httpx.Request):
@@ -461,8 +445,7 @@ def test_uta_isolated_via_account_info():
         return httpx.Response(200, json={"retCode": 0, "result": res})
 
     async def go():
-        c = BybitClient("https://x", "K", "S", httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-        c._synced = 1e18
+        c = bybit_client(handler, synced=True)
         rb = await c.setup_account(2)
         assert rb == {"leverage": 2.0, "isolated": True, "one_way": True}
         assert "/v5/account/set-margin-mode" in seen and "/v5/position/switch-isolated" not in seen
@@ -473,7 +456,6 @@ def _clock_client(bad_first: int, skew_s: float = 5.0):
     """BybitClient, у которого первые bad_first подписанных запросов получают 10002 (часы разошлись), далее — успех."""
     import time
     import httpx
-    from tradebot.trading.exchange import BybitClient
     reqs, state = [], {"bad": bad_first}
 
     def handler(req: httpx.Request):
@@ -484,8 +466,7 @@ def _clock_client(bad_first: int, skew_s: float = 5.0):
             state["bad"] -= 1
             return httpx.Response(200, json={"retCode": 10002, "retMsg": "invalid request, please check your server timestamp"})
         return httpx.Response(200, json={"retCode": 0, "result": {"list": [{"totalEquity": "155.5"}]}})
-    c = BybitClient("https://x", "K", "S", httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-    c._synced = 1e18                  # плановая синхронизация не нужна: проверяем реакцию на 10002
+    c = bybit_client(handler, synced=True)  # плановая синхронизация не нужна: проверяем реакцию на 10002
     return c, reqs
 
 
@@ -521,7 +502,6 @@ def test_atomic_parquet(tmp_path):
 def _key_env(tmp_path, query_api, fail_query=False):
     """Executor на BybitClient с MockTransport; возвращает (executor, sink, store, список запросов (метод, путь))."""
     import httpx
-    from tradebot.trading.exchange import BybitClient
     reqs = []
 
     def handler(req: httpx.Request):
@@ -533,8 +513,7 @@ def _key_env(tmp_path, query_api, fail_query=False):
         res = {"/v5/account/info": {"unifiedMarginStatus": 5, "marginMode": "ISOLATED_MARGIN"},
                "/v5/position/list": {"list": [{"leverage": "2", "tradeMode": 0, "positionIdx": 0, "size": "0"}]}}.get(req.url.path, {})
         return httpx.Response(200, json={"retCode": 0, "result": res})
-    c = BybitClient("https://x", "K", "S", httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-    c._synced = 1e18
+    c = bybit_client(handler, synced=True)
     st = Store(tmp_path / "k.db")
     st.set_setting("leverage", 2)
     sink = Sink()
@@ -543,23 +522,19 @@ def _key_env(tmp_path, query_api, fail_query=False):
 
 def test_key_info_parsing():
     import httpx
-    from tradebot.trading.exchange import BybitClient
     cases = [({"readOnly": 1, "permissions": {"Wallet": []}, "ips": ["*"]}, {"read_only": True, "withdraw": False, "ips": ["*"]}),
              ({"readOnly": 0, "permissions": {"Wallet": ["AccountTransfer", "WITHDRAW"]}, "ips": ["1.2.3.4"]},
               {"read_only": False, "withdraw": True, "ips": ["1.2.3.4"]}),
              ({"readOnly": 0, "permissions": {"ContractTrade": ["Order"]}}, {"read_only": False, "withdraw": False, "ips": []}),
              ({"readOnly": 0, "permissions": None, "ips": []}, {"read_only": False, "withdraw": False, "ips": []})]
     for res, want in cases:
-        c = BybitClient("https://x", "K", "S", httpx.AsyncClient(transport=httpx.MockTransport(
-            lambda req, res=res: httpx.Response(200, json={"retCode": 0, "result": res}))))
-        c._synced = 1e18
+        c = bybit_client(lambda req, res=res: httpx.Response(200, json={"retCode": 0, "result": res}), synced=True)
         assert run(c.key_info()) == want
 
 
 def test_read_account_only_gets_and_reads_exchange_settings_as_is():
     """read_account (его использует и `--check`) читает режимы аккаунта одними GET-запросами и ничего не переключает."""
     import httpx
-    from tradebot.trading.exchange import BybitClient
     reqs = []
 
     def handler(req: httpx.Request):
@@ -567,8 +542,7 @@ def test_read_account_only_gets_and_reads_exchange_settings_as_is():
         res = {"/v5/account/info": {"unifiedMarginStatus": 5, "marginMode": "REGULAR_MARGIN"},
                "/v5/position/list": {"list": [{"leverage": "5", "tradeMode": 0, "positionIdx": 0, "size": "0"}]}}.get(req.url.path, {})
         return httpx.Response(200, json={"retCode": 0, "result": res})
-    c = BybitClient("https://x", "K", "S", httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-    c._synced = 1e18
+    c = bybit_client(handler, synced=True)
     assert run(c.read_account()) == {"leverage": 5.0, "isolated": False, "one_way": True}      # прочитано как есть, не изменено
     assert reqs and all(m == "GET" for m, _ in reqs)
 

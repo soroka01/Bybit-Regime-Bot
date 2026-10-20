@@ -10,30 +10,18 @@ import numpy as np
 import pytest
 
 import _stats_fixture as fx
-from _stats_fixture import equity_points, golden_db, iso, ts
+from _stats_fixture import equity_points, golden_db, iso, stats_isolated, ts  # noqa: F401
 from _synth import synth_market  # noqa: F401
+from helpers import bybit_client, run
 from tradebot.trading import pnl
-from tradebot.trading.exchange import BybitClient
 from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
 from tradebot.trading.runner import Runner
 from tradebot.trading.state import Store
 from tradebot.web import stats
 
+pytestmark = pytest.mark.usefixtures("stats_isolated")
 BAR = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
-
-
-def run(c):
-    return asyncio.run(c)
-
-
-@pytest.fixture(autouse=True)
-def _env(monkeypatch):
-    stats._cache.clear()
-    monkeypatch.setattr(stats, "load_market", lambda: (None, "disabled"))
-    monkeypatch.setattr(stats, "_market_sig", lambda: ())
-    yield
-    stats._cache.clear()
 
 
 # ---------------------------------------------------------------- помощники для compute_stats
@@ -412,10 +400,6 @@ def test_end_to_end_site_shows_backfilled_exact_net(tmp_path):
 
 
 # ---------------------------------------------------------------- биржа: список closed-pnl и план добора (чистая логика)
-def _client(handler):
-    c = BybitClient("https://x", "K", "S", httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-    c._synced = 1e18
-    return c
 
 
 def test_bybit_closed_pnl_list_get_only_with_window_and_limit():
@@ -427,13 +411,13 @@ def test_bybit_closed_pnl_list_get_only_with_window_and_limit():
             {"orderId": "B", "updatedTime": "2000", "closedPnl": "2.02085919", "side": "Sell", "avgEntryPrice": "81550.1", "avgExitPrice": "82300",
              "closedSize": "0.003", "qty": "0.003", "openFee": "0.2447", "closeFee": "0.2469"},
             {"orderId": "A", "updatedTime": "1000", "closedPnl": "-1.3376", "side": "Sell"}]}})
-    c = _client(handler)
+    c = bybit_client(handler, synced=True)
     out = run(c.closed_pnl_list(5000, 100))
     assert [r["order_id"] for r in out] == ["B", "A"] and out[0]["closed_pnl"] == 2.02085919
     assert seen == [("GET", "/v5/position/closed-pnl", {"category": "linear", "symbol": "BTCUSDT", "limit": "100", "startTime": "5000"})]
-    assert run(_client(lambda r: httpx.Response(200, json={"retCode": 0, "result": {}})).closed_pnl_list()) == []
+    assert run(bybit_client(lambda r: httpx.Response(200, json={"retCode": 0, "result": {}}), synced=True).closed_pnl_list()) == []
     assert len(run(c.closed_pnl_list())) == 2 and all(m == "GET" for m, _, _ in seen)
-    bad = _client(lambda r: httpx.Response(200, json={"retCode": 10001, "retMsg": "nope"}))
+    bad = bybit_client(lambda r: httpx.Response(200, json={"retCode": 10001, "retMsg": "nope"}), synced=True)
     from tradebot.trading.exchange import ExchangeError
     with pytest.raises(ExchangeError):
         run(bad.closed_pnl_list())

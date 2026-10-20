@@ -9,6 +9,7 @@ import httpx
 import pandas as pd
 import pytest
 
+from helpers import bybit_client, run
 from tradebot.telegram import messages as M
 from tradebot.telegram import texts as tx
 from tradebot.telegram.common import ONBOARDING
@@ -16,7 +17,6 @@ from tradebot.telegram.handlers import Controller
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram.notify import Notifier
 from tradebot.trading import pnl
-from tradebot.trading.exchange import BybitClient
 from fakes.exchange import DryRunExchange
 from tradebot.trading.executor import Executor
 from tradebot.trading.market_feed import FeedData
@@ -26,10 +26,6 @@ from tradebot.trading.state import Store
 BAR = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
 ENV_WORDS = re.compile(r"mainnet|testnet|paper", re.I)
 HOSTILE = '<script>alert("x")</script> & <b>unclosed'
-
-
-def run(c):
-    return asyncio.run(c)
 
 
 class Rec:
@@ -770,10 +766,6 @@ def test_pnl_record_parts_and_normalize():
 
 
 # ---------- биржа: closed_pnl ----------
-def _client(handler):
-    c = BybitClient("https://x", "K", "S", httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-    c._synced = 1e18
-    return c
 
 
 def test_bybit_closed_pnl_by_order_id_and_by_time():
@@ -785,7 +777,7 @@ def test_bybit_closed_pnl_by_order_id_and_by_time():
     def handler(req):
         seen.append((req.method, req.url.path, dict(req.url.params)))
         return httpx.Response(200, json={"retCode": 0, "result": {"list": rows}})
-    c = _client(handler)
+    c = bybit_client(handler, synced=True)
     r = run(c.closed_pnl("OLD"))
     assert r["order_id"] == "OLD" and r["closed_pnl"] == 1.5
     assert run(c.closed_pnl("NOPE")) is None

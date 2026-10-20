@@ -3,16 +3,13 @@ import asyncio
 from types import SimpleNamespace as NS
 
 import pytest
-from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError, TelegramRetryAfter
+from aiogram.exceptions import TelegramNetworkError, TelegramRetryAfter
 
+from helpers import bad, run
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram import panel as panel_mod
 from tradebot.telegram.panel import Panel, Screen
 from tradebot.trading.state import Store
-
-
-def run(c):
-    return asyncio.run(c)
 
 
 class Bot:
@@ -37,10 +34,6 @@ class Bot:
 
     async def delete_message(self, chat, msg): self.deleted.append(msg)
     async def pin_chat_message(self, chat, msg, disable_notification=True): pass
-
-
-def bad(msg):
-    return TelegramBadRequest(method=NS(), message=msg)
 
 
 def screen(text, live=False):

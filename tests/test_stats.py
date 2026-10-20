@@ -8,25 +8,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 import _stats_fixture as fx
-from _stats_fixture import add_trade, equity_points, golden_db, iso, make_db, ts
+from _stats_fixture import add_trade, equity_points, golden_db, iso, make_db, stats_isolated, ts  # noqa: F401
 from _synth import synth_market  # noqa: F401
 from tradebot.web import api, stats
 from tradebot.web import stats_base, stats_equity, stats_io, stats_market, stats_replay, stats_series, stats_trades
 
 client = TestClient(api.app)
-
-
-@pytest.fixture(autouse=True)
-def _stats_env(monkeypatch, tmp_path):
-    """Кэш статистики чистый; реальные свечи/parquet не читаются (тесты сами подставляют рынок); БД — во tmp."""
-    from tradebot.trading import state
-    stats._cache.clear()
-    monkeypatch.setattr(stats, "load_market", lambda: (None, "disabled"))
-    monkeypatch.setattr(stats, "_market_sig", lambda: ())
-    monkeypatch.setattr(state, "DB_PATH", tmp_path / "bot.db")
-    monkeypatch.setattr(stats, "_now", lambda: fx.NOW1)
-    yield
-    stats._cache.clear()
+pytestmark = pytest.mark.usefixtures("stats_isolated")
 
 
 # ---------------------------------------------------------------- помощники

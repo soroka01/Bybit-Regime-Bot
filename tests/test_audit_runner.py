@@ -7,6 +7,7 @@ from types import SimpleNamespace as NS
 import pandas as pd
 import pytest
 
+from helpers import run, Sink
 from tradebot.trading import runner as runner_mod
 from tradebot.trading.exchange import ExchangeError
 from fakes.exchange import DryRunExchange
@@ -15,21 +16,6 @@ from tradebot.trading.runner import MANUAL_RECALC, Runner
 from tradebot.trading.state import Store
 
 BAR = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
-
-
-def run(coro):
-    return asyncio.run(coro)
-
-
-class Sink:
-    def __init__(self):
-        self.msgs = []
-
-    def __call__(self, level, text, *data):
-        self.msgs.append((level, text))
-
-    def count(self, s, level=None):
-        return sum(1 for lv, t in self.msgs if s in t and (level is None or lv == level))
 
 
 def mk(tmp_path, equity=1100.0):

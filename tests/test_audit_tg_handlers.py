@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 from aiogram.exceptions import TelegramBadRequest
 
+from helpers import h, run
 from tradebot.core.legspec import parse_leg_text, validate_leg
 from tradebot.telegram import keyboards as kb
 from tradebot.telegram import texts as tx
@@ -24,10 +25,6 @@ OWNER = 42
 FRESH = (pd.Timestamp.now(tz="UTC").floor("1h") - pd.Timedelta(hours=1)).isoformat()
 OK_CHECK = LegCheck(True, 480, 120, 0, 1.0, False, "окно 480 свечей воспроизводит бэктест (0 расхождений; точек: 120)", FRESH)
 EMA = 'Leg("EMA cross", "1h", {"fast": 12, "slow": 26}, weight=0.5, long_only=False)'
-
-
-def run(c):
-    return asyncio.run(c)
 
 
 class Bot:
@@ -55,10 +52,6 @@ def mk(tmp_path):
     c = Controller(st, exe, NS(trigger=lambda: trig.append(1)), mono=lambda: clk.t)
     c.clk, c.trig = clk, trig
     return c, st
-
-
-def h(c, data):
-    return run(c.handle(kb.parse_cb(data)))
 
 
 def router(c, st):

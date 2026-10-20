@@ -16,7 +16,9 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import _stats_fixture as fx
+from _stats_fixture import stats_isolated  # noqa: F401
 from _synth import synth_market  # noqa: F401
+from helpers import run
 from tradebot.market import guard, klines
 from tradebot.web import backtests, data, lanes, research, stats, wf
 from tradebot.web import stats_base, stats_io
@@ -43,10 +45,6 @@ def fresh_lanes(monkeypatch):
     yield calc, net
     for ln in (calc, net):
         ln.pool.shutdown(wait=False, cancel_futures=True)
-
-
-def run(coro):
-    return asyncio.run(coro)
 
 
 def spin_until_cancelled(started: threading.Event):
@@ -272,15 +270,8 @@ def test_unknown_exceptions_map_to_500_with_log(synth_market, monkeypatch, caplo
 
 # ---------------------------------------------------------------- W9: /api/stats single-flight и ограничение параллелизма
 @pytest.fixture
-def sdb(monkeypatch, tmp_path):
-    stats._cache.clear()
-    stats._inflight.clear()
-    monkeypatch.setattr(stats, "load_market", lambda: (None, "disabled"))
-    monkeypatch.setattr(stats, "_market_sig", lambda: ())
-    monkeypatch.setattr(stats, "_now", lambda: fx.NOW1)
-    yield fx.golden_db(tmp_path / "bot.db")
-    stats._cache.clear()
-    stats._inflight.clear()
+def sdb(stats_isolated, tmp_path):
+    return fx.golden_db(tmp_path / "bot.db")
 
 
 def _spawn(n, target):
