@@ -140,7 +140,7 @@ def test_second_instance_exits_before_touching_log(monkeypatch, capsys):
         calls.append("lock")
         raise app.AlreadyRunning()
     monkeypatch.setattr(app, "acquire_lock", locked)
-    assert app.main() == app.EXIT_LOCKED == 3
+    assert app.main([]) == app.EXIT_LOCKED == 3
     assert calls == ["lock"]                                                    # лог второй экземпляр даже не открывал
 
 
@@ -157,7 +157,7 @@ def test_config_error_exit_code_4_after_lock_then_log(monkeypatch, capsys):
     def bad():
         raise ConfigError("нет токена")
     monkeypatch.setattr("tradebot.trading.config.load_env", bad)
-    assert app.main() == app.EXIT_CONFIG == 4
+    assert app.main([]) == app.EXIT_CONFIG == 4
     assert calls[:2] == ["lock", "log"]
     assert "нет токена" in capsys.readouterr().out
 
