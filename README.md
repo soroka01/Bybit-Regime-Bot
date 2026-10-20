@@ -26,13 +26,12 @@
 
 ## Установка
 
-Нужен Python 3.11+ и Node.js (только для фронтенда).
+Нужен Python 3.12+ и Node.js (только для фронтенда).
 
 ```bat
 python -m venv .venv
 .venv\Scripts\activate
-pip install -e .
-pip install pytest
+pip install -e .[dev]
 cd web && npm install
 ```
 
