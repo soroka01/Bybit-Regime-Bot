@@ -145,7 +145,7 @@ export const en = {
   "live.idle_off_tip": "The leg is disabled",
   "live.foot": "Σ weights {w}% · Σ contributions {c}{target}. Close time follows UTC candle boundaries.",
   "live.foot_target": "target {v}×",
-  "live.hint": "To add or remove a strategy: Telegram → 🧩 Strategies → ➕ Add, or use the “To bot” button in the Lab, Ranking and Portfolio.",
+  "live.hint": "To add or remove a strategy: in Telegram open 🧩 Стратегии (Strategies) → ➕ Добавить (Add), or use the “Send to bot” button in the Lab, Best strategies and Portfolio tabs.",
 
   // ---------- лимиты риска
   "live.risks": "Risk limits",

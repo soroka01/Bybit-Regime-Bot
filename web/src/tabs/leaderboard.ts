@@ -8,7 +8,7 @@ import { MAX_LEVERAGE } from "../leverage";
 import { effLeverage, effLongOnly, FEE_PCT, isMarket, MARKET_OPTIONS, marketUi, SPOT_LONG_NOTE } from "../market";
 import { onMetaChange } from "../meta";
 import { persisted, setPendingLab, setRoute, takeFlag } from "../state";
-import type { LbBody, LbItem, LbPlanItem, Market, Meta } from "../types";
+import type { LbBody, LbItem, Market, Meta } from "../types";
 import { errorBanner, showError } from "../ui/banner";
 import { copyWithToast, labPayload, metricsOf, sendToBotWithToast } from "../ui/clipboard";
 import { segmented, select, toggle } from "../ui/controls";
@@ -19,7 +19,7 @@ import { leverageControl } from "../ui/levControl";
 import { spct } from "../ui/fmt";
 import { patchKeyed, type KeyedItem } from "../ui/keyed";
 import { withBusyRetry } from "../ui/retry";
-import { compactCard, itemCard, itemSig, type CardCtx, type CodedReason } from "./lbCard";
+import { compactCard, itemCard, itemSig, type CardCtx } from "./lbCard";
 import { applyVerdictFilter, countVerdicts, groupByVerdict, isVFilter, type VFilter } from "./lbFilter";
 import { createSummary, emptyCache, groupHead, howToRead, skeletonCards } from "./lbView";
 import { isRank, RANKS, splitRanked, type Rank } from "./lbRank";
@@ -319,7 +319,7 @@ export function createLeaderboard(meta: Meta): Tab {
     const have = new Map(res.items.map((i) => [i.strategy, i]));
     res.plan.strategies.forEach((s) => {
       const it = have.get(s.name);
-      entries.set(s.name, !s.ready ? { k: "skip", skip: s.reason, code: (s as LbPlanItem & CodedReason).reason_code ?? undefined } : it ? { k: "item", item: it } : { k: "none" });
+      entries.set(s.name, !s.ready ? { k: "skip", skip: s.reason, code: s.reason_code || undefined } : it ? { k: "item", item: it } : { k: "none" });
     });
     store.set({
       phase: "cached", plan: res.plan, entries, order: res.plan.strategies.map((s) => s.name),

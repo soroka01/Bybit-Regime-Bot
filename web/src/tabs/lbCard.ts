@@ -22,10 +22,7 @@ export interface CardCtx {
 
 const utc = (s: string | null | undefined) => (s ? utcShort(s) + " UTC" : "—");
 
-/** Необязательный стабильный код причины (`reason_code`), который сервер добавит к LbItem / LbPlanItem; в types.ts пока не объявлен. */
-export interface CodedReason { reason_code?: string | null }
-
-/** Тексты причин, которые сервер отдаёт по-русски (web/research.py), -> стабильные коды (пока нет reason_code). */
+/** Запасной путь для старого сервера без reason_code: русские тексты причин (web/research.py) -> стабильные коды. */
 const REASON_CODES: Readonly<Record<string, string>> = {
   "нет свечей — скачайте данные": "no_klines",
   "нет данных фандинга/OI/LSR": "no_derivs",
@@ -148,7 +145,7 @@ export function compactInfo(e: Entry | undefined): { cls: string; text: string }
   if (!e) return { cls: "pending", text: t("leaderboard.compact.none") };
   switch (e.k) {
     case "item": {
-      const code = (e.item as LbItem & CodedReason).reason_code;
+      const code = e.item.reason_code;
       return { cls: "skipped", text: e.item.reason == null && !code ? t("leaderboard.reason.few_trades") : lbReasonText(e.item.reason, code) };
     }
     case "error": return { cls: "failed", text: t("leaderboard.compact.error", { error: e.error }) };

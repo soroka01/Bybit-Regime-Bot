@@ -27,8 +27,10 @@ describe("словари", () => {
     }
   });
 
-  it("английский текст не содержит кириллицы (кроме названия языка «Русский»)", () => {
-    const bad = Object.entries(EN).filter(([k, m]) => k !== "lang.ru" && texts(m).some((s) => CYR.test(s))).map(([k]) => k);
+  // исключения: название языка «Русский» и подсказка с настоящими (русскими) названиями кнопок меню Telegram-бота
+  const EN_CYRILLIC_OK = new Set(["lang.ru", "live.hint"]);
+  it("английский текст не содержит кириллицы (кроме названия языка и названий кнопок Telegram)", () => {
+    const bad = Object.entries(EN).filter(([k, m]) => !EN_CYRILLIC_OK.has(k) && texts(m).some((s) => CYR.test(s))).map(([k]) => k);
     expect(bad).toEqual([]);
   });
 

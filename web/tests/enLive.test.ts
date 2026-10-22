@@ -24,7 +24,8 @@ const H = 3_600_000;
 const iso = (ms: number) => new Date(ms).toISOString();
 
 /** Сохранённые по-русски данные бота, показываемые как есть. */
-const ALLOW = [/^Действую с опозданием/, /^Бар закрыт/, /^бар$/, /^[−+]?\d+\.\d+% счёта$/];
+// разрешено: сохранённые русские тексты событий и подсказка с настоящими названиями кнопок Telegram-бота
+const ALLOW = [/^Действую с опозданием/, /^Бар закрыт/, /Стратегии \(Strategies\)/];
 
 const leg = (key: string, weight: number, enabled: boolean, signal: number | null, updated: string | null = null) =>
   ({ key, strategy: key, tf: "1h", params: { fast: 9 }, long_only: false, weight, enabled, signal, updated });

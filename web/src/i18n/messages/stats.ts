@@ -125,7 +125,7 @@ export const en = {
   "stats.warn.label.reconstructed_trades": "Reconstructed",
   "stats.warn.label.equity_gaps": "Equity gaps",
   "stats.warn.label.bad_fills": "Bad records",
-  "stats.warn.hint.funding": "Press “Load new candles” in the data freshness bar at the top of the page: it downloads the missing candles and funding from Bybit (public API), and the statistics are recalculated.",
+  "stats.warn.hint.funding": "Press “Fetch new candles” in the data freshness bar at the top of the page: it downloads the missing candles and funding from Bybit (public API), and the statistics are recalculated.",
   "stats.warn.hint.starts_before_data": "ROI and drawdown are calculated from the first equity point, not from the start of the selected window — the real period is shorter.",
   "stats.warn.hint.few_trades": "With a small sample, win rate, profit factor and other metrics are almost random: don't draw conclusions until there are at least a few dozen closed trades.",
   "stats.warn.hint.candles_missing": "Without BTCUSDT 1h candles, Buy & Hold, funding and the price of reconstructed stops are not calculated. Load candles with the button in the data freshness bar.",

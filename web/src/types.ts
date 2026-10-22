@@ -282,7 +282,8 @@ export interface OptResult {
   effective?: MarketEffective;
 }
 
-export interface LbPlanItem { name: string; desc: string; derivative: boolean; ready: boolean; reason: string }
+/** reason_code — стабильный код причины (no_klines | no_derivs | few_trades), по нему интерфейс подбирает перевод; reason — серверный текст как запасной. */
+export interface LbPlanItem { name: string; desc: string; derivative: boolean; ready: boolean; reason: string; reason_code?: string }
 export interface LbPlan { symbol: string; tf: string; klines: boolean; derivs: boolean; strategies: LbPlanItem[] }
 
 export interface LbBody {
@@ -309,6 +310,7 @@ export interface LbItem {
   funding_included: boolean;
   result: OptRow | null;
   reason?: string;
+  reason_code?: string;
   variant?: string;
   overlays?: Overlays;
   days_effective?: number;

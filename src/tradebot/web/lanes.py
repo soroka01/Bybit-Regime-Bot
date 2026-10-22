@@ -129,7 +129,7 @@ async def _acquire(lane: Lane, kind: str, my: int) -> asyncio.Semaphore:
         if time.monotonic() >= end:
             waited = time.monotonic() - t0
             raise _err(429, "busy", tr("the server is busy with another calculation") if lane.name == "calc" else tr("a data download is already in progress"),
-                       waited_s=round(waited, 1), queue_wait_s=lane.queue_wait)
+                       waited_s=round(waited, 1), queue_wait_s=lane.queue_wait, lane=lane.name)
 
 
 async def run_heavy(request: Request, kind: str, fn, timeout: float = HEAVY_TIMEOUT):
@@ -186,7 +186,7 @@ async def run_heavy(request: Request, kind: str, fn, timeout: float = HEAVY_TIME
         try:
             return await asyncio.wait_for(asyncio.shield(fut), timeout)
         except asyncio.TimeoutError:
-            raise _err(504, "timeout", tr("calculation took longer than {seconds} s").format(seconds=int(timeout)))
+            raise _err(504, "timeout", tr("calculation took longer than {seconds} s").format(seconds=int(timeout)), limit_s=int(timeout))
     finally:
         if not handed_off:
             sem.release()

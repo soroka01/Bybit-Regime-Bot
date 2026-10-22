@@ -244,7 +244,7 @@ def test_contract_leaderboard(synth_market):
     spot = post("/api/leaderboard/item", {"tf": "1h", "strategy": "Supertrend", "days": 120, "market": "spot"})
     c.check(spot, "LbItem", "item spot")
     c.check(spot["effective"], "MarketEffective", "item spot.effective")
-    c.optionals_seen("LbItem", "OptRow", exempt={"LbItem": {"reason"}})      # reason — только у карточки без результата
+    c.optionals_seen("LbItem", "OptRow", exempt={"LbItem": {"reason", "reason_code"}})      # reason/reason_code — только у карточки без результата
 
 
 def test_contract_lb_item_without_result_is_declared(synth_market, monkeypatch):

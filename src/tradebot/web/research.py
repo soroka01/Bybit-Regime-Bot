@@ -54,7 +54,7 @@ def lb_plan(symbol: str, tf: str) -> dict:
         ready = has_k and (has_d or s.name not in DERIV_STRATEGIES)
         reason = "" if ready else ("нет свечей — скачайте данные" if not has_k else "нет данных фандинга/OI/LSR")
         items.append({"name": s.name, "desc": s.desc, "derivative": s.name in DERIV_STRATEGIES, "ready": ready,
-                      "reason": reason})
+                      "reason": reason, "reason_code": "" if ready else ("no_klines" if not has_k else "no_derivs")})
     return {"symbol": symbol, "tf": tf, "klines": has_k, "derivs": has_d, "strategies": items}
 
 
@@ -108,7 +108,7 @@ def _compute_lb_item(req: LbItemReq, st: Strategy, dl: Deadline) -> dict:
             "funding_included": "funding" in df.columns and apply_market(req).market == "perp",
             **apply_market(req).echo()}
     if best is None:
-        return {**base, "result": None, "reason": "недостаточно сделок на in-sample для надёжного подбора"}
+        return {**base, "result": None, "reason": "недостаточно сделок на in-sample для надёжного подбора", "reason_code": "few_trades"}
     return {**base, "result": best["results"][0], "variant": best_name,
             "overlays": {"htf": best_o.htf, "stop": best_o.stop},
             "n_combos": best["n_combos"] * len(variants), "elapsed": best["elapsed"], "min_trades": best["min_trades"],
