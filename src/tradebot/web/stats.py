@@ -65,6 +65,7 @@ from pathlib import Path
 
 import numpy as np
 
+from tradebot.i18n import tr
 from tradebot.web.stats_base import (
     CACHE_SIZE, CACHE_TTL_S, COMPARE_MIN_S, DEFAULT_STOP_PCT, DEFINITIONS, EPS_QTY, EQ_LOOKBACK_S, FEW_TRADES, MAX_TRADE_ROWS,
     RANGE_SECONDS, STOP_NOTICE, SYMBOL, TAKER_FEE_EST, _day, _num, _ts)
@@ -95,7 +96,7 @@ def compute_stats(range_key: str, now: float, *, fill_rows: list[dict], event_ro
     """Ядро: всё считается из переданных строк БД (никакого ввода-вывода). eq_t/eq_v — точки equity (секунды, значения) по
     возрастанию; должны покрывать окно (и предыдущее для сравнения) плюс одну точку <= начала запроса."""
     if range_key not in RANGE_SECONDS:
-        raise ValueError(f"неизвестный диапазон {range_key}: допустимо {', '.join(RANGE_SECONDS)}")
+        raise ValueError(tr("unknown range {range}: allowed {allowed}").format(range=range_key, allowed=', '.join(RANGE_SECONDS)))
     fills, bad = clean_fills(fill_rows)
     if not fills:
         return unavailable(range_key, "no_trades", "В журнале ещё нет сделок бота.", now)
@@ -279,7 +280,7 @@ def get_stats(range_key: str, db_path: Path | str, now: float | None = None) -> 
     Один и тот же ключ считается ОДИН раз (single-flight): параллельные вызовы ждут результата первого; разные ключи считаются
     не более MAX_PARALLEL одновременно. ValueError — неверный диапазон; всё остальное -> available:false."""
     if range_key not in RANGE_SECONDS:
-        raise ValueError(f"неизвестный диапазон {range_key}: допустимо {', '.join(RANGE_SECONDS)}")
+        raise ValueError(tr("unknown range {range}: allowed {allowed}").format(range=range_key, allowed=', '.join(RANGE_SECONDS)))
     now = _now() if now is None else float(now)
     path = Path(db_path)
     if not path.exists():

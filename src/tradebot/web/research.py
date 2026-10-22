@@ -6,6 +6,7 @@ import pandas as pd
 from tradebot.core import optimize as opt
 from tradebot.core import overlays as ov
 from tradebot.core.strategies import STRATEGIES, Strategy, param_specs
+from tradebot.i18n import tr
 from tradebot.market import klines
 from tradebot.web import backtests, cache, data
 from tradebot.web import serialize as S
@@ -46,7 +47,7 @@ def run_optimize(req: OptimizeReq, dl: Deadline) -> dict:
 
 def lb_plan(symbol: str, tf: str) -> dict:
     if symbol not in SYMBOLS or tf not in klines.TIMEFRAMES:
-        raise ValueError("неизвестный символ или таймфрейм")
+        raise ValueError(tr("unknown symbol or timeframe"))
     has_k, has_d = data.klines_available(symbol, tf), data.available(symbol, tf)
     items = []
     for s in STRATEGIES.values():

@@ -7,6 +7,7 @@ from tradebot import paths
 from tradebot.core.engine import DEFAULT_PERP_FEE
 from tradebot.core.portfolio import BASE_TF, DEFAULT_LEGS
 from tradebot.core.strategies import STRATEGIES, Strategy, param_specs
+from tradebot.i18n import tr
 from tradebot.market import klines
 from tradebot.web import data
 from tradebot.web.schemas import SYMBOLS
@@ -35,7 +36,7 @@ def wf_levs() -> list[int]:
 
 def get_strategy(name: str) -> Strategy:
     if name not in STRATEGIES:
-        raise ValueError(f"неизвестная стратегия: {name}")
+        raise ValueError(tr("unknown strategy: {name}").format(name=name))
     return STRATEGIES[name]
 
 

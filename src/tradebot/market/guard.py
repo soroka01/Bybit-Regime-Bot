@@ -15,6 +15,8 @@ import os
 import threading
 import time
 
+from tradebot.i18n import tr
+
 log = logging.getLogger("tradebot.market")
 
 LOCK_TIMEOUT_S = 5.0          # сколько ждёт файл обычный вызывающий (бот)
@@ -118,7 +120,7 @@ def locked(path, timeout: float | None = None):
         if left <= 0:
             break
     if not got:
-        log.warning("файл %s занят другим обновлением дольше %.0f с", os.path.basename(os.fspath(path)), limit)
+        log.warning(tr("file %s has been busy with another update for longer than %.0f s"), os.path.basename(os.fspath(path)), limit)
     try:
         yield got
     finally:

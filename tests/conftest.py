@@ -1,10 +1,20 @@
 import os
 
+os.environ.setdefault("APP_LANGUAGE", "ru")   # тесты проверяют русские тексты и не должны читать настоящий .env владельца; en-тесты явно зовут set_language("en")
 os.environ.setdefault("TRADEBOT_ALLOW_TESTSERVER", "1")   # Host `testserver` у TestClient: только в тестах (web/api.py читает при импорте)
 
 import httpx
 import pytest
 import requests
+
+
+@pytest.fixture(autouse=True)
+def _reset_language():
+    """Язык (tradebot.i18n) не должен «протекать» между тестами: load_env/set_language в одном тесте не влияют на другой."""
+    from tradebot import i18n
+    i18n.reset()
+    yield
+    i18n.reset()
 
 
 @pytest.fixture(autouse=True)

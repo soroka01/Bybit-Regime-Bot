@@ -10,6 +10,7 @@ from tradebot.core import overlays as ov
 from tradebot.core.engine import backtest, monthly_returns
 from tradebot.core.portfolio import BASE_TF, Leg, exposure
 from tradebot.core.strategies import Strategy, clean_params, param_specs
+from tradebot.i18n import tr
 from tradebot.market import klines
 from tradebot.web import data
 from tradebot.web import serialize as S
@@ -51,7 +52,7 @@ def _signal(df: pd.DataFrame, st: Strategy, params: dict, o, dl: Deadline | None
     try:
         sig = st.fn(df, **params)
     except KeyError as e:
-        raise ValueError(f"в данных нет колонки {e} для стратегии {st.name}") from e
+        raise ValueError(tr("no column {column} in the data for strategy {strategy}").format(column=e, strategy=st.name)) from e
     sig = sig.reindex(df.index).fillna(0.0)
     if dl:
         dl.check()        # core.overlays.apply (цикл ATR-стопа) внутри не прерывается — проверяем до и после
@@ -67,7 +68,7 @@ def eff_days(tf: str, days: int) -> int:
 
 def _slice(df: pd.DataFrame, days: int):
     if len(df) == 0:
-        raise DataEmpty("данные")
+        raise DataEmpty(tr("data"))
     return df.index >= df.index[-1] - pd.Timedelta(days=days)
 
 
@@ -205,7 +206,7 @@ def run_backtest(req: BacktestReq, dl: Deadline | None = None) -> dict:
     if dl:
         dl.check()
     if not res.metrics:
-        raise ValueError("слишком мало данных за выбранный период")
+        raise ValueError(tr("too little data for the selected period"))
     out = _package(sub, res, eff.echo())
     out["params"] = params
     out["days_effective"] = eff_days(req.tf, req.days)
@@ -217,9 +218,9 @@ def run_sweep(req: SweepReq, dl: Deadline) -> dict:
     st = get_strategy(req.strategy)
     specs = param_specs(st)
     if req.x.name not in specs or (req.y is not None and (req.y.name not in specs or req.y.name == req.x.name)):
-        raise ValueError("нужно выбрать параметры стратегии (для 2D — два разных)")
+        raise ValueError(tr("pick strategy parameters (two different ones for 2D)"))
     if req.y is not None and req.x.n * req.y.n > MAX_SWEEP_CELLS:
-        raise ValueError(f"слишком много ячеек (максимум {MAX_SWEEP_CELLS})")
+        raise ValueError(tr("too many cells (maximum {max})").format(max=MAX_SWEEP_CELLS))
     df = data.get_df(req.symbol, req.tf)
     base = clean_params(st, req.params)
     mask = _slice(df, eff_days(req.tf, req.days))
@@ -269,12 +270,12 @@ def run_portfolio(req: PortfolioReq, dl: Deadline | None = None) -> dict:
     for l in req.legs:
         st = get_strategy(l.strategy)
         if l.tf not in PORTFOLIO_TFS:
-            raise ValueError(f"таймфрейм ноги {l.tf!r} не поддерживается: допустимы {', '.join(PORTFOLIO_TFS)} "
-                             f"(не короче базовой сетки {BASE_TF} и кратные ей)")
+            raise ValueError(tr("leg timeframe {tf} is not supported: allowed {allowed} (not shorter than the base grid {base} and multiples of it)").format(
+                tf=repr(l.tf), allowed=', '.join(PORTFOLIO_TFS), base=BASE_TF))
         legs.append(Leg(l.strategy, l.tf, clean_params(st, l.params), l.weight, l.long_only or eff.long_only))
     keys = [l.key for l in legs]
     if len(set(keys)) != len(keys):
-        raise ValueError("ноги должны различаться по паре стратегия@таймфрейм")
+        raise ValueError(tr("legs must differ by the strategy@timeframe pair"))
     dfs = {tf: data.get_df(req.symbol, tf) for tf in {BASE_TF, *(l.tf for l in legs)}}
     if dl:
         dl.check()
@@ -288,7 +289,7 @@ def run_portfolio(req: PortfolioReq, dl: Deadline | None = None) -> dict:
     if dl:
         dl.check()
     if not res.metrics:
-        raise ValueError("слишком мало данных за выбранный период")
+        raise ValueError(tr("too little data for the selected period"))
     t = S.secs(sub.index)
     ssub = sigs[mask]
     bt, ex = S.bucket_mean(expo[mask].to_numpy(), t, 500)

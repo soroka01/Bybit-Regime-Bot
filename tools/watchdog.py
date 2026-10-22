@@ -190,18 +190,18 @@ def run_once(db_path: Path, state_path: Path, env: dict, send: Callable[[str, st
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Сторож бота: сообщает в Telegram, если пульс бота или чтение биржи замолчали")
-    ap.add_argument("--once", action="store_true", help="одна проверка и выход (для Планировщика заданий)")
-    ap.add_argument("--interval", type=float, default=60.0, help="пауза между проверками без --once, секунд")
+    ap = argparse.ArgumentParser(description="Bot watchdog: reports to Telegram when the bot's heartbeat or its exchange reads go silent")
+    ap.add_argument("--once", action="store_true", help="one check, then exit (for Task Scheduler)")
+    ap.add_argument("--interval", type=float, default=60.0, help="pause between checks without --once, in seconds")
     args = ap.parse_args(argv)
     env = read_env(ENV_PATH)
     if not (env["TELEGRAM_BOT_TOKEN"] and env["TELEGRAM_OWNER_ID"]):
-        print("watchdog: не заданы TELEGRAM_BOT_TOKEN / TELEGRAM_OWNER_ID (окружение или .env)")
+        print("watchdog: TELEGRAM_BOT_TOKEN / TELEGRAM_OWNER_ID are not set (environment or .env)")
         return 4
     while True:
         res = run_once(DB_PATH, STATE_PATH, env)
         hb, mon = res["ages"]["heartbeat"], res["ages"]["monitor_ok"]
-        fmt = lambda v: "нет" if v is None else f"{v:.0f}с"  # noqa: E731
+        fmt = lambda v: "none" if v is None else f"{v:.0f}s"  # noqa: E731
         print(f"watchdog: {res['status']} heartbeat={fmt(hb)} monitor_ok={fmt(mon)} sent={res['sent']}")
         if args.once:
             return 0

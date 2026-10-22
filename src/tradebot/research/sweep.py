@@ -18,6 +18,7 @@ from tradebot.market import derivs
 from tradebot.market import klines as data
 from tradebot.core.engine import DEFAULT_PERP_FEE, backtest
 from tradebot.core.strategies import STRATEGIES
+from tradebot.i18n import tr
 from tradebot.paths import RESULTS
 
 log = logging.getLogger("tradebot.research")
@@ -44,7 +45,7 @@ def runnable(st, df: pd.DataFrame) -> str | None:
     try:
         st.fn(df, **next(iter(st.combos())))
     except KeyError as e:
-        return f"в данных нет колонки {e}"
+        return tr("no column {column} in the data").format(column=e)
     except Exception as e:  # noqa: BLE001  стратегия не отработала даже на первой комбинации
         return f"{type(e).__name__}: {e}"
     return None
@@ -58,8 +59,8 @@ def run(symbol, tfs, lev, long_only, fee, slip, days, refresh=True):
         for st in STRATEGIES.values():
             why = runnable(st, df)
             if why:
-                log.warning("sweep %s %s: стратегия «%s» пропущена — %s", symbol, tf, st.name, why)
-                print(f"{tf:>4} {st.name:<22} пропущена: {why}", flush=True)
+                log.warning(tr("sweep %s %s: strategy «%s» skipped — %s"), symbol, tf, st.name, why)
+                print(f"{tf:>4} {st.name:<22} " + tr("skipped: {why}").format(why=why), flush=True)
                 continue
             t0 = time.time()
             best, best_s = None, -1e18

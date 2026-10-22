@@ -11,6 +11,7 @@ import pandas as pd
 
 from tradebot import paths
 from tradebot.core.strategies import STRATEGIES
+from tradebot.i18n import tr
 from tradebot.market import derivs, guard, klines
 from tradebot.web import cache
 from tradebot.web.schemas import SYMBOLS
@@ -34,21 +35,21 @@ class DataMissing(Exception):
     def __init__(self, symbol: str, tf: str, missing: list[str]):
         self.symbol, self.tf, self.missing = symbol, tf, missing
         self.estimate = fetch_estimate(tf) if tf in klines.TIMEFRAMES else None
-        super().__init__(f"Нет локальных данных {symbol} {tf}: {', '.join(missing)}. "
-                         f"Скачайте их явно (POST /api/data/fetch).")
+        super().__init__(tr("No local data for {symbol} {tf}: {missing}. Download it explicitly (POST /api/data/fetch).").format(
+            symbol=symbol, tf=tf, missing=', '.join(missing)))
 
 
 class DataEmpty(ValueError):
     """Parquet-файл прочитан, но в нём нет строк (или меньше 2) — считать нечего."""
     def __init__(self, name: str):
-        super().__init__(f"файл данных пуст (или в нём меньше 2 строк): {name}. Скачайте данные заново.")
+        super().__init__(tr("the data file is empty (or has fewer than 2 rows): {name}. Download the data again.").format(name=name))
 
 
 # ---------------------------------------------------------------- данные
 def check_sym_tf(symbol: str, tf: str) -> None:
     """Единая проверка символа/таймфрейма перед построением ЛЮБОГО пути файла данных (защита от «..», обратных слэшей, UNC-путей)."""
     if symbol not in SYMBOLS or tf not in klines.TIMEFRAMES:
-        raise ValueError("неизвестный символ или таймфрейм")
+        raise ValueError(tr("unknown symbol or timeframe"))
 
 
 def _files(symbol: str, tf: str) -> list:
@@ -96,7 +97,7 @@ def _df_put(key, sig, df) -> None:
 
 def get_df(symbol: str, tf: str) -> pd.DataFrame:
     if symbol not in SYMBOLS or tf not in klines.TIMEFRAMES:
-        raise ValueError("неизвестный символ или таймфрейм")
+        raise ValueError(tr("unknown symbol or timeframe"))
     files = _files(symbol, tf)
     missing = [p.name for p in files if not p.exists()]
     if missing:
@@ -122,7 +123,7 @@ def klines_available(symbol: str, tf: str) -> bool:
 def get_df_lite(symbol: str, tf: str) -> pd.DataFrame:
     """Полные данные, если есть деривативы; иначе только свечи (без фандинга/OI) — для рейтинга."""
     if symbol not in SYMBOLS or tf not in klines.TIMEFRAMES:
-        raise ValueError("неизвестный символ или таймфрейм")
+        raise ValueError(tr("unknown symbol or timeframe"))
     if available(symbol, tf):
         return get_df(symbol, tf)
     p = klines._path(symbol, tf)
@@ -208,7 +209,7 @@ def _last_ts(path) -> str | None:
 def data_status(symbol: str, tf: str, now: pd.Timestamp | None = None) -> dict:
     """Свежесть локального кэша (без сети): последняя закрытая свеча, отставание, метки деривативов."""
     if symbol not in SYMBOLS or tf not in klines.TIMEFRAMES:
-        raise ValueError("неизвестный символ или таймфрейм")
+        raise ValueError(tr("unknown symbol or timeframe"))
     now = (now or pd.Timestamp.now(tz="UTC")).tz_convert("UTC")
     step = pd.Timedelta(minutes=klines.TIMEFRAMES[tf][1])
     gran = derivs.granularity_for(klines.TIMEFRAMES[tf][1])
@@ -237,7 +238,7 @@ def data_status(symbol: str, tf: str, now: pd.Timestamp | None = None) -> dict:
 def update_data(symbol: str, tf: str) -> dict:
     """ЯВНАЯ докачка новых свечей и деривативов (сеть). Запись атомарная (klines._atomic_parquet внутри load/derivs)."""
     if symbol not in SYMBOLS or tf not in klines.TIMEFRAMES:
-        raise ValueError("неизвестный символ или таймфрейм")
+        raise ValueError(tr("unknown symbol or timeframe"))
     before = data_status(symbol, tf)
     eff = klines.effective_days(tf, 1095)
     with guard.patient():       # веб-докачка ждёт занятый файл терпеливо (бот в это время ждёт не дольше нескольких секунд)
@@ -248,7 +249,7 @@ def update_data(symbol: str, tf: str) -> dict:
         except guard.Cancelled:
             raise
         except Exception as e:  # noqa: BLE001  свечи уже сохранены; деривативы можно докачать повторно
-            warning = f"свечи обновлены, но деривативы не загрузились: {type(e).__name__}: {e}"
+            warning = tr("candles updated, but the derivatives failed to load: {exc}: {err}").format(exc=type(e).__name__, err=e)
     invalidate_data(symbol)
     purged = purge_cache(symbol)
     after = data_status(symbol, tf)
@@ -259,7 +260,7 @@ def update_data(symbol: str, tf: str) -> dict:
 def fetch_data(symbol: str, tf: str) -> dict:
     """ЕДИНСТВЕННОЕ место, где веб ходит в сеть — по явной команде пользователя."""
     if symbol not in SYMBOLS or tf not in klines.TIMEFRAMES:
-        raise ValueError("неизвестный символ или таймфрейм")
+        raise ValueError(tr("unknown symbol or timeframe"))
     eff = klines.effective_days(tf, 1095)
     with guard.patient():
         df = klines.load(symbol, tf, eff, refresh=True)
