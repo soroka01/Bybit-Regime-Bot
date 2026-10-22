@@ -25,7 +25,7 @@ The same strategy and engine code is used by the backtester and the live bot, an
 > **The bot trades on Bybit mainnet with real money, using the whole account balance.** There is no testnet or paper mode. Strategies do not guarantee profit and you can lose the entire deposit. Backtests are hypothetical. This is not financial advice; the code is provided as is, and you are responsible for your keys, leverage and risk limits.
 
 > [!NOTE]
-> The Telegram panel and the dashboard are in Russian. Documentation is available in English and Russian.
+> The dashboard and the console speak English and Russian: English by default, switch the dashboard with the **EN | RU** control in its header and set the default (dashboard and console) with `APP_LANGUAGE` in `.env`. The Telegram panel is Russian only for now.
 
 ## ✨ Features
 
@@ -34,6 +34,7 @@ The same strategy and engine code is used by the backtester and the live bot, an
 - 🛡️ **Protection:** exchange-side stop on every position, kill-switch on drawdown from peak and on daily loss, API-key preflight (trading is blocked if the key can withdraw or is read-only), single-instance lock, hard leverage cap of 3×.
 - 📟 **Telegram control panel:** one self-updating message (Home / Position / Signals), risk settings, leg editor, trade notifications with P/L in dollars and in percent of the account, daily summary. Owner-only.
 - 📊 **Web dashboard** (dark and light theme, `Ctrl+K` palette): Lab, Portfolio, Walk-forward, Best strategies, Live, Statistics.
+- 🌐 **Two languages:** English (default) and Russian for the dashboard and the console, chosen in `.env` (`APP_LANGUAGE`); the dashboard also has an EN | RU switch that remembers your choice.
 - 🧮 **Exact P/L:** closed trades are reconciled with Bybit `closed-pnl` (fees and funding included), so the dashboard and Telegram show the same dollars.
 - 🔬 **Honest research tools:** in-sample/out-of-sample split, walk-forward, verdicts that flag overfitting, fees at 0.1 % by default, slippage, funding, liquidation model, leverage up to 100×.
 - 💾 **Operations:** SQLite (WAL) state with schema migrations, daily backups, log rotation, restart wrapper, read-only `--check`, optional heartbeat watchdog.
@@ -71,7 +72,7 @@ Trend (EMA/SMA cross, Supertrend, Donchian, Keltner, Ichimoku, Parabolic SAR, KA
 
 ## 🖼️ Screenshots
 
-Backtests on public market data (no account data); they illustrate the UI and are not a performance claim.
+Backtests on public market data (no account data); they illustrate the UI and are not a performance claim. The dashboard is shown in English; the Russian screenshots are in [README_RU.md](README_RU.md).
 
 **Lab** — one backtest, parameters recompute the result live:
 
@@ -110,6 +111,7 @@ Copy-Item .env.example .env
 Fill in `.env` (it is git-ignored and values are never printed):
 
 ```dotenv
+APP_LANGUAGE=en
 TELEGRAM_BOT_TOKEN=<number>:<string>
 TELEGRAM_OWNER_ID=123456789
 BYBIT_API_KEY=...
@@ -134,7 +136,7 @@ Trading is **off** after the first start: open the Telegram panel, review the ri
 python -m tradebot.web
 ```
 
-On first launch the Lab offers to download candles from Bybit's public API.
+On first launch the Lab offers to download candles from Bybit's public API. This mode reads only `APP_LANGUAGE` from `.env` (no keys needed).
 
 ## ⚙️ Configuration
 
@@ -143,6 +145,7 @@ On first launch the Lab offers to download candles from Bybit's public API.
 | `TELEGRAM_BOT_TOKEN` | yes | Bot token from @BotFather |
 | `TELEGRAM_OWNER_ID` | yes | Numeric id of the only user who can control the bot |
 | `BYBIT_API_KEY`, `BYBIT_API_SECRET` | yes | Mainnet key; both are required |
+| `APP_LANGUAGE` | no | `en` (default) or `ru`: language of the console, logs, `--check` report and the dashboard default. Any other value stops startup (exit code 4). Telegram stays Russian |
 | `TZ_NAME` | no | Time zone for Telegram messages (default `Europe/Moscow`) |
 
 Runtime settings live in the bot database and are changed from Telegram (ranges are validated server-side):
@@ -169,13 +172,14 @@ The config is mainnet-only and fail-closed: `PAPER` or `BYBIT_ENV=testnet` in `.
 ```text
 .
 ├── src/tradebot/
+│   ├── i18n.py       # console/API language (APP_LANGUAGE): tr("English text") with Russian translations in i18n_ru.py
 │   ├── core/         # backtest engine, indicators, strategies, portfolio (single source of target exposure)
 │   ├── market/       # candles, funding, OI, long/short ratio: download and parquet cache
 │   ├── research/     # sweeps and walk-forward
 │   ├── trading/      # exchange client, executor, runner, risk, SQLite state, P/L
 │   ├── telegram/     # aiogram panel, notifications, confirmations
 │   └── web/          # FastAPI backend of the dashboard
-├── web/              # dashboard frontend (TypeScript + esbuild + uPlot), design rules in DESIGN.md
+├── web/              # dashboard frontend (TypeScript + esbuild + uPlot), design rules and i18n in DESIGN.md; texts in src/i18n/messages
 ├── tools/watchdog.py # optional heartbeat watchdog that alerts via Telegram
 ├── tests/            # pytest suite with an exchange fake in tests/fakes
 ├── run.bat           # Windows launcher with restart backoff
@@ -205,7 +209,7 @@ Tests never touch the network. Keep real keys out of tests; the tree must stay i
 - One symbol (BTCUSDT linear perpetual), one process, one Unified Account, isolated margin, one-way mode.
 - Market orders only, so taker fees apply; backtests assume 0.1 % per side plus slippage (change it in the Lab to match your fee tier).
 - Signals are defined on closed bars. Re-evaluating on a rolling bar looks attractive but loses to noise and fees in backtests.
-- The dashboard and Telegram interface are in Russian only.
+- The Telegram interface is Russian only (the dashboard and the console are bilingual). Trade reasons and notification texts that the bot stores in its database are Russian and are shown as stored (known trade reasons are translated in the English dashboard).
 - Past performance, backtests and walk-forward results do not predict future returns.
 
 ## 📄 License
