@@ -2,6 +2,7 @@
 // На <html> ставятся data-theme (уже разрешённая: light|dark) и data-theme-mode (выбор: auto|light|dark).
 // Первичную расстановку делает inline-скрипт в index.html (до первой отрисовки, без вспышки); здесь — то же самое для переключения «на лету».
 // Графики слушают событие "tb-theme" и перечитывают CSS-переменные. `?theme=dark|light` в адресе — временное переопределение (не сохраняется).
+import { t } from "../i18n";
 import { h } from "./dom";
 import { icon } from "./icons";
 
@@ -12,9 +13,9 @@ const KEY = "tb.theme";
 /** Цвет интерфейса браузера (meta theme-color) — по теме. Должен совпадать с --bg в styles/tokens.css. */
 export const THEME_COLORS: Record<Resolved, string> = { dark: "#0a0d13", light: "#f3f5f8" };
 const MODES: { mode: ThemeMode; label: string; ico: string }[] = [
-  { mode: "light", label: "Светлая", ico: "sun" },
-  { mode: "auto", label: "Авто", ico: "auto" },
-  { mode: "dark", label: "Тёмная", ico: "moon" },
+  { mode: "light", label: t("common.theme.light"), ico: "sun" },
+  { mode: "auto", label: t("common.theme.auto"), ico: "auto" },
+  { mode: "dark", label: t("common.theme.dark"), ico: "moon" },
 ];
 
 const isMode = (v: unknown): v is ThemeMode => v === "light" || v === "dark" || v === "auto";
@@ -69,14 +70,14 @@ export function applyTheme(mode: ThemeMode, opts: { persist?: boolean; animate?:
 
 /** Переключатель в верхней панели: три кнопки с иконками (aria-pressed), клавиатурой — Tab/Enter/Пробел и стрелки. */
 export function themeSwitch(): HTMLElement {
-  const wrap = h("div", { class: "theme-switch", role: "group", "aria-label": "Тема оформления" });
+  const wrap = h("div", { class: "theme-switch", role: "group", "aria-label": t("common.theme.group") });
   const btns = new Map<ThemeMode, HTMLButtonElement>();
   const paint = () => {
     const m = currentMode();
     btns.forEach((b, k) => b.setAttribute("aria-pressed", String(k === m)));
   };
   for (const { mode, label, ico } of MODES) {
-    const b = h("button", { type: "button", "aria-label": `${label} тема`, "data-tip": label, "aria-pressed": "false" },
+    const b = h("button", { type: "button", "aria-label": t("common.theme.aria", { label }), "data-tip": label, "aria-pressed": "false" },
       icon(ico, 15), h("span", { class: "ts-label", text: label }));
     b.addEventListener("click", () => { applyTheme(mode, { persist: true }); paint(); });
     btns.set(mode, b);

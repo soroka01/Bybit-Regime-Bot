@@ -4,6 +4,7 @@
 import { clearPersisted, currentRoute, type Route } from "./state";
 import type { DataCtx, Tab, TabFactory } from "./tabs/tab";
 import type { Meta } from "./types";
+import { t as tr } from "./i18n";
 import { crashBanner } from "./ui/banner";
 import { h } from "./ui/dom";
 
@@ -76,7 +77,7 @@ export function createTabHost(o: TabHostOpts): TabHost {
   function showTab(r: Route, t: Tab): void {
     if (safe(r, "show", () => t.show())) return;
     // вкладка создалась, но упала при показе: заменяем её заглушкой (создание заглушки не бросает)
-    const stub = decorate(r, crashed(r, new Error("вкладка не смогла показаться — см. консоль браузера")));
+    const stub = decorate(r, crashed(r, new Error(tr("common.crash.show_failed"))));
     safe(r, "hide", () => t.hide());
     stub.el.hidden = t.el.hidden;
     t.el.replaceWith(stub.el);

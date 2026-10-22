@@ -1,31 +1,43 @@
 // Вердикты стратегий: порядок ярусов, подписи, пороги. Единый источник для бейджей, рейтинга, подбора параметров.
-// Пороги в подсказках (Sharpe OOS > 0,5, зелёных месяцев ≥ 40%, окно OOS < 90 дн.) дублируют core/optimize.py: расхождение ловит
-// tests/verdictsContract.test.ts (читает константы прямо из исходника сервера).
+// Тексты — в словаре (i18n/messages/leaderboard.ts, «leaderboard.verdict.*»). Пороги в подсказках (Sharpe OOS > 0,5, зелёных месяцев ≥ 40%, окно OOS < 90 дн.)
+// задаются константами ниже и дублируют core/optimize.py: расхождение ловит tests/verdictsContract.test.ts (читает константы из исходника сервера
+// и проверяет итоговые тексты обоих языков, а не сам исходный код).
+import { t } from "../i18n";
 import type { Verdict } from "../types";
+import { num } from "./fmt";
 
 interface VerdictInfo { text: string; tone: string; /** знак в бейдже (смысл не только цветом) */ glyph: string; hint: string; warnTitle: string; warnBody: string }
 
+/** Порог Sharpe OOS для вердикта «устойчива» (core/optimize.py: sharpe > 0.5). */
+export const SHARPE_MIN = 0.5;
+/** Минимальная доля зелёных месяцев в % (core/optimize.py: green_months >= 0.4). */
+export const GREEN_MONTHS_MIN_PCT = 40;
+/** Минимальная длина окна OOS в днях (core/optimize.py: MIN_OOS_DAYS); короче — вердикт «мало сделок». */
+export const MIN_OOS_DAYS = 90;
+
+const thresholds = { sharpe: num(SHARPE_MIN, 1), green: GREEN_MONTHS_MIN_PCT };
+
 export const VERDICTS: Record<Verdict, VerdictInfo> = {
   robust: {
-    text: "устойчива", tone: "ok", glyph: "✓",
-    hint: "OOS в плюсе, сделок достаточно, Sharpe OOS > 0,5, средний месяц > 0, зелёных месяцев ≥ 40% и результат не намного хуже IS",
+    text: t("leaderboard.verdict.robust.text"), tone: "ok", glyph: "✓",
+    hint: t("leaderboard.verdict.robust.hint", thresholds),
     warnTitle: "", warnBody: "",
   },
   overfit: {
-    text: "подозрение на подгонку", tone: "warn", glyph: "!",
-    hint: "OOS в плюсе, но заметно слабее IS, Sharpe OOS ≤ 0,5 или на подборе (IS) параметры не заработали",
-    warnTitle: "Подозрение на подгонку. ",
-    warnBody: "На OOS результат заметно хуже, чем на IS, Sharpe OOS низкий или нет стабильных зелёных месяцев. Не доверяйте цифрам IS.",
+    text: t("leaderboard.verdict.overfit.text"), tone: "warn", glyph: "!",
+    hint: t("leaderboard.verdict.overfit.hint", thresholds),
+    warnTitle: t("leaderboard.verdict.overfit.warn_title"),
+    warnBody: t("leaderboard.verdict.overfit.warn_body"),
   },
   few: {
-    text: "мало сделок", tone: "off", glyph: "○", hint: "слишком мало сделок для выводов",
-    warnTitle: "Слишком мало сделок для выводов. ",
-    warnBody: "На OOS-периоде сделок меньше минимума — цифры OOS статистически ничего не доказывают.",
+    text: t("leaderboard.verdict.few.text"), tone: "off", glyph: "○", hint: t("leaderboard.verdict.few.hint"),
+    warnTitle: t("leaderboard.verdict.few.warn_title"),
+    warnBody: t("leaderboard.verdict.few.warn_body"),
   },
   loss: {
-    text: "убыточна OOS", tone: "bad", glyph: "✕", hint: "На out-of-sample периоде стратегия не заработала",
-    warnTitle: "Лучшая комбинация убыточна вне выборки. ",
-    warnBody: "На IS она выглядит хорошо, но на OOS не заработала — скорее всего, это подгонка под историю.",
+    text: t("leaderboard.verdict.loss.text"), tone: "bad", glyph: "✕", hint: t("leaderboard.verdict.loss.hint"),
+    warnTitle: t("leaderboard.verdict.loss.warn_title"),
+    warnBody: t("leaderboard.verdict.loss.warn_body"),
   },
 };
 
@@ -38,9 +50,9 @@ export const tierOf = (v: unknown): number => {
   return i < 0 ? VERDICT_ORDER.length : i;
 };
 
-const UNKNOWN: VerdictInfo = { text: "неизвестно", tone: "off", glyph: "?", hint: "неизвестный вердикт", warnTitle: "", warnBody: "" };
+const UNKNOWN: VerdictInfo = { text: t("leaderboard.verdict.unknown.text"), tone: "off", glyph: "?", hint: t("leaderboard.verdict.unknown.hint"), warnTitle: "", warnBody: "" };
 export const verdictInfo = (v: unknown): VerdictInfo =>
   (typeof v === "string" && Object.prototype.hasOwnProperty.call(VERDICTS, v) ? VERDICTS[v as Verdict] : UNKNOWN);
 
 /** «✓ устойчива → ! подгонка → ○ мало сделок → ✕ убыточна» для пояснения порядка в рейтинге. */
-export const ORDER_TEXT = "✓ устойчива → ! подгонка → ○ мало сделок → ✕ убыточна";
+export const ORDER_TEXT = t("leaderboard.verdict.order");

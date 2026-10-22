@@ -1,4 +1,5 @@
 // Вкладка «Статистика»: фильтры сделок, счётчики, CSV и подписи базы цены исполнения (чистая логика).
+import { t } from "../i18n";
 import type { StatsTradeRow } from "../types";
 import { isoUtc } from "../ui/fmtTime";
 import { csvCell, csvText } from "./tradesLogic";
@@ -7,8 +8,8 @@ export { csvText };
 
 export type StTradeFilter = "all" | "long" | "short" | "win" | "loss" | "recon";
 export const ST_TRADE_FILTERS: { key: StTradeFilter; label: string }[] = [
-  { key: "all", label: "Все" }, { key: "long", label: "Лонг" }, { key: "short", label: "Шорт" },
-  { key: "win", label: "Прибыльные" }, { key: "loss", label: "Убыточные" }, { key: "recon", label: "Реконструированные" },
+  { key: "all", label: t("stats.filter.all") }, { key: "long", label: t("stats.filter.long") }, { key: "short", label: t("stats.filter.short") },
+  { key: "win", label: t("stats.filter.win") }, { key: "loss", label: t("stats.filter.loss") }, { key: "recon", label: t("stats.filter.recon") },
 ];
 export const isStTradeFilter = (v: unknown): v is StTradeFilter => ST_TRADE_FILTERS.some((f) => f.key === v);
 
@@ -47,6 +48,6 @@ export function stTradesToCsv(rows: readonly StatsTradeRow[]): string {
 }
 
 const FILL_BASIS: Record<string, string> = {
-  stop_level: "по стоп-уровню", candle_close: "по закрытию свечи", candle_open: "по открытию свечи", entry: "по цене входа",
+  stop_level: t("stats.basis.stop_level"), candle_close: t("stats.basis.candle_close"), candle_open: t("stats.basis.candle_open"), entry: t("stats.basis.entry"),
 };
 export const fillBasisText = (b: string | undefined): string => (b ? (FILL_BASIS[b] ?? b) : "");

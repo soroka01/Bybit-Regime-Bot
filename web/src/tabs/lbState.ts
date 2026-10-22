@@ -1,5 +1,6 @@
 // Состояние вкладки «Лучшие стратегии»: явный автомат idle | loading | cached | running | error.
 // Любое изменение идёт через store.set(), который применяет патч и ровно один раз вызывает onChange (status() + renderList()).
+import { t } from "../i18n";
 import type { LbItem, LbPlan } from "../types";
 import { utcShort } from "../ui/fmt";
 
@@ -9,7 +10,7 @@ export type Entry =
   | { k: "item"; item: LbItem }
   | { k: "error"; error: string }
   | { k: "pending" }
-  | { k: "skip"; skip: string }
+  | { k: "skip"; skip: string; code?: string }
   | { k: "none" }
   | { k: "busy" };
 
@@ -79,30 +80,30 @@ const fmtDataLast = (s: string | null) => (s ? utcShort(s) + " UTC" : "—");
 
 export function statusText(m: LbModel, fmtLast: (s: string | null) => string = fmtDataLast): string {
   switch (m.phase) {
-    case "loading": return "Загрузка кэша…";
-    case "error": return m.error || "Ошибка";
+    case "loading": return t("leaderboard.status.loading");
+    case "error": return m.error || t("leaderboard.status.error");
     case "running": {
-      const base = `Считаю ${Math.min(m.done + 1, m.total)} из ${m.total}…`;
+      const base = t("leaderboard.status.running", { n: Math.min(m.done + 1, m.total), total: m.total });
       if (!m.retry) return base;
-      const w = m.retry.waitedS != null ? `, ждали ${Math.round(m.retry.waitedS)} с` : "";
-      return `${base} ожидаю сервер, попытка ${m.retry.k}/${m.retry.n} (${m.retry.name}${w})`;
+      const w = m.retry.waitedS != null ? t("leaderboard.status.waited", { s: Math.round(m.retry.waitedS) }) : "";
+      return t("leaderboard.status.retry", { base, k: m.retry.k, max: m.retry.n, name: m.retry.name, waited: w });
     }
     default: {
       const cachedN = m.readyCount - m.missingCount;
       if (m.note) return m.note;
       if (!m.readyCount) return "";
-      if (!m.missingCount) return `Показано из кэша · данные от ${fmtLast(m.dataLast)}`;
-      if (cachedN > 0) return `Из кэша: ${cachedN} из ${m.readyCount}. Осталось досчитать: ${m.missingCount}.`;
-      return "В кэше ничего нет для этих настроек — нажмите «Запустить».";
+      if (!m.missingCount) return t("leaderboard.status.fresh", { when: fmtLast(m.dataLast) });
+      if (cachedN > 0) return t("leaderboard.status.partial", { cached: cachedN, ready: m.readyCount, missing: m.missingCount });
+      return t("leaderboard.status.empty");
     }
   }
 }
 
 export function runLabel(m: LbModel): string {
-  if (m.phase === "running") return "Считаю…";
-  if (m.readyCount > 0 && m.missingCount === 0) return "Показано из кэша";
-  if (m.readyCount > 0 && m.missingCount < m.readyCount) return `Досчитать недостающие (${m.missingCount})`;
-  return "Запустить";
+  if (m.phase === "running") return t("leaderboard.run.running");
+  if (m.readyCount > 0 && m.missingCount === 0) return t("leaderboard.run.cached");
+  if (m.readyCount > 0 && m.missingCount < m.readyCount) return t("leaderboard.run.missing", { n: m.missingCount });
+  return t("leaderboard.run");
 }
 
 export const runDisabled = (m: LbModel): boolean =>

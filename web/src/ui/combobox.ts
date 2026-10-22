@@ -1,5 +1,6 @@
 // Поле выбора с поиском (ARIA 1.2 «combobox» со списком): набор текста фильтрует, ↑/↓/Home/End двигают подсветку, Enter выбирает, Esc закрывает.
 // Список — позиционированный блок под полем (position: absolute), без внешних зависимостей. Стили — styles/tab-lab.css (.combo).
+import { t } from "../i18n";
 import type { Control } from "./controls";
 import { h } from "./dom";
 import { badge } from "./kit";
@@ -31,7 +32,7 @@ export function combobox(o: ComboOpts): Control<string> {
   const input = h("input", {
     type: "text", id: inputId, class: "combo-input", role: "combobox", autocomplete: "off", spellcheck: false,
     "aria-autocomplete": "list", "aria-expanded": "false", "aria-controls": listId, "aria-haspopup": "listbox",
-    placeholder: o.placeholder ?? "Найти стратегию…",
+    placeholder: o.placeholder ?? t("common.combo.placeholder"),
   });
   input.setAttribute("autocapitalize", "off");
   const list = h("ul", { class: "combo-list", id: listId, role: "listbox", "aria-label": o.label, hidden: true });
@@ -44,7 +45,7 @@ export function combobox(o: ComboOpts): Control<string> {
 
   function paint() {
     if (!shown.length) {
-      list.replaceChildren(h("li", { class: "combo-empty", role: "presentation", text: "Ничего не найдено" }));
+      list.replaceChildren(h("li", { class: "combo-empty", role: "presentation", text: t("common.nothing_found") }));
       input.removeAttribute("aria-activedescendant");
       return;
     }

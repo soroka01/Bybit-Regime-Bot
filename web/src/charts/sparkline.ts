@@ -1,4 +1,5 @@
 // Мини-график ряда (SVG): линия, мягкая заливка, точка на конце. Цвета — токены; смысл дублируется числами рядом (график декоративный, aria-label у родителя).
+import { t } from "../i18n";
 import { svg } from "../ui/dom";
 
 let uid = 0;
@@ -13,7 +14,7 @@ export function sparkline(values: readonly number[], o: { w?: number; h?: number
   const pts = v.map((y, i) => [X(i), Y(y)] as const);
   const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
   const gid = `sp${++uid}`;
-  const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, class: "sparkline", role: "img", "aria-label": o.label ?? "График" });
+  const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, class: "sparkline", role: "img", "aria-label": o.label ?? t("charts.default_aria") });
   root.append(
     svg("defs", {}, svg("linearGradient", { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 },
       svg("stop", { offset: "0%", "stop-color": "var(--c1)", "stop-opacity": 0.3 }), svg("stop", { offset: "100%", "stop-color": "var(--c1)", "stop-opacity": 0 }))),

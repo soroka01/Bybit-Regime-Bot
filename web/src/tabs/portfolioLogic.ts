@@ -1,4 +1,5 @@
 // Чистая логика вкладки «Портфель»: сумма весов и предупреждения, импорт ног живого бота из снимка /api/live.
+import { t, tDyn } from "../i18n";
 import type { LegCfg, LiveSnapshot, StrategyMeta } from "../types";
 import { num, pct } from "../ui/fmt";
 
@@ -56,18 +57,18 @@ export function weightReport(legs: readonly { weight: number }[], leverage: numb
   let tone: WeightReport["tone"] = "ok";
   if (sum <= EPS) {
     tone = "bad";
-    lines.push("Все веса нулевые: портфель не держит позиций, результат пустой.");
+    lines.push(t("portfolio.wsum.all_zero"));
   } else if (over) {
     tone = "warn";
-    lines.push(`Живой бот ограничивает суммарный вес 100 %. При Σ = ${pct(sum, 0)} бэктест здесь оптимистичнее бота (макс. экспозиция ≈ ${num(sum * leverage, 2)}× капитала).`);
+    lines.push(t("portfolio.wsum.over", { sum: pct(sum, 0), exp: num(sum * leverage, 2) }));
   } else if (sum < LIVE_WEIGHT_CAP - 0.005) {
-    lines.push(`Свободно ${pct(LIVE_WEIGHT_CAP - sum, 0)} капитала: эта доля остаётся в деньгах.`);
+    lines.push(t("portfolio.wsum.free", { free: pct(LIVE_WEIGHT_CAP - sum, 0) }));
   }
   if (zero.length && sum > EPS) {
-    lines.push(`${zero.length === 1 ? "Нога" : "Ноги"} ${listLegs(zero)} с весом 0 — не торгу${zero.length === 1 ? "ет" : "ют"} ни здесь, ни в боте.`);
+    lines.push(t("portfolio.wsum.zero_legs", { n: zero.length, list: listLegs(zero) }));
     if (tone === "ok") tone = "warn";
   }
-  return { sum, tone, over, zero, headline: `Σ весов ${pct(sum, 0)}`, lines };
+  return { sum, tone, over, zero, headline: t("portfolio.wsum.headline", { sum: pct(sum, 0) }), lines };
 }
 
 /**
@@ -101,9 +102,10 @@ interface ImportResult {
 export function importLiveLegs(
   snap: LiveSnapshot | null | undefined, strategies: ReadonlyMap<string, StrategyMeta>, tfs: readonly string[],
 ): ImportResult {
-  if (!snap || !snap.available) return { ok: false, legs: [], skipped: [], disabled: 0, reason: snap?.reason ?? "Снимок бота недоступен: бот не запущен или база состояния не найдена." };
+  // причина с сервера: известный код («no_snapshot») переводится, любой другой текст показывается как есть
+  if (!snap || !snap.available) return { ok: false, legs: [], skipped: [], disabled: 0, reason: snap?.reason ? (tDyn(`portfolio.live_reason.${snap.reason}`) ?? snap.reason) : t("portfolio.import.no_snapshot") };
   const src = snap.legs ?? [];
-  if (!src.length) return { ok: false, legs: [], skipped: [], disabled: 0, reason: "В снимке бота нет ног." };
+  if (!src.length) return { ok: false, legs: [], skipped: [], disabled: 0, reason: t("portfolio.import.no_legs") };
   const legs: LegCfg[] = [];
   const skipped: string[] = [];
   let disabled = 0;
@@ -111,13 +113,13 @@ export function importLiveLegs(
     const label = `${l.strategy}@${l.tf}`;
     if (!l.enabled) { disabled++; continue; }
     const st = strategies.get(l.strategy);
-    if (!st) { skipped.push(`${label}: нет такой стратегии в дашборде`); continue; }
-    if (!tfs.includes(l.tf)) { skipped.push(`${label}: таймфрейм не поддерживается портфелем`); continue; }
-    if (!Number.isFinite(l.weight) || l.weight < 0) { skipped.push(`${label}: некорректный вес`); continue; }
-    if (legs.length >= MAX_LEGS) { skipped.push(`${label}: не больше ${MAX_LEGS} ног`); continue; }
+    if (!st) { skipped.push(t("portfolio.import.skip_unknown", { label })); continue; }
+    if (!tfs.includes(l.tf)) { skipped.push(t("portfolio.import.skip_tf", { label })); continue; }
+    if (!Number.isFinite(l.weight) || l.weight < 0) { skipped.push(t("portfolio.import.skip_weight", { label })); continue; }
+    if (legs.length >= MAX_LEGS) { skipped.push(t("portfolio.import.skip_max", { label, n: MAX_LEGS })); continue; }
     const params = normalizeParams(st, l.params);
     legs.push({ strategy: l.strategy, tf: l.tf, params, weight: Math.min(LEG_WEIGHT_MAX, +l.weight.toFixed(4)), long_only: l.long_only });
   }
-  if (!legs.length) return { ok: false, legs, skipped, disabled, reason: "Нет включённых ног, которые можно перенести." };
+  if (!legs.length) return { ok: false, legs, skipped, disabled, reason: t("portfolio.import.none_enabled") };
   return { ok: true, legs, skipped, disabled };
 }

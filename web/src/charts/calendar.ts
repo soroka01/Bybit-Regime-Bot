@@ -1,6 +1,7 @@
 // Календарь дневного P/L в стиле GitHub: недели — столбцы, дни — строки, понедельник первым; дивергентная шкала --heat-neg ↔ --heat-mid ↔ --heat-pos.
 // Цвет ячейки задаёт CSS (color-mix по --k), поэтому смена темы не требует перекраски. Для окон короче 14 суток — компактный список по дням.
 // Сетка и раскраска — чистая логика (charts/calendarModel.ts: calendarSections / calLevel / calendarList).
+import { t, tList } from "../i18n";
 import type { StatsCalendarCell } from "../types";
 import { h } from "../ui/dom";
 import { glyph } from "../ui/kit";
@@ -9,7 +10,7 @@ import { mdLocal, ymdLocal } from "../ui/fmtTime";
 import { calendarIsCompact, calendarList, calendarSections, calLevel } from "./calendarModel";
 import { chartTip } from "./tooltip";
 
-const WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const WD = tList("date.weekdays_short");
 const wdOf = (date: string): string => WD[(new Date(date + "T00:00:00Z").getUTCDay() + 6) % 7]!;
 
 export function calendarChart(startDate: string, endDate: string, cells: readonly StatsCalendarCell[]): HTMLElement {
@@ -28,9 +29,9 @@ export function calendarChart(startDate: string, endDate: string, cells: readonl
         h("span", { class: "cal-row-d" }, h("b", { text: wdOf(d.date) }), ` ${mdLocal(d.date)}`),
         d.trades ? h("span", { class: "cal-row-bar", "aria-hidden": "true" }, h("i", { class: tone, style: `width:${Math.max(6, Math.abs(lvl) * 100)}%` })) : h("span"),
         h("span", { class: `cal-row-n ${tone}`, text: d.trades ? `${glyph(tone)} ${susd(d.net)}`.trim() : "—" }),
-        h("span", { class: "cal-row-t muted", text: d.trades ? `${d.trades} сд.` : "сделок нет" }));
+        h("span", { class: "cal-row-t muted", text: d.trades ? t("charts.cal.trades_short", { n: d.trades }) : t("charts.cal.no_trades") }));
     });
-    wrap.append(h("ul", { class: "cal-list", "aria-label": "P/L по дням" }, ...rows), tip.el);
+    wrap.append(h("ul", { class: "cal-list", "aria-label": t("charts.cal.list_aria") }, ...rows), tip.el);
     return wrap;
   }
 
@@ -44,7 +45,7 @@ export function calendarChart(startDate: string, endDate: string, cells: readonl
     const days = h("div", { class: "cal-wd", style: `--cs:${cs}px`, "aria-hidden": "true" }, ...WD.map((d, i) => h("span", { style: `grid-row:${i + 1}`, text: i % 2 === 0 ? d : "" })));
     const grid = h("div", {
       class: "cal-grid", style: dims, role: "img",
-      "aria-label": `Календарь P/L по дням${sec.year ? ` за ${sec.year} год` : ""}: торговых дней ${traded.length}, прибыльных ${wins}, убыточных ${losses}`,
+      "aria-label": t("charts.cal.aria", { period: sec.year ? t("charts.cal.aria_year", { year: sec.year }) : "", days: traded.length, wins, losses }),
     });
     for (const d of g.days) {
       if (!d.inRange) { continue; }
@@ -56,8 +57,8 @@ export function calendarChart(startDate: string, endDate: string, cells: readonl
         tip.show({
           title: `${wdOf(d.date)} ${ymdLocal(d.date)}`,
           rows: d.trades
-            ? [{ label: "Net", value: susd(d.net), color: getComputedStyle(c).backgroundColor, box: true, tone: toneOf(d.net, 0.005) }, { label: "Сделок", value: String(d.trades) }]
-            : [{ label: "Сделок", value: "нет" }],
+            ? [{ label: "Net", value: susd(d.net), color: getComputedStyle(c).backgroundColor, box: true, tone: toneOf(d.net, 0.005) }, { label: t("charts.trades"), value: String(d.trades) }]
+            : [{ label: t("charts.trades"), value: t("charts.cal.none") }],
         }, r.left - hr.left + r.width / 2, r.top - hr.top + r.height / 2);
       };
       c.addEventListener("pointerenter", show);
@@ -70,7 +71,7 @@ export function calendarChart(startDate: string, endDate: string, cells: readonl
   }
   wrap.append(
     h("div", { class: "heat-legend cal-legend", "aria-hidden": "true" },
-      h("span", { text: maxAbs ? `−${usd(maxAbs, 2)}` : "убыток" }), h("span", { class: "bar" }), h("span", { text: maxAbs ? `+${usd(maxAbs, 2)}` : "прибыль" })),
+      h("span", { text: maxAbs ? `−${usd(maxAbs, 2)}` : t("charts.loss") }), h("span", { class: "bar" }), h("span", { text: maxAbs ? `+${usd(maxAbs, 2)}` : t("charts.profit") })),
     tip.el);
   return wrap;
 }

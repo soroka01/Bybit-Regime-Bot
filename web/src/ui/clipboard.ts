@@ -1,7 +1,7 @@
 // Копирование в буфер обмена (navigator.clipboard с запасным вариантом через textarea) + тост (ui/toast.ts).
 import { api, asApiError } from "../api";
-import { botLimitNote } from "../leverage";
-import { marketLabel } from "../market";
+import { t } from "../i18n";
+import { BOT_MAX_LEVERAGE } from "../leverage";
 import type { BacktestResult, LegCfg, Market, Metrics, Overlays } from "../types";
 import { h } from "./dom";
 import { num, pct, spct } from "./fmt";
@@ -28,7 +28,7 @@ export async function copyText(text: string): Promise<boolean> {
 
 export async function copyWithToast(text: string): Promise<void> {
   const ok = await copyText(text);
-  toast(ok ? "Скопировано" : "Не удалось скопировать", ok ? "ok" : "error");
+  toast(ok ? t("common.copied") : t("common.copy_failed"), ok ? "ok" : "error");
 }
 
 /** Отправка текста «для бота» в Telegram-карточку (POST /api/bot/proposals) + тосты по исходам. */
@@ -36,10 +36,10 @@ export async function sendToBotWithToast(text: string): Promise<void> {
   try {
     const r = await api.proposeToBot(text);
     if (r.ok) {
-      if (r.bot_alive) toast("Отправлено в Telegram — откройте уведомление и выберите вес", "ok");
-      else toast("Предложение сохранено, но бот сейчас не отвечает — оно придёт в Telegram после запуска бота (хранится 24 ч)", "info");
+      if (r.bot_alive) toast(t("common.bot.sent"), "ok");
+      else toast(t("common.bot.saved"), "info");
     }
-    if (r.errors.length) toast("Не принято: " + r.errors.join("; "), "error");
+    if (r.errors.length) toast(t("common.bot.rejected", { errors: r.errors.join("; ") }), "error");
   } catch (e) {
     const err = asApiError(e);
     if (!err.silent) toast(err.message, "error");
@@ -73,7 +73,7 @@ export function copyButton(label: string, build: () => string): HTMLButtonElemen
 /** «В бота»: как copyButton, но текст уходит в Telegram; на время запроса кнопка заблокирована (без двойных отправок). */
 export function sendButton(label: string, build: () => string): HTMLButtonElement {
   const btn = h("button", {
-    class: "btn", type: "button", title: "Отправить в бота: карточка придёт в Telegram, вес и подтверждение — там",
+    class: "btn", type: "button", title: t("common.bot.send_tip"),
     onClick: () => void sendGuarded(btn, build),
   }, icon("bot", 14), label);
   return btn;
@@ -93,20 +93,25 @@ interface LabPayload {
   market?: Market;
 }
 
-/** Строки-комментарии под данными для бота: спот (бот торгует только перп) и превышение потолка плеча бота. */
+/**
+ * Строки-комментарии под данными для бота: спот (бот торгует только перп) и превышение потолка плеча бота.
+ * ПРОТОКОЛ «для бота» (этот текст и labPayload ниже читает русскоязычный бот, src/tradebot/core/legspec.py) — по-русски при любом языке интерфейса.
+ */
 export function botNotes(market: Market, leverage: number): string[] {
   const out: string[] = [];
   if (market === "spot") out.push("# бот торгует только перп");
-  const lim = botLimitNote(leverage);
-  if (lim) out.push(`# ${lim} (плечо ${leverage}x в бэктесте недостижимо в боте)`);
+  if (leverage > BOT_MAX_LEVERAGE) out.push(`# бот ограничен ${BOT_MAX_LEVERAGE}× (плечо ${leverage}x в бэктесте недостижимо в боте)`);
   return out;
 }
+
+/** Метка рынка в тексте «для бота»: legspec.py сверяет её с «спот» — не зависит от языка интерфейса (market.ts marketLabel показывает интерфейсный текст). */
+const botMarket = (m: Market): string => (m === "spot" ? "Спот" : "Перп");
 
 /** Одинаковый текст для «Копировать для бота» в Лаборатории и в «Лучших стратегиях». */
 export function labPayload(p: LabPayload): string {
   const ov = [p.overlays.htf ? `HTF EMA(${p.overlays.htf})` : "", p.overlays.stop ? `ATR-стоп ${p.overlays.stop}×` : ""]
     .filter(Boolean).join(", ") || "нет";
   const market = p.market ?? "perp";
-  const line1 = `Стратегия: ${p.strategy} | Таймфрейм: ${p.tf} | Параметры: ${plainParams(p.params)} | Символ: ${p.symbol} | Рынок: ${marketLabel(market)} | Только лонг: ${p.longOnly ? "да" : "нет"} | Плечо: ${p.leverage}x | Комиссия: ${+p.feePct.toFixed(4)}% | Проскальзывание: ${+p.slipPct.toFixed(4)}% | Период: ${p.days} дн. | Результат: ${p.result} | Оверлеи: ${ov}`;
+  const line1 = `Стратегия: ${p.strategy} | Таймфрейм: ${p.tf} | Параметры: ${plainParams(p.params)} | Символ: ${p.symbol} | Рынок: ${botMarket(market)} | Только лонг: ${p.longOnly ? "да" : "нет"} | Плечо: ${p.leverage}x | Комиссия: ${+p.feePct.toFixed(4)}% | Проскальзывание: ${+p.slipPct.toFixed(4)}% | Период: ${p.days} дн. | Результат: ${p.result} | Оверлеи: ${ov}`;
   return [line1, pyLeg({ strategy: p.strategy, tf: p.tf, params: p.params, weight: 0.5, long_only: p.longOnly }), ...botNotes(market, p.leverage)].join("\n");
 }

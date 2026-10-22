@@ -1,6 +1,7 @@
 // Столбчатая диаграмма на SVG (годовая доходность, доходность окон walk-forward).
 // Спецификация: столбец ≤ 28 px, скругление 4 px только на «рабочем» конце (у нулевой линии — прямой), зазор 2 px между соседями,
 // окраска по знаку (--pos / --neg) или цветом ряда, подпись значения у конца при достаточном месте, подсказка по наведению и фокусу.
+import { t } from "../i18n";
 import type { Num } from "../types";
 import { cssVar, h, observeWidth, svg } from "../ui/dom";
 import { niceScale } from "./scale";
@@ -43,7 +44,7 @@ export function barChart(host: HTMLElement, getOpts: () => BarOpts): { redraw():
     const all = o.series.flatMap((s) => s.values).filter((v): v is number => v != null && isFinite(v));
     tip.hide();
     if (!all.length || !o.categories.length) {
-      host.replaceChildren(h("p", { class: "muted small", text: "Нет данных для графика" }));
+      host.replaceChildren(h("p", { class: "muted small", text: t("charts.no_data_chart") }));
       return;
     }
     const { lo, hi, ticks: tickVals } = niceScale(Math.min(0, ...all), Math.max(0, ...all), H < 180 ? 4 : 5);
@@ -55,7 +56,7 @@ export function barChart(host: HTMLElement, getOpts: () => BarOpts): { redraw():
     // цвета читаются один раз на перерисовку, а не в цикле по столбцам
     const posC = cssVar("--pos"), negC = cssVar("--neg");
     const seriesColors = o.series.map((s) => cssVar(s.color));
-    const root = svg("svg", { class: "bars", viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img", "aria-label": "Столбчатая диаграмма" });
+    const root = svg("svg", { class: "bars", viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img", "aria-label": t("charts.bars.aria") });
     root.style.fontFamily = font;
     for (const v of tickVals) {
       root.append(
@@ -83,7 +84,7 @@ export function barChart(host: HTMLElement, getOpts: () => BarOpts): { redraw():
           const hr = host.getBoundingClientRect(), br = bar.getBoundingClientRect();
           tip.show({
             title: c,
-            rows: [{ label: o.series.length > 1 ? s.name : "Значение", value: o.fmt(v), color: col, box: true, tone: o.bySign ? (v >= 0 ? "pos" : "neg") : "" }],
+            rows: [{ label: o.series.length > 1 ? s.name : t("charts.bars.value"), value: o.fmt(v), color: col, box: true, tone: o.bySign ? (v >= 0 ? "pos" : "neg") : "" }],
             note: s.titles?.[i] ? s.titles[i] : undefined,
           }, br.left - hr.left + br.width / 2, br.top - hr.top + Math.min(br.height / 2, 12));
         };

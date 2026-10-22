@@ -1,6 +1,7 @@
 // Плечо в бэктестах дашборда: границы, нелинейная шкала слайдера, пресеты и подсказка о риске ликвидации.
 // Чистая логика без DOM (тесты: tests/leverage.test.ts). Константы зеркалят сервер (web/schemas.py, core/engine.py);
 // совпадение проверяет tests/test_leverage_market.py::test_ts_constants_match_server.
+import { t } from "./i18n";
 import { num } from "./ui/fmt";
 
 const MIN_LEVERAGE = 1;
@@ -48,7 +49,9 @@ export const liqMovePct = (lev: number): number => (1 / clampLev(lev) - MMR) * 1
 type RiskLevel = "ok" | "warn" | "danger";
 export const riskLevel = (lev: number): RiskLevel => (lev >= DANGER_AT ? "danger" : lev >= WARN_AT ? "warn" : "ok");
 
-export const liqHintText = (lev: number): string => `ликвидация ≈ при движении против позиции на ${num(liqMovePct(lev), 1)} %`;
+export const liqHintText = (lev: number): string => t("lab.leverage.liqHint", { pct: num(liqMovePct(lev), 1) });
 
 /** «бот ограничен 3×» — только если плечо выше потолка живого бота. */
-export const botLimitNote = (lev: number): string | null => (lev > BOT_MAX_LEVERAGE ? `бот ограничен ${BOT_MAX_LEVERAGE}×` : null);
+export const botLimitNote = (lev: number): string | null => (lev > BOT_MAX_LEVERAGE ? t("lab.leverage.botLimit", { n: BOT_MAX_LEVERAGE }) : null);
+/** То же для текста «для бота» (комментарий в протоколе копирования): всегда по-русски, на любом языке интерфейса. */
+export const botLimitNoteRu = (lev: number): string | null => (lev > BOT_MAX_LEVERAGE ? `бот ограничен ${BOT_MAX_LEVERAGE}×` : null);

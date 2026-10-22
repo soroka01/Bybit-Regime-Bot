@@ -1,4 +1,5 @@
 // Элементы управления: слайдер+число, select, переключатель, сегментированный выбор.
+import { t } from "../i18n";
 import { h } from "./dom";
 import { isChanged } from "./paramLogic";
 
@@ -47,9 +48,9 @@ export function slider(o: SliderOpts): Control<number> {
   const fmt = (v: number) => String(+v.toFixed(d));
   const dot = h("i", { class: "chg-dot", "aria-hidden": "true", hidden: true });
   const reset = hasDef ? h("button", {
-    type: "button", class: "def-btn", "aria-label": `${o.label}: вернуть значение по умолчанию (${fmt(o.def!)})`,
+    type: "button", class: "def-btn", "aria-label": t("common.ctl.reset_aria", { label: o.label, value: fmt(o.def!) }),
     onClick: () => { apply(o.def!, false); box.focus({ preventScroll: true }); },
-  }, "по умолч. ", h("b", { text: fmt(o.def!) })) : null;
+  }, t("common.ctl.default") + " ", h("b", { text: fmt(o.def!) })) : null;
   const lim = hasDef ? h("div", { class: "field-range" },
     h("span", { class: "fr-min", text: fmt(o.min) }), reset, h("span", { class: "fr-max", text: fmt(o.max) })) : null;
   let el: HTMLElement;

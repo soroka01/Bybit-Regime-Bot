@@ -5,6 +5,7 @@ import "uplot/dist/uPlot.min.css";
 import type { Num } from "../types";
 import { cssVar, h, observeWidth } from "../ui/dom";
 import { date, fmtUtc, MONTHS } from "../ui/fmt";
+import { dmLocal } from "../ui/fmtTime";
 import { withAlpha } from "./colors";
 import { chartTip, type TipRow } from "./tooltip";
 
@@ -65,9 +66,9 @@ function timeTicks(_u: uPlot, splits: number[], _axis: number, _space: number, i
     const mo = d.getUTCMonth(), day = d.getUTCDate();
     if (incr >= 300 * 86400) return String(d.getUTCFullYear());
     if (incr >= 27 * 86400) return mo === 0 ? String(d.getUTCFullYear()) : MONTHS[mo]!;
-    if (incr >= 86400) return day === 1 ? MONTHS[mo]! : `${pad2(day)}.${pad2(mo + 1)}`;
+    if (incr >= 86400) return day === 1 ? MONTHS[mo]! : dmLocal(day, mo + 1);
     const hm = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
-    return hm === "00:00" ? `${pad2(day)}.${pad2(mo + 1)}` : hm;
+    return hm === "00:00" ? dmLocal(day, mo + 1) : hm;
   });
 }
 

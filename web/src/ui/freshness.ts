@@ -1,5 +1,6 @@
 // Полоса свежести локальных данных + явная кнопка докачки новых свечей (сеть — только по клику).
 import { api, asApiError } from "../api";
+import { localeTag, t } from "../i18n";
 import type { DataStatus } from "../types";
 import { toast } from "./clipboard";
 import { onMetaChange } from "../meta";
@@ -11,40 +12,38 @@ import { int, parseTime, utcShort } from "./fmt";
 export interface DataCtx { symbol: string; tfs: string[] }
 
 const utc = (iso: string | null) => (iso ? utcShort(iso) : "—");
-const dfMsk = new Intl.DateTimeFormat("ru-RU", { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit" });
+// московское время — подсказка к UTC (в en — «MSK»); 24-часовой формат в обоих языках
+const dfMsk = new Intl.DateTimeFormat(localeTag(), { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const msk = (iso: string) => { const d = parseTime(iso); return d ? dfMsk.format(d) : "—"; };
 
 function rel(ms: number): string {
   const m = Math.max(0, Math.round(ms / 60000));
-  if (m < 60) return `${m} мин назад`;
-  if (m < 48 * 60) return `${Math.round(m / 60)} ч назад`;
-  return `${Math.round(m / 1440)} дн назад`;
+  if (m < 60) return t("time.ago_min", { n: m });
+  if (m < 48 * 60) return t("time.ago_h", { n: Math.round(m / 60) });
+  return t("time.ago_d", { n: Math.round(m / 1440) });
 }
-
-export const plural = (n: number, one: string, few: string, many: string) =>
-  n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many;
 
 function row(s: DataStatus): HTMLElement {
   const d = s.derivs;
-  const sub = (iso: string | null) => (iso ? utcShort(iso).slice(5) : "нет");
+  const sub = (iso: string | null) => (iso ? utcShort(iso).slice(5) : t("common.fresh.none"));
   const main: string[] = [];
   if (!s.exists || !s.last) {
-    main.push(`${s.symbol} · ${s.tf} · локальных данных нет — нажмите «Подгрузить», чтобы скачать`);
+    main.push(t("common.fresh.no_data", { symbol: s.symbol, tf: s.tf }));
   } else {
     const closeMs = +(parseTime(s.now) ?? 0) - (+(parseTime(s.last) ?? 0) + s.step_min * 60000);
-    main.push(`${s.symbol} · ${s.tf} · последняя свеча ${utc(s.last)} UTC (МСК ${msk(s.last)}) · закрыта ${rel(closeMs)} · свечей ${int(s.bars)} · с ${utc(s.first).slice(0, 10)}`);
-    if ((s.behind_bars ?? 0) > 1) main.push(`отстаёт на ${s.behind_bars} св.`);
+    main.push(t("common.fresh.last", { symbol: s.symbol, tf: s.tf, last: utc(s.last), msk: msk(s.last), closed: rel(closeMs), bars: int(s.bars), first: utc(s.first).slice(0, 10) }));
+    if ((s.behind_bars ?? 0) > 1) main.push(t("common.fresh.behind", { n: s.behind_bars! }));
   }
   return h("div", { class: "fresh-row" },
     h("i", { class: `dot ${s.exists ? s.level : "bad"}`, "aria-hidden": "true" }),
-    h("span", { text: main.join(" · "), title: `Ожидаемая последняя закрытая свеча: ${utc(s.expected_last)} UTC` }),
-    h("span", { class: "fresh-sub", text: `деривативы (${d.granularity}): фандинг ${sub(d.funding)} · OI ${sub(d.oi)} · L/S ${sub(d.lsr)} UTC` }));
+    h("span", { text: main.join(" · "), title: t("common.fresh.expected", { last: utc(s.expected_last) }) }),
+    h("span", { class: "fresh-sub", text: t("common.fresh.derivs", { gran: d.granularity, funding: sub(d.funding), oi: sub(d.oi), lsr: sub(d.lsr) }) }));
 }
 
 export function createFreshness(host: HTMLElement, getCtx: () => DataCtx | null, onUpdated: () => Promise<void> | void) {
   const rows = h("div", { class: "fresh-rows" });
-  const btn = h("button", { class: "btn", type: "button", title: "Скачать только новые свечи и деривативы с Bybit (публичный API)" });
-  const idle = () => { btn.replaceChildren(icon("refresh", 14), "Подгрузить новые свечи"); btn.disabled = false; };
+  const btn = h("button", { class: "btn", type: "button", title: t("common.fresh.fetch_tip") });
+  const idle = () => { btn.replaceChildren(icon("refresh", 14), t("common.fresh.fetch")); btn.disabled = false; };
   idle();
   host.append(rows, btn);
   let busy = false;
@@ -60,7 +59,7 @@ export function createFreshness(host: HTMLElement, getCtx: () => DataCtx | null,
     if (my !== seq) return;
     const kids: HTMLElement[] = sts.filter((s): s is DataStatus => !!s).map(row);
     if (errorText) kids.push(h("div", { class: "fresh-err", role: "alert", text: errorText }));
-    rows.replaceChildren(...(kids.length ? kids : [h("span", { class: "muted", text: "Статус данных недоступен" })]));
+    rows.replaceChildren(...(kids.length ? kids : [h("span", { class: "muted", text: t("common.fresh.unavailable") })]));
   }
 
   btn.addEventListener("click", async () => {
@@ -69,7 +68,7 @@ export function createFreshness(host: HTMLElement, getCtx: () => DataCtx | null,
     busy = true;
     errorText = "";
     btn.disabled = true;
-    btn.replaceChildren(h("span", { class: "spinner" }), "Загрузка…");
+    btn.replaceChildren(h("span", { class: "spinner" }), t("app.loading"));
     let added = 0;
     let last: string | null = null;
     try {
@@ -79,11 +78,11 @@ export function createFreshness(host: HTMLElement, getCtx: () => DataCtx | null,
         last = r.status.last;
         if (r.warning) errorText = r.warning;
       }
-      toast(added ? `Добавлено ${added} ${plural(added, "свеча", "свечи", "свечей")}, последняя ${utc(last)} UTC` : `Новых свечей нет, последняя ${utc(last)} UTC`, "ok");
+      toast(added ? t("common.fresh.added", { n: added, last: utc(last) }) : t("common.fresh.no_new", { last: utc(last) }), "ok");
       await onUpdated();
     } catch (e) {
       errorText = asApiError(e).message;
-      toast("Не удалось обновить данные", "error");
+      toast(t("common.fresh.update_failed"), "error");
     } finally {
       busy = false;
       idle();

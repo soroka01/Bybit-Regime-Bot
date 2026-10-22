@@ -1,6 +1,7 @@
 import type {
   BacktestBody, BacktestResult, Curve, DataStatus, LbCached, UpdateResult, LbBody, LbItem, LbPlan, LiveSnapshot, Meta, OptBody, OptResult, PortfolioBody, ProposalResult, StatsRange, StatsResponse, SweepBody, SweepResult, WfRow, WfWindow,
 } from "./types";
+import { clientErrorText, localizeApiError } from "./apiErrors";
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public extra: Record<string, unknown> = {}) {
@@ -66,9 +67,9 @@ async function send<T>(path: string, init: RequestInit, signal: AbortSignal | un
     });
   } catch (e) {
     const name = (e as Error).name;
-    if (guard?.aborted && !signal?.aborted) throw new ApiError(0, "timeout", `нет ответа дольше ${REQUEST_TIMEOUT_MS / 1000} с`);
-    if (name === "AbortError" || name === "TimeoutError") throw new ApiError(0, "aborted", "отменено");
-    throw new ApiError(0, "network", "сервер недоступен");
+    if (guard?.aborted && !signal?.aborted) throw new ApiError(0, "timeout", clientErrorText.timeout(REQUEST_TIMEOUT_MS / 1000));
+    if (name === "AbortError" || name === "TimeoutError") throw new ApiError(0, "aborted", clientErrorText.aborted());
+    throw new ApiError(0, "network", clientErrorText.network());
   }
   if (!res.ok) {
     let code = "http", msg = `HTTP ${res.status}`, extra: Record<string, unknown> = {};
@@ -85,7 +86,7 @@ async function send<T>(path: string, init: RequestInit, signal: AbortSignal | un
         msg = d.map((x: { loc?: unknown[]; msg?: string }) => `${(x.loc ?? []).slice(1).join(".")}: ${x.msg}`).join("; ");
       } else if (typeof d === "string") msg = d;
     } catch { /* не JSON */ }
-    throw new ApiError(res.status, code, msg, extra);
+    throw new ApiError(res.status, code, localizeApiError(code, msg, extra), extra);   // известные коды — текст на языке интерфейса, прочие — сообщение сервера
   }
   return (await res.json()) as T;
 }

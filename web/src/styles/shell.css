@@ -32,7 +32,7 @@
   transition: color var(--t1), background-color var(--t1);
 }
 /* 6 вкладок + плашка бота не помещаются в 1440 px: чуть плотнее вкладки и отступы (≥ 1560 px — как раньше) */
-@media (min-width: 901px) and (max-width: 1559px) { .tabs { gap: 0; } .tabs a { padding: 0 9px; } .topbar { gap: var(--sp-3); } }
+@media (min-width: 1181px) and (max-width: 1559px) { .tabs { gap: 0; } .tabs a { padding: 0 9px; } .topbar { gap: var(--sp-3); } }
 .tabs a:hover { color: var(--fg); background: var(--surface-hover); text-decoration: none; }
 .tabs a[aria-selected="true"] { color: var(--fg); }
 .tabs a .kbd { display: none; height: 16px; min-width: 16px; font-size: 10px; opacity: .55; transition: opacity var(--dur-2); }
@@ -58,12 +58,12 @@
 .theme-switch button:active { transform: scale(.96); }
 .theme-switch .ts-label { display: none; }
 .lang-switch button { font-weight: 600; letter-spacing: .02em; }   /* «EN | RU»: текстовые кнопки в том же сегменте, что и тема */
-@media (min-width: 1600px) { .theme-switch .ts-label { display: inline; } }
+@media (min-width: 1800px) { .theme-switch .ts-label { display: inline; } }
 
 /* ссылка на репозиторий: иконка-кнопка в правом краю шапки; подпись «GitHub» — на широких экранах (.btn.gh-link перекрывает .icon-btn из components.css) */
 .gh-link .gh-label { display: none; }
 .gh-link .icon { flex: none; }
-@media (min-width: 1600px) {
+@media (min-width: 1800px) {
   .btn.gh-link { width: auto; padding: 0 var(--sp-3); }
   .gh-link .gh-label { display: inline; }
 }
@@ -162,7 +162,7 @@
   .topbar { padding: 0 var(--sp-3); gap: var(--sp-2); }
 }
 /* узкий экран: верхний ряд (бренд, статус, тема) прокручивается вверх, а ряд вкладок остаётся прилипшим */
-@media (max-width: 1000px) {
+@media (max-width: 1180px) {   /* EN|RU, тема и GitHub в шапке: два ряда начинаются раньше, чтобы длинные русские вкладки не обрезались */
   .topbar { flex-wrap: wrap; height: auto; top: calc(-1 * var(--topbar-h)); padding: 0 var(--sp-3); gap: 0; align-items: center; }
   .brand { height: var(--topbar-h); }
   .topbar .spacer { display: none; }

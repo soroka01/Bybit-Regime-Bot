@@ -1,34 +1,32 @@
 // Вкладка «Статистика»: подписи и значения корзин P/L для столбчатой диаграммы (чистая логика).
+import { t, tList } from "../i18n";
 import type { Num, StatsPnlBucket } from "../types";
 import { MONTHS } from "../ui/fmt";
 import { ddmm, ddmmyy, hhmm, p2, stamp } from "../ui/fmtTime";
 
-const MONTHS_FULL = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
-const WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
-
 export type BucketKind = "5min" | "hour" | "day" | "week" | "month";
 export const BUCKET_TITLE: Record<BucketKind, string> = {
-  "5min": "по 5 минутам", hour: "по часам", day: "по дням", week: "по неделям", month: "по месяцам",
+  "5min": t("stats.bucket.5min"), hour: t("stats.bucket.hour"), day: t("stats.bucket.day"), week: t("stats.bucket.week"), month: t("stats.bucket.month"),
 };
 
 /** Короткая подпись корзины для оси. */
-export function bucketLabel(kind: BucketKind, t: number): string {
-  const d = new Date(t * 1000);
+export function bucketLabel(kind: BucketKind, ts: number): string {
+  const d = new Date(ts * 1000);
   switch (kind) {
-    case "5min": return hhmm(t);
-    case "hour": return d.getUTCHours() === 0 ? ddmm(t) : `${p2(d.getUTCHours())}:00`;
-    case "day": case "week": return ddmm(t);
+    case "5min": return hhmm(ts);
+    case "hour": return d.getUTCHours() === 0 ? ddmm(ts) : `${p2(d.getUTCHours())}:00`;
+    case "day": case "week": return ddmm(ts);
     default: return `${MONTHS[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}`;
   }
 }
 /** Полное описание корзины для подсказки. */
-export function bucketTitle(kind: BucketKind, t: number): string {
-  const d = new Date(t * 1000);
+export function bucketTitle(kind: BucketKind, ts: number): string {
+  const d = new Date(ts * 1000);
   switch (kind) {
-    case "5min": case "hour": return `${stamp(t)} UTC`;
-    case "day": return `${WD[(d.getUTCDay() + 6) % 7]} ${ddmmyy(t)}`;
-    case "week": return `Неделя с ${ddmmyy(t)}`;
-    default: return `${MONTHS_FULL[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+    case "5min": case "hour": return `${stamp(ts)} UTC`;
+    case "day": return `${tList("date.weekdays_short")[(d.getUTCDay() + 6) % 7]} ${ddmmyy(ts)}`;
+    case "week": return t("stats.bucket.week_from", { date: ddmmyy(ts) });
+    default: return `${tList("date.months_full")[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
   }
 }
 /** Значения столбцов: пустые корзины (нет сделок) — разрыв (null), а не нулевой столбец. */

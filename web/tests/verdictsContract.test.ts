@@ -1,7 +1,10 @@
-// Контракт «пороги вердиктов в UI == пороги сервера»: константы читаются прямо из src/tradebot/core/optimize.py и сверяются с подсказками
-// и текстами фронтенда (ui/verdicts.ts, tabs/lbCard.ts, tabs/optimize.ts). Меняете порог на сервере — тест подскажет, какие тексты поправить.
+// Контракт «пороги вердиктов в UI == пороги сервера»: константы читаются прямо из src/tradebot/core/optimize.py и сверяются с константами
+// интерфейса (ui/verdicts.ts) и с ИТОГОВЫМИ текстами обоих языков (словарь leaderboard.*), а не с исходным кодом фронтенда.
+// Меняете порог на сервере — тест подскажет, какие константы и тексты поправить.
 import { describe, expect, it } from "vitest";
-import { VERDICT_ORDER, VERDICTS } from "../src/ui/verdicts";
+import { t } from "../src/i18n";
+import { GREEN_MONTHS_MIN_PCT, MIN_OOS_DAYS, SHARPE_MIN, VERDICT_ORDER, VERDICTS } from "../src/ui/verdicts";
+import { importEn } from "./enHelpers";
 
 // vitest подменяет .css пустышкой, а типов node нет — читаем исходники через process.getBuiltinModule (cwd = web/)
 const proc = (globalThis as unknown as { process: { cwd(): string; getBuiltinModule(n: string): unknown } }).process;
@@ -15,8 +18,8 @@ const num = (re: RegExp, src = py): number => {
   expect(m, String(re)).not.toBeNull();
   return Number(m![1]);
 };
-/** 0.5 -> «0,5», 0.4 -> «40%» (как в подсказках интерфейса). */
-const ru = (x: number): string => String(x).replace(".", ",");
+/** 0.5 -> «0,5» (десятичная запятая ru). */
+const ruNum = (x: number): string => String(x).replace(".", ",");
 
 describe("пороги вердиктов: UI == core/optimize.py", () => {
   it("функция verdict найдена, константы читаются", () => {
@@ -30,21 +33,35 @@ describe("пороги вердиктов: UI == core/optimize.py", () => {
     expect(Object.keys(VERDICTS).sort()).toEqual([...VERDICT_ORDER].sort());
   });
 
-  it("Sharpe OOS и доля зелёных месяцев в подсказках == условию robust", () => {
-    const sharpe = num(/get\("sharpe"\) or 0\) > ([0-9.]+)/, verdictFn);
-    const green = num(/get\("green_months"\) or 0\) >= ([0-9.]+)/, verdictFn);
-    expect(VERDICTS.robust.hint).toContain(`Sharpe OOS > ${ru(sharpe)}`);
-    expect(VERDICTS.overfit.hint).toContain(`Sharpe OOS ≤ ${ru(sharpe)}`);
-    expect(VERDICTS.robust.hint).toContain(`зелёных месяцев ≥ ${Math.round(green * 100)}%`);
+  it("константы интерфейса == условиям сервера", () => {
+    expect(SHARPE_MIN).toBe(num(/get\("sharpe"\) or 0\) > ([0-9.]+)/, verdictFn));
+    expect(GREEN_MONTHS_MIN_PCT).toBe(Math.round(num(/get\("green_months"\) or 0\) >= ([0-9.]+)/, verdictFn) * 100));
+    expect(MIN_OOS_DAYS).toBe(num(/^MIN_OOS_DAYS\s*=\s*(\d+)/m));
   });
 
-  it("минимальное окно OOS (MIN_OOS_DAYS) в текстах и условиях интерфейса", () => {
+  it("ru: Sharpe OOS и доля зелёных месяцев в подсказках == условию robust", () => {
+    expect(VERDICTS.robust.hint).toContain(`Sharpe OOS > ${ruNum(SHARPE_MIN)}`);
+    expect(VERDICTS.overfit.hint).toContain(`Sharpe OOS ≤ ${ruNum(SHARPE_MIN)}`);
+    expect(VERDICTS.robust.hint).toContain(`зелёных месяцев ≥ ${GREEN_MONTHS_MIN_PCT}%`);
+  });
+
+  it("en: те же пороги в английских подсказках (десятичная точка)", async () => {
+    const en = await importEn(() => import("../src/ui/verdicts"));
+    expect(en.VERDICTS.robust.hint).toContain(`Sharpe OOS > ${SHARPE_MIN}`);
+    expect(en.VERDICTS.overfit.hint).toContain(`Sharpe OOS ≤ ${SHARPE_MIN}`);
+    expect(en.VERDICTS.robust.hint).toContain(`green months ≥ ${GREEN_MONTHS_MIN_PCT}%`);
+    expect(en.VERDICTS.robust.hint).not.toMatch(/[А-Яа-яЁё]/);
+  });
+
+  it("минимальное окно OOS (MIN_OOS_DAYS) в текстах обоих языков и в условиях интерфейса", async () => {
     const days = num(/^MIN_OOS_DAYS\s*=\s*(\d+)/m);
-    const card = read("src/tabs/lbCard.ts");
-    const opt = read("src/tabs/optimize.ts");
-    expect(num(/oosDays < (\d+)/, card)).toBe(days);
-    expect(card).toContain(`меньше ${days} дн.`);
-    expect(num(/oos_days < (\d+)/, opt)).toBe(days);
-    expect(opt).toContain(`меньше ${days} дн.`);
+    expect(t("leaderboard.card.too_short_note", { days: MIN_OOS_DAYS })).toContain(`меньше ${days} дн.`);
+    await importEn(() => import("../src/ui/verdicts"));
+    const i18n = await import("../src/i18n");
+    expect(i18n.getLang()).toBe("en");
+    expect(i18n.t("leaderboard.card.too_short_note", { days: MIN_OOS_DAYS })).toContain(`under ${days} days`);
+    // вкладка «Подбор» (tabs/optimize.ts) держит своё условие в коде: число обязано совпасть (текст — общий, через словарь; если условие вынесено в константу, проверка пропускается)
+    const opt = /oos_days < (\d+)/.exec(read("src/tabs/optimize.ts"));
+    if (opt) expect(Number(opt[1])).toBe(days);
   });
 });

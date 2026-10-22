@@ -1,4 +1,6 @@
 // Вкладка «Статистика»: плитки KPI, определения метрик и сравнение с предыдущим окном (чистая логика).
+import { getLang, t, tDyn } from "../i18n";
+import { metricDefinition } from "../i18n/serverText";
 import type { Num, StatsResponse } from "../types";
 import { isNum as ok, num, pctU, snum, spctU, susd, toneOf, usd } from "../ui/fmt";
 import { ddmm, ddmmyy, fmtDuration, mdLocal } from "../ui/fmtTime";
@@ -21,31 +23,20 @@ const CMP: Record<string, CmpSpec> = {
   costs: { group: "kpis", field: "fees_total", kind: "usd", better: "none" },
 };
 
-const NEED_SHARPE = "нужно ≥ 14 торговых дней (дневных доходностей кошелька)";
-const NEED_CALMAR = "нужно ≥ 30 торговых дней и ненулевая просадка";
-const NEED_SORTINO = "нужно ≥ 14 торговых дней и хотя бы один убыточный день";
-const NEED_PF = "нет убытков (или нет сделок): делить не на что";
+const NEED_SHARPE = t("stats.need.sharpe");
+const NEED_CALMAR = t("stats.need.calmar");
+const NEED_SORTINO = t("stats.need.sortino");
+const NEED_PF = t("stats.need.pf");
+const PP = t("stats.unit.pp");
 
-/** Тексты определений для метрик, которых нет в `definitions` сервера (локальные запасные). */
-const LOCAL_DEFS: Record<string, string> = {
-  avg_win: "Средний Net прибыльной сделки, USDT (комиссии и фандинг вычтены; по данным Bybit, где они есть).",
-  avg_loss: "Средний Net убыточной сделки, USDT.",
-  best_trade: "Сделка с наибольшим Net в окне.",
-  worst_trade: "Сделка с наименьшим Net в окне.",
-  hold_mean: "Среднее время удержания позиции в закрытых сделках окна.",
-  hold_median: "Медиана времени удержания: половина сделок короче.",
-  streaks: "Наибольшая серия прибыльных / убыточных сделок подряд.",
-  gross_pnl: "Σ валового P/L сделок до комиссий и фандинга.",
-  best_day: "День UTC с наибольшей доходностью кошелька.",
-  worst_day: "День UTC с наименьшей доходностью кошелька.",
-  side_counts: "Число закрытых сделок в лонг и в шорт.",
-  net_pnl: "Σ Net закрытых сделок окна: валовый P/L − комиссии − фандинг (по данным Bybit, где они есть, иначе оценка бота). Открытая позиция сюда не входит.",
-  trades: "Закрытые сделки окна (по времени выхода).",
-  costs: "Комиссии + фандинг, уплаченные по сделкам окна (по данным Bybit, где они есть, иначе оценка; отрицательный фандинг — получен).",
-  vs_bh: "Разница между ROI счёта и доходностью Buy&Hold BTC за то же окно, п.п. ROI считается на весь кошелёк, B&H — на цену BTC без плеча, так что сравнение приблизительное.",
-};
-
-export const defText = (defs: Record<string, string> | undefined, key: string): string => defs?.[key] ?? LOCAL_DEFS[key] ?? "";
+/** Определение метрики. Сервер присылает `defs` (русский текст): на русском показываем его как есть (русская копия в definitions.json совпадает с ним),
+ *  на другом языке — перевод по ключу, а если перевода нет, серверный текст. Метрики, которых нет в `defs` (локальные запасные, stats.def.*), пишем сами.
+ *  `fee` — ставка тейкера из config (подставляется в определение комиссий). */
+export function defText(defs: Record<string, string> | undefined, key: string, fee?: Num): string {
+  const server = defs?.[key];
+  if (server !== undefined) return getLang() === "ru" ? server : metricDefinition(key, server, { fee: `${((ok(fee) ? fee : 0.001) * 100).toFixed(3)}%` });
+  return tDyn(`stats.def.${key}`) ?? "";
+}
 
 const longShort = (r: StatsResponse): { long: number; short: number } => {
   const by = r.breakdown?.by_side ?? [];
@@ -64,33 +55,33 @@ export function heroKpis(r: StatsResponse): Kpi[] {
   const costs = ok(k.fees_total) || ok(k.funding_total) ? (k.fees_total ?? 0) + (k.funding_total ?? 0) : null;
   return [
     {
-      key: "roi", label: "ROI счёта", def: "wallet_return_pct", value: spctU(e.wallet_return_pct, 2), tone: toneOf(e.wallet_return_pct, 0.005), big: true, cmp: CMP.roi,
-      sub: `Net P/L сделок ${susd(k.net_pnl)} · Δ кошелька ${susd(e.delta)}`,
+      key: "roi", label: t("stats.kpi.roi"), def: "wallet_return_pct", value: spctU(e.wallet_return_pct, 2), tone: toneOf(e.wallet_return_pct, 0.005), big: true, cmp: CMP.roi,
+      sub: t("stats.kpi.roi_sub", { net: susd(k.net_pnl), delta: susd(e.delta) }),
     },
     {
       key: "win", label: "Win rate", def: "win_rate_pct", value: k.trades ? pctU(k.win_rate_pct, 1) : "—", tone: "", cmp: CMP.win,
-      sub: k.trades ? `${k.wins} прибыльных / ${k.losses} убыточных${k.breakeven ? ` / ${k.breakeven} в ноль` : ""}` : "сделок нет",
+      sub: k.trades ? (k.breakeven ? t("stats.kpi.win_sub_be", { w: k.wins, l: k.losses, b: k.breakeven }) : t("stats.kpi.win_sub", { w: k.wins, l: k.losses })) : t("stats.kpi.no_trades"),
     },
     {
       key: "pf", label: "Profit factor", def: "profit_factor", value: pf, tone: "", cmp: CMP.pf, why: pfNull && pf === "—" ? NEED_PF : undefined,
-      sub: pf === "∞" ? "убытков нет" : "прибыль / убыток", est: true,
+      sub: pf === "∞" ? t("stats.kpi.no_losses") : t("stats.kpi.profit_loss"), est: true,
     },
     {
-      key: "dd", label: "Макс. просадка", def: "max_drawdown_pct", value: pctU(e.max_drawdown_pct, 2), tone: ok(e.max_drawdown_pct) && e.max_drawdown_pct < -0.005 ? "neg" : "", cmp: CMP.dd,
-      sub: e.max_drawdown_peak_ts && e.max_drawdown_trough_ts && (e.max_drawdown_pct ?? 0) < 0 ? `пик ${ddmm(e.max_drawdown_peak_ts)} → дно ${ddmm(e.max_drawdown_trough_ts)}` : "кошелька в окне",
+      key: "dd", label: t("stats.kpi.dd"), def: "max_drawdown_pct", value: pctU(e.max_drawdown_pct, 2), tone: ok(e.max_drawdown_pct) && e.max_drawdown_pct < -0.005 ? "neg" : "", cmp: CMP.dd,
+      sub: e.max_drawdown_peak_ts && e.max_drawdown_trough_ts && (e.max_drawdown_pct ?? 0) < 0 ? t("stats.kpi.dd_sub", { a: ddmm(e.max_drawdown_peak_ts), b: ddmm(e.max_drawdown_trough_ts) }) : t("stats.kpi.dd_sub_wallet"),
     },
     {
       key: "sharpe", label: "Sharpe", def: "sharpe", value: ok(e.sharpe) ? num(e.sharpe, 2) : "—", tone: toneOf(e.sharpe, 0.005), cmp: CMP.sharpe,
-      why: ok(e.sharpe) ? undefined : NEED_SHARPE, sub: ok(e.sharpe) ? `по ${e.daily_points} дн.` : "нужно ≥ 14 торг. дней",
+      why: ok(e.sharpe) ? undefined : NEED_SHARPE, sub: ok(e.sharpe) ? t("stats.kpi.sharpe_sub", { n: e.daily_points }) : t("stats.kpi.sharpe_need"),
     },
-    { key: "trades", label: "Сделок", def: "trades", value: String(k.trades), tone: "", cmp: CMP.trades, sub: `лонг ${ls.long} · шорт ${ls.short}` },
+    { key: "trades", label: t("stats.kpi.trades"), def: "trades", value: String(k.trades), tone: "", cmp: CMP.trades, sub: t("stats.kpi.trades_sub", { l: ls.long, s: ls.short }) },
     {
-      key: "costs", label: "Комиссии + фандинг", def: "fees_est", value: costs == null ? "—" : usd(costs, 2), tone: "", cmp: CMP.costs, est: true,
-      sub: `комиссии ${usd(k.fees_total, 2)} · фандинг ${usd(k.funding_total, 2)}`,
+      key: "costs", label: t("stats.kpi.costs"), def: "fees_est", value: costs == null ? "—" : usd(costs, 2), tone: "", cmp: CMP.costs, est: true,
+      sub: t("stats.kpi.costs_sub", { fees: usd(k.fees_total, 2), funding: usd(k.funding_total, 2) }),
     },
     {
-      key: "vsbh", label: "vs Buy & Hold", def: "vs_bh", value: vs == null ? "—" : `${snum(vs, 2)} п.п.`, tone: toneOf(vs, 0.005),
-      why: vs == null ? "нет свечей BTC для Buy & Hold за это окно" : undefined, sub: ok(bh) ? `B&H BTC ${spctU(bh, 2)}` : "B&H недоступен",
+      key: "vsbh", label: "vs Buy & Hold", def: "vs_bh", value: vs == null ? "—" : `${snum(vs, 2)} ${PP}`, tone: toneOf(vs, 0.005),
+      why: vs == null ? t("stats.kpi.vs_bh_why") : undefined, sub: ok(bh) ? t("stats.kpi.bh_sub", { v: spctU(bh, 2) }) : t("stats.kpi.bh_na"),
     },
   ];
 }
@@ -104,26 +95,26 @@ export function miniKpis(r: StatsResponse): Kpi[] {
   const day = (d: { date: string; ret_pct: Num } | null) => (d ? `${mdLocal(d.date)} · ${spctU(d.ret_pct, 2)}` : "—");
   const m = (key: string, label: string, def: string, value: string, tone: "pos" | "neg" | "" = "", extra: Partial<Kpi> = {}): Kpi => ({ key, label, def, value, tone, ...extra });
   return [
-    m("avg_win", "Ср. выигрыш", "avg_win", susd(k.avg_win), toneOf(k.avg_win, 0.005), { est: true }),
-    m("avg_loss", "Ср. проигрыш", "avg_loss", susd(k.avg_loss), toneOf(k.avg_loss, 0.005), { est: true }),
+    m("avg_win", t("stats.kpi.avg_win"), "avg_win", susd(k.avg_win), toneOf(k.avg_win, 0.005), { est: true }),
+    m("avg_loss", t("stats.kpi.avg_loss"), "avg_loss", susd(k.avg_loss), toneOf(k.avg_loss, 0.005), { est: true }),
     m("payoff", "Payoff", "payoff", ok(k.payoff_ratio) ? num(k.payoff_ratio, 2) : "—"),
-    m("exp_usd", "Матожидание, $", "expectancy", susd(k.expectancy_usdt), toneOf(k.expectancy_usdt, 0.005), { est: true }),
-    m("exp_pct", "Матожидание, %", "expectancy", spctU(k.expectancy_pct, 2), toneOf(k.expectancy_pct, 0.005), { est: true }),
-    m("best", "Лучшая сделка", "best_trade", k.best_trade ? susd(k.best_trade.net) : "—", toneOf(k.best_trade?.net, 0.005), { sub: ref(k.best_trade) }),
-    m("worst", "Худшая сделка", "worst_trade", k.worst_trade ? susd(k.worst_trade.net) : "—", toneOf(k.worst_trade?.net, 0.005), { sub: ref(k.worst_trade) }),
-    m("hold_mean", "Ср. удержание", "hold_mean", fmtDuration(k.hold_mean_s)),
-    m("hold_median", "Медиана удержания", "hold_median", fmtDuration(k.hold_median_s)),
-    m("streaks", "Серии (поб. / убыт.)", "streaks", k.trades ? `${k.max_win_streak} / ${k.max_loss_streak}` : "—"),
-    m("tim", "Время в рынке", "time_in_market_pct", pctU(k.time_in_market_pct, 1)),
-    m("turnover", "Оборот", "turnover", usd(k.turnover, 0), "", { est: true }),
-    m("fees_pct", "Комиссии / вал. прибыль", "fees_pct_of_gross_profit", pctU(k.fees_pct_of_gross_profit, 1), "", { est: true }),
-    m("gross", "Валовый P/L", "gross_pnl", susd(k.gross_pnl), toneOf(k.gross_pnl, 0.005)),
+    m("exp_usd", t("stats.kpi.exp_usd"), "expectancy", susd(k.expectancy_usdt), toneOf(k.expectancy_usdt, 0.005), { est: true }),
+    m("exp_pct", t("stats.kpi.exp_pct"), "expectancy", spctU(k.expectancy_pct, 2), toneOf(k.expectancy_pct, 0.005), { est: true }),
+    m("best", t("stats.kpi.best"), "best_trade", k.best_trade ? susd(k.best_trade.net) : "—", toneOf(k.best_trade?.net, 0.005), { sub: ref(k.best_trade) }),
+    m("worst", t("stats.kpi.worst"), "worst_trade", k.worst_trade ? susd(k.worst_trade.net) : "—", toneOf(k.worst_trade?.net, 0.005), { sub: ref(k.worst_trade) }),
+    m("hold_mean", t("stats.kpi.hold_mean"), "hold_mean", fmtDuration(k.hold_mean_s)),
+    m("hold_median", t("stats.kpi.hold_median"), "hold_median", fmtDuration(k.hold_median_s)),
+    m("streaks", t("stats.kpi.streaks"), "streaks", k.trades ? `${k.max_win_streak} / ${k.max_loss_streak}` : "—"),
+    m("tim", t("stats.kpi.tim"), "time_in_market_pct", pctU(k.time_in_market_pct, 1)),
+    m("turnover", t("stats.kpi.turnover"), "turnover", usd(k.turnover, 0), "", { est: true }),
+    m("fees_pct", t("stats.kpi.fees_pct"), "fees_pct_of_gross_profit", pctU(k.fees_pct_of_gross_profit, 1), "", { est: true }),
+    m("gross", t("stats.kpi.gross"), "gross_pnl", susd(k.gross_pnl), toneOf(k.gross_pnl, 0.005)),
     m("sortino", "Sortino", "sortino", ok(e.sortino) ? num(e.sortino, 2) : "—", toneOf(e.sortino, 0.005), { why: ok(e.sortino) ? undefined : NEED_SORTINO }),
     m("calmar", "Calmar", "calmar", ok(e.calmar) ? num(e.calmar, 2) : "—", toneOf(e.calmar, 0.005), { why: ok(e.calmar) ? undefined : NEED_CALMAR }),
-    m("vol", "Волатильность (год.)", "volatility_pct", pctU(e.volatility_pct, 1), "", { why: ok(e.volatility_pct) ? undefined : NEED_SHARPE }),
-    m("best_day", "Лучший день", "best_day", day(e.best_day), toneOf(e.best_day?.ret_pct, 0.005)),
-    m("worst_day", "Худший день", "worst_day", day(e.worst_day), toneOf(e.worst_day?.ret_pct, 0.005)),
-    m("sides", "Лонг / шорт (сделок)", "side_counts", `${ls.long} / ${ls.short}`),
+    m("vol", t("stats.kpi.vol"), "volatility_pct", pctU(e.volatility_pct, 1), "", { why: ok(e.volatility_pct) ? undefined : NEED_SHARPE }),
+    m("best_day", t("stats.kpi.best_day"), "best_day", day(e.best_day), toneOf(e.best_day?.ret_pct, 0.005)),
+    m("worst_day", t("stats.kpi.worst_day"), "worst_day", day(e.worst_day), toneOf(e.worst_day?.ret_pct, 0.005)),
+    m("sides", t("stats.kpi.sides"), "side_counts", `${ls.long} / ${ls.short}`),
   ];
 }
 
@@ -133,25 +124,25 @@ export type CmpView =
   | { kind: "na"; title: string };
 
 const CMP_REASON: Record<string, string> = {
-  range_too_short: "Сравнение с предыдущим окном доступно от диапазона 1н",
-  all_range: "Для диапазона «Всё» предыдущего окна нет",
-  no_previous_data: "Нет данных за предыдущее окно такой же длины",
+  range_too_short: t("stats.cmp.reason.range_too_short"),
+  all_range: t("stats.cmp.reason.all_range"),
+  no_previous_data: t("stats.cmp.reason.no_previous_data"),
 };
 
 export function cmpView(r: StatsResponse, spec: CmpSpec | undefined): CmpView | null {
   if (!spec || !r.available) return null;
   const c = r.comparison;
-  if (!c || !c.available) return { kind: "na", title: CMP_REASON[c?.reason ?? ""] ?? "Сравнение с предыдущим окном недоступно" };
+  if (!c || !c.available) return { kind: "na", title: CMP_REASON[c?.reason ?? ""] ?? t("stats.cmp.na") };
   const row = (spec.group === "kpis" ? c.kpis : c.equity)?.[spec.field];
-  if (!row || !ok(row.delta)) return { kind: "na", title: "Нет значения за предыдущее окно (например, не хватило дней для метрики)" };
+  if (!row || !ok(row.delta)) return { kind: "na", title: t("stats.cmp.no_prev_value") };
   const d = row.delta;
   const eps = spec.kind === "count" ? 0.5 : 0.005;
   const flat = Math.abs(d) < eps;
   const dir = flat ? "flat" : d > 0 ? "up" : "down";
   const good = flat || spec.better === "none" ? "" : d > 0 ? "pos" : "neg";
-  const text = flat ? "без изменений"
-    : spec.kind === "pp" ? `${snum(d, 1)} п.п.` : spec.kind === "usd" ? susd(d) : spec.kind === "count" ? snum(d, 0) : snum(d, 2);
+  const text = flat ? t("stats.cmp.unchanged")
+    : spec.kind === "pp" ? `${snum(d, 1)} ${PP}` : spec.kind === "usd" ? susd(d) : spec.kind === "count" ? snum(d, 0) : snum(d, 2);
   const prev = (x: Num) => (spec.kind === "pp" ? pctU(x, 2) : spec.kind === "usd" ? usd(x) : num(x, spec.kind === "count" ? 0 : 2));
   const period = c.prev_start && c.prev_end ? ` (${ddmmyy(c.prev_start)} – ${ddmmyy(c.prev_end)})` : "";
-  return { kind: "chip", dir, good, text, title: `Было в предыдущем окне такой же длины${period}: ${prev(row.prev)}; сейчас: ${prev(row.cur)}` };
+  return { kind: "chip", dir, good, text, title: t("stats.cmp.title", { period, prev: prev(row.prev), cur: prev(row.cur) }) };
 }

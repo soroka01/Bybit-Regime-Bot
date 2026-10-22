@@ -1,4 +1,5 @@
 // Клавиатура: 1…N — вкладки, ? — справка по клавишам (popover), Esc — закрыть. Не срабатывает при вводе текста и с модификаторами.
+import { t } from "../i18n";
 import { currentRoute, ROUTES, setRoute } from "../state";
 import { h } from "./dom";
 import { icon } from "./icons";
@@ -26,22 +27,22 @@ export function installShortcuts(titles: Record<string, string>): { button: HTML
     if (pop) return close();
     opener = document.activeElement instanceof HTMLElement ? document.activeElement : button;
     const row = (label: string, ...keys: string[]) => h("li", null, h("span", { text: label }), h("span", { class: "keys" }, ...keys.map((k) => kbd(k))));
-    pop = h("div", { class: "popover", role: "dialog", "aria-label": "Горячие клавиши", tabindex: -1 },
-      h("h3", { text: "Горячие клавиши" }),
+    pop = h("div", { class: "popover", role: "dialog", "aria-label": t("common.keys.title"), tabindex: -1 },
+      h("h3", { text: t("common.keys.title") }),
       h("ul", { class: "shortcuts" },
         ...ROUTES.map((r, i) => row(titles[r] ?? r, String(i + 1))),
-        row("Предыдущая / следующая вкладка (фокус на вкладках)", "←", "→"),
-        row("Командная палитра: вкладки, стратегии, тема", ...PALETTE_KEYS),
-        row("То же, когда фокус не в поле ввода", "/"),
-        row("Эта справка", "?"),
-        row("Закрыть окно или справку", "Esc")));
+        row(t("common.keys.prev_next"), "←", "→"),
+        row(t("common.keys.palette"), ...PALETTE_KEYS),
+        row(t("common.keys.palette_slash"), "/"),
+        row(t("common.keys.help"), "?"),
+        row(t("common.keys.close"), "Esc")));
     document.body.append(pop);
     pop.focus({ preventScroll: true });
     button.setAttribute("aria-expanded", "true");
   };
 
   const button = h("button", {
-    class: "btn ghost icon-btn", type: "button", "aria-label": "Горячие клавиши (?)", "data-tip": "Горячие клавиши · ?", "data-tip-pos": "left",
+    class: "btn ghost icon-btn", type: "button", "aria-label": t("common.keys.btn_aria"), "data-tip": t("common.keys.btn_tip"), "data-tip-pos": "left",
     "aria-haspopup": "dialog", "aria-expanded": "false", onClick: open,
   }, icon("keyboard", 16));
 

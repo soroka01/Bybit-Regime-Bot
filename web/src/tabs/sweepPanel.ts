@@ -1,6 +1,7 @@
 // Панель «Развёртка параметров» Лаборатории: двумерная карта или одномерный профиль метрики по значениям параметров.
 import { api, asApiError } from "../api";
 import { SWEEP_METRICS, sweepHeatmap, sweepProfile } from "../charts/heatmap";
+import { t } from "../i18n";
 import type { BacktestBody, StrategyMeta, SweepResult } from "../types";
 import { errorBanner } from "../ui/banner";
 import { select, slider } from "../ui/controls";
@@ -27,9 +28,9 @@ export function createSweepPanel(api_: SweepHostApi) {
   const S = api_.state;
   const host = h("div", { class: "sweep-out" });
   const msg = h("p", { class: "small sweep-msg", role: "status", "aria-live": "polite" });
-  const staleBtn = h("button", { class: "btn sm", type: "button", text: "Построить заново", onClick: () => void run() });
+  const staleBtn = h("button", { class: "btn sm", type: "button", text: t("lab.sweep.rebuild"), onClick: () => void run() });
   const staleEl = h("div", { class: "notice warn sw-stale", role: "status", hidden: true },
-    h("span", null, h("strong", { text: "Развёртка устарела. " }), h("span", { class: "sw-stale-why", text: "Изменились период, комиссия, плечо, надстройки или другие параметры." })), staleBtn);
+    h("span", null, h("strong", { text: `${t("lab.sweep.staleTitle")} ` }), h("span", { class: "sw-stale-why", text: t("lab.sweep.staleWhy") })), staleBtn);
   const staleWhy = staleEl.querySelector(".sw-stale-why") as HTMLElement;
   let res: SweepResult | null = null;
   let resStrategy = "";          // стратегия, для которой посчитан res
@@ -44,40 +45,40 @@ export function createSweepPanel(api_: SweepHostApi) {
   const otherThan = (n: string) => names().find((x) => x !== n) ?? "";
 
   const xSel = select({
-    label: "Ось X", value: "", options: [],
+    label: t("lab.sweep.axisX"), value: "", options: [],
     onChange: (v) => {
       S.sx = v;
       if (names().length > 1 && S.sy === v) {
         S.sy = otherThan(v);
         ySel.set(S.sy);
-        msg.textContent = `Оси X и Y должны различаться — ось Y заменена на «${S.sy}».`;
+        msg.textContent = t("lab.sweep.axesDifferReplaced", { name: S.sy });
       } else msg.textContent = "";
       api_.save();
     },
   });
   const ySel = select({
-    label: "Ось Y", value: "", options: [],
+    label: t("lab.sweep.axisY"), value: "", options: [],
     onChange: (v) => {
       if (v === S.sx) {
         S.sy = otherThan(S.sx);
         ySel.set(S.sy);
-        msg.textContent = `Оси X и Y должны различаться — выбрана «${S.sy}».`;
+        msg.textContent = t("lab.sweep.axesDifferPicked", { name: S.sy });
       } else { S.sy = v; msg.textContent = ""; }
       api_.save();
     },
   });
   // метрика — чипы (смена только перерисовывает уже посчитанную карту)
   const metricBtns = new Map<string, HTMLButtonElement>();
-  const metricBox = h("div", { class: "sw-metrics", role: "group", "aria-label": "Метрика" });
+  const metricBox = h("div", { class: "sw-metrics", role: "group", "aria-label": t("lab.sweep.metric") });
   for (const m of SWEEP_METRICS) {
     const b = h("button", { type: "button", class: "chip-btn", text: m.label, onClick: () => { S.sMetric = m.key; api_.save(); paintMetric(); render(); } });
     metricBtns.set(m.key, b);
     metricBox.append(b);
   }
   const paintMetric = () => metricBtns.forEach((b, k) => b.setAttribute("aria-pressed", String(k === S.sMetric)));
-  const nS = slider({ label: "Шагов по оси", min: 4, max: 20, step: 1, value: S.sN, onInput: (v) => { S.sN = v; api_.save(); } });
+  const nS = slider({ label: t("lab.sweep.steps"), min: 4, max: 20, step: 1, value: S.sN, onInput: (v) => { S.sN = v; api_.save(); } });
   const runBtn = h("button", { class: "btn primary", type: "button", onClick: () => void run() });
-  const btnIdle = () => { runBtn.replaceChildren(icon("grid", 14), names().length < 2 ? "Построить профиль" : "Построить развёртку"); };
+  const btnIdle = () => { runBtn.replaceChildren(icon("grid", 14), names().length < 2 ? t("lab.sweep.buildProfile") : t("lab.sweep.buildMap")); };
 
   /** Всё, от чего зависит результат развёртки, кроме значений самих осей (их меняет клик по карте). */
   function inputsKey(): string {
@@ -114,9 +115,9 @@ export function createSweepPanel(api_: SweepHostApi) {
     xSel.setOptions(opts, S.sx);
     ySel.setOptions(opts, S.sy);
     ySel.el.hidden = one;                       // у однопараметрических стратегий оси Y нет
-    xSel.el.querySelector("label")!.textContent = one ? "Параметр" : "Ось X";
+    xSel.el.querySelector("label")!.textContent = one ? t("lab.sweep.param") : t("lab.sweep.axisX");
     runBtn.disabled = false;
-    runBtn.title = one ? "Профиль метрики по значениям единственного параметра" : "";
+    runBtn.title = one ? t("lab.sweep.profileTip") : "";
     msg.textContent = "";
     paintMetric();
     btnIdle();
@@ -138,11 +139,11 @@ export function createSweepPanel(api_: SweepHostApi) {
     res = null;
     clearStale();
     const ns = names();
-    const title = ns.length < 2 ? `Профиль параметра «${ns[0] ?? ""}»` : "Карта параметров";
+    const title = ns.length < 2 ? t("lab.sweep.emptyProfileTitle", { name: ns[0] ?? "" }) : t("lab.sweep.emptyMapTitle");
     const text = ns.length < 2
-      ? "Метрика против значения параметра; клик по точке применяет значение. Расчёт идёт на сервере и кэшируется."
-      : "Выберите две разные оси и метрику, нажмите «Построить развёртку»: цвет ячейки — значение метрики, клик по ячейке применяет оба параметра." +
-        (ns.length > 2 ? " Остальные параметры остаются на текущих значениях." : "");
+      ? t("lab.sweep.emptyProfile")
+      : t("lab.sweep.emptyMap", { btn: t("lab.sweep.buildMap") }) +
+        (ns.length > 2 ? ` ${t("lab.sweep.others")}` : "");
     setHost(emptyState(title, text, null, { icon: "grid" }));
   }
 
@@ -154,9 +155,9 @@ export function createSweepPanel(api_: SweepHostApi) {
   }
 
   const keyRow = (best: boolean) => h("div", { class: "sw-key small muted" },
-    h("span", null, h("i", { class: "sw-ring", "aria-hidden": "true" }), " текущая точка"),
-    best ? h("span", null, h("i", { class: "sw-star", "aria-hidden": "true", text: "★" }), " лучшая по метрике") : null,
-    h("span", null, icon("check", 12), " клик или Enter — применить"));
+    h("span", null, h("i", { class: "sw-ring", "aria-hidden": "true" }), ` ${t("lab.sweep.keyCurrent")}`),
+    best ? h("span", null, h("i", { class: "sw-star", "aria-hidden": "true", text: "★" }), ` ${t("lab.sweep.keyBest")}`) : null,
+    h("span", null, icon("check", 12), ` ${t("lab.sweep.keyApply")}`));
 
   function render() {
     if (!res) return;
@@ -168,13 +169,13 @@ export function createSweepPanel(api_: SweepHostApi) {
     const mLabel = SWEEP_METRICS.find((m) => m.key === S.sMetric)?.label ?? "";
     if (!r.y) {
       const prof = sweepProfile(r, S.sMetric, cur[r.x.name] ?? 0, (x) => applyPick({ [r.x.name]: x }));
-      setHost(h("p", { class: "sw-cap small muted" }, h("strong", { text: mLabel }), ` против «${r.x.name}» · ${r.x.values.length} точек`), prof.el, keyRow(true));
+      setHost(h("p", { class: "sw-cap small muted" }, h("strong", { text: mLabel }), ` ${t("lab.sweep.capProfile", { x: r.x.name, n: r.x.values.length })}`), prof.el, keyRow(true));
       disposeChart = prof.destroy;
       return;
     }
-    const others = names().length > 2 ? " Остальные параметры остаются на текущих значениях." : "";
+    const others = names().length > 2 ? ` ${t("lab.sweep.others")}` : "";
     setHost(
-      h("p", { class: "sw-cap small muted" }, h("strong", { text: mLabel }), ` · «${r.x.name}» × «${r.y.name}» · ${r.x.values.length}×${r.y.values.length}.${others}`),
+      h("p", { class: "sw-cap small muted" }, h("strong", { text: mLabel }), ` ${t("lab.sweep.capMap", { x: r.x.name, y: r.y.name, a: r.x.values.length, b: r.y.values.length, others })}`),
       sweepHeatmap(r, S.sMetric, cur, (x, y) => applyPick({ [r.x.name]: x, [r.y!.name]: y })), keyRow(true));
   }
 
@@ -189,7 +190,7 @@ export function createSweepPanel(api_: SweepHostApi) {
     if (two && (!S.sy || S.sy === S.sx)) {   // не молчим: заменяем ось Y и сообщаем
       S.sy = otherThan(S.sx);
       ySel.set(S.sy);
-      msg.textContent = `Оси X и Y должны различаться — ось Y заменена на «${S.sy}».`;
+      msg.textContent = t("lab.sweep.axesDifferReplaced", { name: S.sy });
     } else msg.textContent = "";
     const my = ++seq;
     ctl?.abort();
@@ -197,8 +198,8 @@ export function createSweepPanel(api_: SweepHostApi) {
     busy = true;
     clearStale();
     runBtn.disabled = true;
-    runBtn.replaceChildren(h("span", { class: "spinner" }), "Считаю…");
-    setHost(h("div", { class: "inline-busy" }, h("div", { class: "spinner" }), h("span", { text: two ? "Считаю развёртку на сервере…" : "Считаю профиль на сервере…" })), skeletonChart(two ? 200 : 180));
+    runBtn.replaceChildren(h("span", { class: "spinner" }), t("lab.busy"));
+    setHost(h("div", { class: "inline-busy" }, h("div", { class: "spinner" }), h("span", { text: two ? t("lab.sweep.busyMap") : t("lab.sweep.busyProfile") })), skeletonChart(two ? 200 : 180));
     // всё, от чего зависит ответ, фиксируем в момент запроса
     const b = api_.body();
     const st = api_.strat();
@@ -210,7 +211,7 @@ export function createSweepPanel(api_: SweepHostApi) {
       if (my !== seq || api_.strat().name !== stName) return;   // стратегия сменилась / запрос отменён — результат не нужен
       res = r; resStrategy = stName; resKey = key;
       render();
-      if (inputsKey() !== key) markStale("Пока считалось, настройки изменились.");
+      if (inputsKey() !== key) markStale(t("lab.sweep.staleMid"));
     } catch (e) {
       if (my !== seq) return;
       const err = asApiError(e);
@@ -226,12 +227,12 @@ export function createSweepPanel(api_: SweepHostApi) {
     }
   }
 
-  const el = h("section", { class: "card sweep", "aria-label": "Развёртка параметров" },
+  const el = h("section", { class: "card sweep", "aria-label": t("lab.sweep.title") },
     h("header", { class: "card-head" },
-      h("h3", { text: "Развёртка параметров" }),
-      h("span", { class: "muted small", text: "как метрика зависит от значений параметров" })),
+      h("h3", { text: t("lab.sweep.title") }),
+      h("span", { class: "muted small", text: t("lab.sweep.sub") })),
     h("div", { class: "sweep-controls" }, xSel.el, ySel.el, nS.el, runBtn),
-    h("div", { class: "field sw-metric-field" }, h("div", { class: "field-head" }, h("span", { class: "field-label", text: "Метрика" })), metricBox),
+    h("div", { class: "field sw-metric-field" }, h("div", { class: "field-head" }, h("span", { class: "field-label", text: t("lab.sweep.metric") })), metricBox),
     msg, staleEl, host);
 
   fillAxes();

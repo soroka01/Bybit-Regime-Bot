@@ -1,6 +1,7 @@
 // Вкладка «Статистика»: анализатор РЕАЛЬНОЙ торговой истории бота (GET /api/stats?range=…). Только чтение.
 // Состав: statsRange/Buckets/TradeLogic/Money/Markers/Kpi/Warnings/Page.ts (чистая логика), statsView.ts (плитки/карточки/состояния), statsCharts.ts (графики), statsTrades.ts (таблица сделок), здесь — опрос, состояния, шапка.
 import { api, asApiError, type ApiError } from "../api";
+import { t } from "../i18n";
 import { persisted } from "../state";
 import type { Meta, StatsRange, StatsResponse } from "../types";
 import { h } from "../ui/dom";
@@ -22,7 +23,7 @@ import type { DataCtx, Tab } from "./tab";
 const REFRESH_MS = 60_000;
 /** Ответ моложе этого при возврате на вкладку / в окно не перезапрашивается (сервер всё равно кэширует его на минуту). */
 const FRESH_MS = 30_000;
-const SUB = "Анализ реальных сделок бота по журналу bot.db: доходность кошелька, просадка, издержки, сделки. Это не бэктест стратегий. Данные обновляются раз в минуту.";
+const SUB = t("stats.sub");
 
 interface SState { range: StatsRange; unit: EqUnit; filter: StTradeFilter }
 
@@ -43,9 +44,9 @@ export function createStats(_meta: Meta): Tab {
 
   // ---------- шапка (строится один раз)
   const updated = h("span", { class: "muted small st-updated", "aria-live": "off" });
-  const refreshBtn = h("button", { class: "btn ghost icon-btn sm", type: "button", "aria-label": "Обновить сейчас", "data-tip": "Обновить сейчас", "data-tip-pos": "left", onClick: () => void load() }, icon("refresh", 15));
+  const refreshBtn = h("button", { class: "btn ghost icon-btn sm", type: "button", "aria-label": t("stats.refresh_now"), "data-tip": t("stats.refresh_now"), "data-tip-pos": "left", onClick: () => void load() }, icon("refresh", 15));
   const chips = new Map<StatsRange, HTMLButtonElement>();
-  const rangeBar = h("div", { class: "st-ranges", role: "group", "aria-label": "Период статистики" });
+  const rangeBar = h("div", { class: "st-ranges", role: "group", "aria-label": t("stats.period_label") });
   for (const r of STATS_RANGES) {
     const b = h("button", { type: "button", class: "chip-btn", "aria-pressed": String(r.key === S.range), title: r.title, "aria-label": r.title, text: r.label, onClick: () => setRange(r.key) });
     chips.set(r.key, b);
@@ -55,7 +56,7 @@ export function createStats(_meta: Meta): Tab {
   const windowSlot = h("div", { class: "st-window-slot" });
   const head = h("div", { class: "st-head" },
     h("div", { class: "page-head" },
-      h("div", { class: "page-head-text" }, h("h2", { class: "page-title", text: "Статистика" }), h("p", { class: "page-sub", text: SUB })),
+      h("div", { class: "page-head-text" }, h("h2", { class: "page-title", text: t("stats.title") }), h("p", { class: "page-sub", text: SUB })),
       h("div", { class: "page-actions" }, updated, refreshBtn)),
     h("div", { class: "st-toolbar" }, rangeBar),
     windowSlot, qualitySlot);
@@ -103,7 +104,7 @@ export function createStats(_meta: Meta): Tab {
     paintUpdated();
   }
   function paintUpdated() {
-    updated.textContent = lastOk ? `обновлено ${agoMs(lastOk)} · авто каждые 60 с` : "";
+    updated.textContent = lastOk ? t("stats.updated", { ago: agoMs(lastOk) }) : "";
   }
 
   function layoutCards() {
@@ -120,16 +121,16 @@ export function createStats(_meta: Meta): Tab {
       case "error":
         if (stale) break;
         content.replaceChildren(h("div", { class: "banner error st-err", role: "alert", "data-code": state.code },
-          h("strong", { text: state.code === "network" ? "Сервер дашборда недоступен. " : "Не удалось загрузить статистику. " }),
+          h("strong", { text: state.code === "network" ? t("stats.err.network") : t("stats.err.load") }),
           h("span", { text: state.message }),
-          h("div", { class: "banner-actions" }, h("button", { class: "btn", type: "button", onClick: () => void load(), text: "Повторить" }))));
+          h("div", { class: "banner-actions" }, h("button", { class: "btn", type: "button", onClick: () => void load(), text: t("stats.retry") }))));
         return;
       case "unavailable": content.replaceChildren(unavailableCard(state.reason, state.message, () => void load())); return;
       default: break;
     }
     const r = res!;
-    staleSlot.replaceChildren(stale ? h("div", { class: "notice warn", role: "status" }, h("strong", { text: "Не удалось обновить. " }), h("span", { text: `${stale.message}. Показаны данные от ${clockUtc(lastOk)}.` }),
-      h("button", { class: "btn sm", type: "button", onClick: () => void load(), text: "Повторить" })) : "");
+    staleSlot.replaceChildren(stale ? h("div", { class: "notice warn", role: "status" }, h("strong", { text: t("stats.stale.title") }), h("span", { text: t("stats.stale.shown", { message: stale.message, time: clockUtc(lastOk) }) }),
+      h("button", { class: "btn sm", type: "button", onClick: () => void load(), text: t("stats.retry") })) : "");
     noticesSlot.replaceChildren(...pageNotices(r));
     heroSlot.replaceChildren(heroGrid(r));
     allSlot.replaceChildren(allMetrics(r));

@@ -1,4 +1,5 @@
 // Сортируемая таблица с ограничением числа отображаемых строк.
+import { t } from "../i18n";
 import { h } from "./dom";
 
 interface Column<T> {
@@ -41,12 +42,12 @@ export function dataTable<T>(o: TableOpts<T>) {
   let sort = o.sort ?? { key: o.columns[0]!.key, dir: 1 as 1 | -1 };
   let sorted: T[] | null = null;      // отсортированная копия: пересобирается только при смене строк/сортировки, не на «Показать ещё»
   let shown = o.limit ?? 500;
-  let emptyText = o.empty ?? "Нет данных";
+  let emptyText = o.empty ?? t("common.no_data");
   const limit = shown;
   const thead = h("thead");
   const tbody = h("tbody");
   const more = h("button", { class: "btn ghost", type: "button" });
-  const wrap = h("div", { class: "table-wrap", tabindex: 0, role: "region", "aria-label": o.caption ?? "Таблица" },
+  const wrap = h("div", { class: "table-wrap", tabindex: 0, role: "region", "aria-label": o.caption ?? t("common.table.label") },
     h("table", { class: "data" }, o.caption ? h("caption", { class: "sr-only", text: o.caption }) : null, thead, tbody), more);
 
   const head = () => {
@@ -130,7 +131,7 @@ export function dataTable<T>(o: TableOpts<T>) {
     }
     const left = Math.max(0, all.length - shown);
     more.hidden = left === 0;
-    more.textContent = `Показать ещё ${Math.min(limit, left)} (осталось ${left})`;
+    more.textContent = t("common.table.more", { n: Math.min(limit, left), left });
     more.onclick = () => {
       const had = document.activeElement === more;
       const first = shown;

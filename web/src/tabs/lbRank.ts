@@ -1,15 +1,16 @@
 // Ранжирование карточек «Лучших стратегий». Чистые функции без DOM: порядок = ярус вердикта, внутри — метрика по OOS
 // (эталон порядка — tests/test_optimize.py и web/tests/fixtures/rank.json). Ничего здесь не бросает исключений: неизвестные значения получают запасные.
+import { t } from "../i18n";
 import { metricAt, type LbItem } from "../types";
 import { tierOf } from "../ui/verdicts";
 
 export type Rank = "calmar" | "sharpe" | "return" | "dd";
 
 export const RANKS: { value: Rank; label: string; key: string }[] = [
-  { value: "calmar", label: "Calmar (OOS)", key: "calmar" },
-  { value: "sharpe", label: "Sharpe (OOS)", key: "sharpe" },
-  { value: "return", label: "Доходность (OOS)", key: "total_return" },
-  { value: "dd", label: "Просадка (OOS), меньше — лучше", key: "max_drawdown" },
+  { value: "calmar", label: t("leaderboard.rank.calmar"), key: "calmar" },
+  { value: "sharpe", label: t("leaderboard.rank.sharpe"), key: "sharpe" },
+  { value: "return", label: t("leaderboard.rank.return"), key: "total_return" },
+  { value: "dd", label: t("leaderboard.rank.dd"), key: "max_drawdown" },
 ];
 
 export const isRank = (v: unknown): v is Rank => RANKS.some((r) => r.value === v);

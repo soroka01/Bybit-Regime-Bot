@@ -3,11 +3,12 @@
 // Состав: lbState.ts (автомат состояний), lbRank.ts (порядок), lbCard.ts (отрисовка карточки), здесь — «клей»:
 // контролы, сетевые вызовы, цикл расчёта.
 import { api, ApiError, asApiError } from "../api";
+import { t } from "../i18n";
 import { MAX_LEVERAGE } from "../leverage";
 import { effLeverage, effLongOnly, FEE_PCT, isMarket, MARKET_OPTIONS, marketUi, SPOT_LONG_NOTE } from "../market";
 import { onMetaChange } from "../meta";
 import { persisted, setPendingLab, setRoute, takeFlag } from "../state";
-import type { LbBody, LbItem, Market, Meta } from "../types";
+import type { LbBody, LbItem, LbPlanItem, Market, Meta } from "../types";
 import { errorBanner, showError } from "../ui/banner";
 import { copyWithToast, labPayload, metricsOf, sendToBotWithToast } from "../ui/clipboard";
 import { segmented, select, toggle } from "../ui/controls";
@@ -18,7 +19,7 @@ import { leverageControl } from "../ui/levControl";
 import { spct } from "../ui/fmt";
 import { patchKeyed, type KeyedItem } from "../ui/keyed";
 import { withBusyRetry } from "../ui/retry";
-import { compactCard, itemCard, itemSig, type CardCtx } from "./lbCard";
+import { compactCard, itemCard, itemSig, type CardCtx, type CodedReason } from "./lbCard";
 import { applyVerdictFilter, countVerdicts, groupByVerdict, isVFilter, type VFilter } from "./lbFilter";
 import { createSummary, emptyCache, groupHead, howToRead, skeletonCards } from "./lbView";
 import { isRank, RANKS, splitRanked, type Rank } from "./lbRank";
@@ -66,7 +67,7 @@ export function createLeaderboard(meta: Meta): Tab {
 
   // ---------- управление
   const hasKlines = (sym: string, tf: string) => meta.klines_available[sym]?.includes(tf) ?? false;
-  const tfOptions = () => meta.leaderboard_tfs.map((t) => ({ value: t, label: hasKlines(S.symbol, t) ? t : `${t} — нет данных` }));
+  const tfOptions = () => meta.leaderboard_tfs.map((tf) => ({ value: tf, label: hasKlines(S.symbol, tf) ? tf : t("leaderboard.tf_nodata", { tf }) }));
   /**
    * Любое изменение входов рейтинга (символ, ТФ, период, лонг, плечо, варианты): прерываем расчёт, СРАЗУ сбрасываем плана/карточки
    * (чтобы старые карточки не смешались с новыми), затем показываем то, что уже есть в дисковом кэше для новых настроек.
@@ -87,15 +88,15 @@ export function createLeaderboard(meta: Meta): Tab {
     return loadCached();
   }
 
-  const symSel = select({ label: "Токен", value: S.symbol, options: meta.symbols.map((s) => ({ value: s, label: s })), onChange: (v) => { S.symbol = v; tfSel.setOptions(tfOptions(), S.tf); void markDirty(); notifyContext(); } });
-  const tfSel = select({ label: "Свеча (таймфрейм)", value: S.tf, options: tfOptions(), onChange: (v) => { S.tf = v; syncDays(); void markDirty(); notifyContext(); } });
+  const symSel = select({ label: t("leaderboard.token"), value: S.symbol, options: meta.symbols.map((s) => ({ value: s, label: s })), onChange: (v) => { S.symbol = v; tfSel.setOptions(tfOptions(), S.tf); void markDirty(); notifyContext(); } });
+  const tfSel = select({ label: t("leaderboard.timeframe"), value: S.tf, options: tfOptions(), onChange: (v) => { S.tf = v; syncDays(); void markDirty(); notifyContext(); } });
   const dayOptions = () => LB_DAYS.map((d) => {
     const why = capReason(meta, S.tf, d);
     // выбранный период не отключаем (если истории не хватает ни на один вариант — select не должен остаться пустым)
-    return { value: String(d), label: why ? `${d} дн. — ${why}` : `${d} дн.`, disabled: why !== null && d !== S.days };
+    return { value: String(d), label: why ? t("leaderboard.days_opt_why", { d, why }) : t("leaderboard.days_opt", { d }), disabled: why !== null && d !== S.days };
   });
   const daysSel = select({
-    label: "Период", value: String(S.days), options: dayOptions(),
+    label: t("leaderboard.period"), value: String(S.days), options: dayOptions(),
     onChange: (v) => { S.days = +v; void markDirty(); },
   });
   const syncDays = () => {
@@ -103,17 +104,17 @@ export function createLeaderboard(meta: Meta): Tab {
     daysSel.setOptions(dayOptions(), String(S.days));
   };
   const rankSel = select({
-    label: "Ранжировать по", value: S.rank, options: RANKS.map((r) => ({ value: r.value, label: r.label })),
+    label: t("leaderboard.rank_by"), value: S.rank, options: RANKS.map((r) => ({ value: r.value, label: r.label })),
     onChange: (v) => { if (isRank(v)) { S.rank = v; P.save(); paint(); } },
   });
-  const longT = toggle({ label: "Только лонг", checked: S.longOnly, onChange: (v) => { S.longOnly = v; void markDirty(); } });
+  const longT = toggle({ label: t("leaderboard.long_only"), checked: S.longOnly, onChange: (v) => { S.longOnly = v; void markDirty(); } });
   const varT = toggle({
-    label: "Перебирать фильтры (HTF/стоп)", checked: S.variants, hint: "Для каждой стратегии выбирается лучший из 4 вариантов надстроек — по IS. Считается в ~4 раза дольше.",
+    label: t("leaderboard.variants"), checked: S.variants, hint: t("leaderboard.variants_hint"),
     onChange: (v) => { S.variants = v; void markDirty(); },
   });
   const levS = leverageControl({ value: S.leverage, botNote: true, onInput: (v) => { S.leverage = v; void markDirty(SLIDER_DEBOUNCE_MS); } });
   const marketSeg = segmented({
-    label: "Рынок", options: MARKET_OPTIONS, value: S.market,
+    label: t("leaderboard.market"), options: MARKET_OPTIONS, value: S.market,
     onChange: (v) => { if (isMarket(v)) { S.market = v; applyMarketUi(); void markDirty(); } },
   });
   const marketNoteEl = h("p", { class: "muted small market-note" });
@@ -125,24 +126,24 @@ export function createLeaderboard(meta: Meta): Tab {
     longT.set(effLongOnly(S.market, S.longOnly));
     longT.disable(ui.longLocked, SPOT_LONG_NOTE);
     marketNoteEl.textContent = S.market === "spot"
-      ? "Спот: плечо 1×, только лонг, фандинг не начисляется, комиссия 0,10 %. Свечи перпа как приближение спота; сигналы деривативных стратегий — по данным перпа."
+      ? t("leaderboard.spot_note")
       : "";
   }
   const feePct = () => (S.market === "spot" ? FEE_PCT.spot : meta.defaults.fee * 100);
-  const runBtn = h("button", { class: "btn primary", type: "button", text: "Запустить", onClick: () => void run() });
-  const forceBtn = h("button", { class: "btn", type: "button", hidden: true, title: "Игнорировать кэш и посчитать все стратегии заново", onClick: () => void run(true) }, icon("refresh", 14), "Пересчитать заново");
-  const stopBtn = h("button", { class: "btn", type: "button", text: "Остановить", hidden: true, onClick: () => { cancel(); void loadCached(); } });
+  const runBtn = h("button", { class: "btn primary", type: "button", text: t("leaderboard.run"), onClick: () => void run() });
+  const forceBtn = h("button", { class: "btn", type: "button", hidden: true, title: t("leaderboard.force_tip"), onClick: () => void run(true) }, icon("refresh", 14), t("leaderboard.force"));
+  const stopBtn = h("button", { class: "btn", type: "button", text: t("leaderboard.stop"), hidden: true, onClick: () => { cancel(); void loadCached(); } });
   const statusDot = h("i", { class: "lb-dot", "aria-hidden": "true" });
   const statusText_ = h("span", { class: "lb-status-text" });
   const statusEl = h("div", { class: "lb-status", "aria-live": "polite" }, statusDot, statusText_);
-  const bar = h("div", { class: "progress lb-bar", hidden: true, role: "progressbar", "aria-label": "Ход расчёта рейтинга", "aria-valuemin": 0 }, h("div", { class: "progress-fill" }));
+  const bar = h("div", { class: "progress lb-bar", hidden: true, role: "progressbar", "aria-label": t("leaderboard.progress_aria"), "aria-valuemin": 0 }, h("div", { class: "progress-fill" }));
   const banner = h("div", { class: "banner-slot" });
   const shortBanner = h("div", { class: "banner-slot lb-notice-slot" });
   const list = h("div", { class: "lb-list" });
   const labeled = (label: string, el: HTMLElement) => h("div", { class: "field" }, h("div", { class: "field-head" }, h("span", { class: "field-label", text: label })), el);
 
-  const controls = h("section", { class: "card lb-toolbar", "aria-label": "Настройки рейтинга" },
-    h("div", { class: "lb-fields" }, labeled("Рынок", marketSeg.el), symSel.el, tfSel.el, daysSel.el, rankSel.el),
+  const controls = h("section", { class: "card lb-toolbar", "aria-label": t("leaderboard.settings") },
+    h("div", { class: "lb-fields" }, labeled(t("leaderboard.market"), marketSeg.el), symSel.el, tfSel.el, daysSel.el, rankSel.el),
     h("div", { class: "lb-fields2" }, levS.el, h("div", { class: "lb-toggles" }, longT.el, varT.el)),
     marketNoteEl,
     h("div", { class: "lb-actions" }, runBtn, forceBtn, stopBtn, statusEl),
@@ -176,7 +177,7 @@ export function createLeaderboard(meta: Meta): Tab {
     (bar.firstElementChild as HTMLElement).style.width = m.total ? `${(m.done / m.total) * 100}%` : "0%";
     bar.setAttribute("aria-valuenow", String(m.done));
     bar.setAttribute("aria-valuemax", String(m.total));
-    bar.setAttribute("aria-valuetext", `${m.done} из ${m.total}`);
+    bar.setAttribute("aria-valuetext", t("leaderboard.progress_text", { done: m.done, total: m.total }));
   }
 
   /** Один текст «для бота» на «Копировать» и «В бота». */
@@ -217,9 +218,9 @@ export function createLeaderboard(meta: Meta): Tab {
     shortSig = sig;
     if (!show) { shortBanner.replaceChildren(); return; }
     shortBanner.replaceChildren(h("div", { class: "notice warn", role: "status" },
-      h("span", {}, h("strong", { text: "Короткий OOS: " }), `проверочный период всего ${Math.round(days!)} дн. — годовые метрики (Sharpe, Calmar, CAGR) завышены, не сравнивайте их.`),
+      h("span", {}, h("strong", { text: t("leaderboard.short.title") }), t("leaderboard.short.text", { days: Math.round(days!) })),
       can730 ? h("button", {
-        class: "btn sm", type: "button", text: "Поставить 730 дн.",
+        class: "btn sm", type: "button", text: t("leaderboard.short.set730"),
         // тот же путь, что и любое изменение настроек: сброс -> чтение кэша для 730 -> расчёт недостающего
         onClick: () => { S.days = 730; daysSel.setOptions(dayOptions(), "730"); void markDirty().then(() => run()); },
       }) : null));
@@ -242,7 +243,7 @@ export function createLeaderboard(meta: Meta): Tab {
         build: () => {
           try { return itemCard(k, x.it, ctx); } catch (e) {
             console.error("lb card failed", x.name, e);
-            return compactCard(x.name, m.plan?.strategies.find((s) => s.name === x.name), { k: "error", error: "не удалось отобразить результат" });
+            return compactCard(x.name, m.plan?.strategies.find((s) => s.name === x.name), { k: "error", error: t("leaderboard.empty.render_failed") });
           }
         },
       };
@@ -256,7 +257,7 @@ export function createLeaderboard(meta: Meta): Tab {
     } else visible.forEach((x) => items.push(cardOf(x)));
     if (!S.vf) {
       if (!ranked.length && (m.phase === "cached" || m.phase === "idle") && m.plan?.klines && m.readyCount > 0) {
-        items.push({ key: "empty-cache", sig: String(m.missingCount), build: () => emptyCache(m.missingCount > 0 ? h("button", { class: "btn primary", type: "button", text: "Запустить расчёт", onClick: () => void run() }) : null) });
+        items.push({ key: "empty-cache", sig: String(m.missingCount), build: () => emptyCache(m.missingCount > 0 ? h("button", { class: "btn primary", type: "button", text: t("leaderboard.run_calc"), onClick: () => void run() }) : null) });
       }
       for (const name of rest) {
         const e = m.entries.get(name);
@@ -269,7 +270,7 @@ export function createLeaderboard(meta: Meta): Tab {
     if (!items.length) {
       if (m.phase === "loading" || (m.phase === "running" && !m.order.length)) skeletonCards(3).forEach((el, i) => items.push({ key: "skel" + i, sig: "s", build: () => el }));
       else {
-        const text = m.phase === "error" ? "Не удалось загрузить рейтинг." : S.vf ? "Нет стратегий с таким вердиктом." : "Нет стратегий для этих настроек.";
+        const text = m.phase === "error" ? t("leaderboard.empty.error") : S.vf ? t("leaderboard.empty.filter") : t("leaderboard.empty.none");
         items.push({ key: "empty:" + text, sig: text, build: () => h("p", { class: "muted", text }) });
       }
     }
@@ -293,7 +294,7 @@ export function createLeaderboard(meta: Meta): Tab {
   const body = (strategy: string, force: boolean): LbBody => ({ ...cachedBody(), strategy, force });
 
   const dataMissingBanner = () => {
-    const err = new ApiError(409, "data_missing", `Нет локальных свечей ${S.symbol} ${S.tf}.`, { symbol: S.symbol, tf: S.tf, estimate: meta.fetch_estimate[S.tf] ?? null });
+    const err = new ApiError(409, "data_missing", t("leaderboard.no_candles", { symbol: S.symbol, tf: S.tf }), { symbol: S.symbol, tf: S.tf, estimate: meta.fetch_estimate[S.tf] ?? null });
     banner.replaceChildren(errorBanner(err, () => { void markDirty().then(() => run()); }));
   };
 
@@ -318,7 +319,7 @@ export function createLeaderboard(meta: Meta): Tab {
     const have = new Map(res.items.map((i) => [i.strategy, i]));
     res.plan.strategies.forEach((s) => {
       const it = have.get(s.name);
-      entries.set(s.name, !s.ready ? { k: "skip", skip: s.reason } : it ? { k: "item", item: it } : { k: "none" });
+      entries.set(s.name, !s.ready ? { k: "skip", skip: s.reason, code: (s as LbPlanItem & CodedReason).reason_code ?? undefined } : it ? { k: "item", item: it } : { k: "none" });
     });
     store.set({
       phase: "cached", plan: res.plan, entries, order: res.plan.strategies.map((s) => s.name),
@@ -376,7 +377,7 @@ export function createLeaderboard(meta: Meta): Tab {
   }
 
   const el = h("div", { class: "page best" },
-    pageHead("Лучшие стратегии", "Рейтинг по out-of-sample: параметры подбираются на первых 67% периода, оцениваются на последних 33%."),
+    pageHead(t("leaderboard.title"), t("leaderboard.sub")),
     disclaimer, controls, banner, shortBanner, summary.el, list);
   applyMarketUi();
   paint();
@@ -406,7 +407,7 @@ export function createLeaderboard(meta: Meta): Tab {
     /** Данные обновились: старые записи кэша больше не подходят — перечитываем кэш, а не пересчитываем всё вслепую. */
     refresh() {
       cancel();
-      void loadCached().then(() => { if (m.phase === "cached") store.set({ note: m.missingCount > 0 ? "Данные обновились — расчёт нужен заново." : "" }); });
+      void loadCached().then(() => { if (m.phase === "cached") store.set({ note: m.missingCount > 0 ? t("leaderboard.note.data_updated") : "" }); });
     },
     /**
      * Скрытие вкладки НЕ прерывает расчёт: он идёт в фоне, результаты копятся в модели и карточки отрисуются при показе.

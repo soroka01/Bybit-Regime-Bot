@@ -1,5 +1,7 @@
 // Командная палитра (Ctrl/Cmd+K или «/»): поиск по вкладкам и действиям с клавиатуры. Без зависимостей.
 // Логика поиска — paletteCore.ts (чистые функции, тесты в tests/palette.test.ts); здесь — диалог, список команд и горячие клавиши.
+import { strategyDesc } from "../i18n/serverText";
+import { t } from "../i18n";
 import { setPendingLab, setRoute, ROUTES, type Route } from "../state";
 import type { LiveSnapshot, Meta } from "../types";
 import { h } from "./dom";
@@ -52,33 +54,35 @@ function labPreset(strategy: string) {
 export function buildCommands(): Command[] {
   const out: Command[] = [];
   ROUTES.forEach((r: Route, i) => out.push({
-    id: `tab:${r}`, title: titles[r] ?? r, group: "Вкладки", icon: "arrow", keys: [String(i + 1)],
-    keywords: { lab: "lab laboratory бэктест", portfolio: "portfolio портфель", wf: "walk forward wf", best: "leaderboard рейтинг лучшие топ", live: "bot бот live торговля позиция", stats: "stats statistics статистика анализ сделок история roi просадка pnl" }[r],
+    id: `tab:${r}`, title: titles[r] ?? r, group: t("common.pal.group_tabs"), icon: "arrow", keys: [String(i + 1)],
+    // ключевые слова для поиска — на обоих языках в любом языке интерфейса (русские названия вкладок находятся и в английском интерфейсе)
+    keywords: { lab: "lab laboratory backtest лаборатория бэктест", portfolio: "portfolio портфель", wf: "walk forward wf", best: "leaderboard best top ranking рейтинг лучшие стратегии топ", live: "bot бот live торговля позиция trading position", stats: "stats statistics статистика анализ сделок история roi просадка drawdown history trades pnl" }[r],
     run: () => setRoute(r),
   }));
   const mode = currentMode();
-  for (const [m, label, ico, kw] of [["light", "Светлая", "sun", "light"], ["auto", "Авто", "auto", "auto система"], ["dark", "Тёмная", "moon", "dark"]] as const) {
-    out.push({ id: `theme:${m}`, title: `Тема: ${label}`, hint: mode === m ? "сейчас включена" : undefined, group: "Тема", icon: ico, keywords: `${kw} theme оформление`,
-      run: () => { applyTheme(m, { persist: true }); toast(`Тема: ${label}`, "info"); } });
+  for (const [m, label, ico, kw] of [["light", t("common.theme.light"), "sun", "light светлая"], ["auto", t("common.theme.auto"), "auto", "auto авто система system"], ["dark", t("common.theme.dark"), "moon", "dark тёмная темная"]] as const) {
+    const title = t("common.pal.theme_title", { label });
+    out.push({ id: `theme:${m}`, title, hint: mode === m ? t("common.pal.theme_on") : undefined, group: t("common.pal.group_theme"), icon: ico, keywords: `${kw} theme тема оформление`,
+      run: () => { applyTheme(m, { persist: true }); toast(title, "info"); } });
   }
   const fetchBtn = document.querySelector<HTMLButtonElement>(".freshness .btn");
   if (fetchBtn && !fetchBtn.closest("[hidden]") && !fetchBtn.disabled) {
-    out.push({ id: "act:fetch", title: "Подгрузить новые свечи", hint: "скачать свежие свечи и деривативы с Bybit (публичный API)", group: "Действия", icon: "refresh", keywords: "update data данные свечи обновить fetch", run: () => fetchBtn.click() });
+    out.push({ id: "act:fetch", title: t("common.fresh.fetch"), hint: t("common.pal.fetch_hint"), group: t("common.pal.group_actions"), icon: "refresh", keywords: "update data candles fetch download данные свечи обновить подгрузить скачать", run: () => fetchBtn.click() });
   }
   if (meta?.legs?.length) {
     const m = meta;
-    out.push({ id: "act:legs", title: "Скопировать ноги бота (Leg)", hint: "строки Leg(...) из конфигурации бота по умолчанию", group: "Действия", icon: "copy", keywords: "copy leg бот нога копировать",
+    out.push({ id: "act:legs", title: t("common.pal.legs_title"), hint: t("common.pal.legs_hint"), group: t("common.pal.group_actions"), icon: "copy", keywords: "copy leg legs bot бот нога ноги копировать",
       run: () => void copyWithToast(m.legs.map((l) => pyLeg(l)).join("\n")) });
   }
   if (lastLive?.available && lastLive.legs?.length) {
     const l = lastLive;
-    out.push({ id: "act:live-legs", title: "Скопировать текущие ноги и веса бота", hint: "из снимка «Бот (live)»", group: "Действия", icon: "copy", keywords: "copy live веса weights",
-      run: () => void copyWithToast(l.legs!.map((x) => `${x.key}: вес ${x.weight}${x.enabled ? "" : " (выкл)"}, сигнал ${x.signal ?? "—"}, ${JSON.stringify(x.params)}`).join("\n")) });
+    out.push({ id: "act:live-legs", title: t("common.pal.live_legs_title"), hint: t("common.pal.live_legs_hint", { tab: t("tab.live") }), group: t("common.pal.group_actions"), icon: "copy", keywords: "copy live legs ноги копировать веса weights",
+      run: () => void copyWithToast(l.legs!.map((x) => t("common.pal.live_leg", { key: x.key, weight: x.weight, off: x.enabled ? "" : t("common.pal.live_leg_off"), signal: x.signal ?? "—", params: JSON.stringify(x.params) })).join("\n")) });
   }
-  out.push({ id: "act:github", title: "Открыть репозиторий на GitHub", hint: "исходный код проекта, README и CI", group: "Действия", icon: "github", keywords: "github git repo репозиторий исходники код source",
+  out.push({ id: "act:github", title: t("common.pal.github_title"), hint: t("common.pal.github_hint"), group: t("common.pal.group_actions"), icon: "github", keywords: "github git repo repository репозиторий исходники код source",
     run: () => { window.open(REPO_URL, "_blank", "noopener,noreferrer"); } });
   for (const s of meta?.strategies ?? []) {
-    out.push({ id: `lab:${s.name}`, title: `Открыть в Лаборатории: ${s.name}`, hint: s.desc, group: "Стратегии", icon: "flask", keywords: `lab strategy стратегия ${s.derivative ? "деривативы" : ""}`, run: () => labPreset(s.name) });
+    out.push({ id: `lab:${s.name}`, title: t("common.pal.strategy_title", { name: s.name }), hint: strategyDesc(s.name, s.desc), group: t("common.pal.group_strategies"), icon: "flask", keywords: `lab strategy стратегия лаборатория ${s.derivative ? "деривативы derivatives" : ""}`, run: () => labPreset(s.name) });
   }
   return out;
 }
@@ -95,16 +99,16 @@ export function installPalette(): { button: HTMLButtonElement } {
     let active = 0;
 
     const input = h("input", {
-      type: "text", class: "pal-input", placeholder: "Куда перейти или что сделать…", autocomplete: "off", spellcheck: false,
-      role: "combobox", "aria-expanded": "true", "aria-controls": "pal-list", "aria-autocomplete": "list", "aria-label": "Поиск команд",
+      type: "text", class: "pal-input", placeholder: t("common.pal.placeholder"), autocomplete: "off", spellcheck: false,
+      role: "combobox", "aria-expanded": "true", "aria-controls": "pal-list", "aria-autocomplete": "list", "aria-label": t("common.pal.search_aria"),
     });
-    const list = h("ul", { class: "pal-list", id: "pal-list", role: "listbox", "aria-label": "Команды" });
-    const empty = h("div", { class: "pal-empty", hidden: true, text: "Ничего не найдено" });
+    const list = h("ul", { class: "pal-list", id: "pal-list", role: "listbox", "aria-label": t("common.pal.list_aria") });
+    const empty = h("div", { class: "pal-empty", hidden: true, text: t("common.nothing_found") });
     const status = h("div", { class: "sr-only", "aria-live": "polite" });
-    dlg = h("dialog", { class: "palette", "aria-label": "Командная палитра" },
+    dlg = h("dialog", { class: "palette", "aria-label": t("common.pal.dialog_aria") },
       h("div", { class: "pal-head" }, icon("search", 16), input, kbd("Esc", true)),
       list, empty, status,
-      h("div", { class: "pal-foot" }, h("span", {}, kbd("↑", true), kbd("↓", true), " выбор"), h("span", {}, kbd("Enter", true), " выполнить"), h("span", {}, kbd("Esc", true), " закрыть")));
+      h("div", { class: "pal-foot" }, h("span", {}, kbd("↑", true), kbd("↓", true), " " + t("common.pal.foot_select")), h("span", {}, kbd("Enter", true), " " + t("common.pal.foot_run")), h("span", {}, kbd("Esc", true), " " + t("common.pal.foot_close"))));
 
     const close = () => { const d = dlg; dlg = null; d?.close(); d?.remove(); if (opener?.isConnected) opener.focus({ preventScroll: true }); };
     const run = (c: Command) => { saveRecent(c.id); close(); void Promise.resolve(c.run()).catch((e) => toast(String(e), "error")); };
@@ -122,7 +126,7 @@ export function installPalette(): { button: HTMLButtonElement } {
       }));
       empty.hidden = shown.length > 0;
       input.setAttribute("aria-activedescendant", shown.length ? `pal-o${active}` : "");
-      status.textContent = shown.length ? `${shown.length} вариантов` : "Ничего не найдено";
+      status.textContent = shown.length ? t("common.pal.count", { n: shown.length }) : t("common.nothing_found");
     };
     const markActive = (scroll = true) => {
       list.querySelectorAll(".pal-item").forEach((el, i) => { el.classList.toggle("active", i === active); el.setAttribute("aria-selected", String(i === active)); });
@@ -157,9 +161,9 @@ export function installPalette(): { button: HTMLButtonElement } {
   };
 
   const button = h("button", {
-    class: "btn ghost palette-btn", type: "button", "aria-label": `Командная палитра (${PALETTE_KEYS.join(" ")})`, "aria-haspopup": "dialog", title: `Командная палитра · ${PALETTE_KEYS.join("+")}`,
+    class: "btn ghost palette-btn", type: "button", "aria-label": t("common.pal.btn_aria", { keys: PALETTE_KEYS.join(" ") }), "aria-haspopup": "dialog", title: t("common.pal.btn_tip", { keys: PALETTE_KEYS.join("+") }),
     onClick: openPalette,
-  }, icon("search", 15), h("span", { class: "palette-btn-t", text: "Поиск" }), h("span", { class: "palette-btn-k", "aria-hidden": "true" }, ...PALETTE_KEYS.map((k) => kbd(k, true))));
+  }, icon("search", 15), h("span", { class: "palette-btn-t", text: t("common.pal.btn_text") }), h("span", { class: "palette-btn-k", "aria-hidden": "true" }, ...PALETTE_KEYS.map((k) => kbd(k, true))));
 
   document.addEventListener("keydown", (e) => {
     const mod = e.ctrlKey || e.metaKey;

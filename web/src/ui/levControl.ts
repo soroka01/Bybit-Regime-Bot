@@ -1,4 +1,5 @@
 // Выбор плеча 1×…100×: нелинейный слайдер (шаги 0.5 → 1 → 5 → 25), числовое поле, пресеты и подсказка о риске ликвидации.
+import { t } from "../i18n";
 import { botLimitNote, clampLev, LEV_POS_MAX, LEV_PRESETS, levFromPos, liqHintText, posFromLev, riskLevel } from "../leverage";
 import { SPOT_LEV_NOTE } from "../market";
 import { syncRange, type Control } from "./controls";
@@ -27,10 +28,10 @@ export function leverageControl(o: LevOpts): LevControl {
   let disabled = false;
   let note = SPOT_LEV_NOTE;
 
-  const range = h("input", { type: "range", id, min: 0, max: LEV_POS_MAX, step: 1, value: posFromLev(value), "aria-label": "Плечо, шкала" });
-  const box = h("input", { type: "number", min: 1, max: 100, step: 0.5, value: fmtVal(value), "aria-label": o.label ?? "Плечо", class: "num-input" });
+  const range = h("input", { type: "range", id, min: 0, max: LEV_POS_MAX, step: 1, value: posFromLev(value), "aria-label": t("common.lev.scale") });
+  const box = h("input", { type: "number", min: 1, max: 100, step: 0.5, value: fmtVal(value), "aria-label": o.label ?? t("common.lev.label"), class: "num-input" });
   const chips = LEV_PRESETS.map((p) => h("button", {
-    type: "button", class: "chip-btn", text: `${p}×`, "aria-label": `Плечо ${p}×`,
+    type: "button", class: "chip-btn", text: `${p}×`, "aria-label": t("common.lev.preset_aria", { p }),
     onClick: () => { if (!disabled) commit(p); },
   }));
   const hint = h("p", { class: "lev-hint small", "aria-live": "polite" });
@@ -63,10 +64,10 @@ export function leverageControl(o: LevOpts): LevControl {
 
   const el = h("div", { class: "field lev" },
     h("div", { class: "field-head" },
-      h("label", { for: id, text: o.label ?? "Плечо" }),
+      h("label", { for: id, text: o.label ?? t("common.lev.label") }),
       h("span", { class: "field-val" }, box, h("span", { class: "unit", text: "×" }))),
     range,
-    h("div", { class: "lev-presets", role: "group", "aria-label": "Пресеты плеча" }, ...chips),
+    h("div", { class: "lev-presets", role: "group", "aria-label": t("common.lev.presets") }, ...chips),
     hint, bot);
   paint();
   return {

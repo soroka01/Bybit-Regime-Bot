@@ -3,6 +3,7 @@
 import { api, asApiError } from "../api";
 import { alignSeries, stride } from "../charts/align";
 import { lineChart, type LineChart } from "../charts/line";
+import { t } from "../i18n";
 import { persisted } from "../state";
 import type { LiveSnapshot, Meta } from "../types";
 import { errorBanner } from "../ui/banner";
@@ -30,7 +31,6 @@ import { loadStats } from "./statsFeed";
 import type { Tab } from "./tab";
 
 const REFRESH_MS = 10_000;
-const SUB = "Только просмотр: управление ботом — через Telegram (/start). Данные обновляются автоматически.";
 const TRADES_STEP = 20;
 const CLOSED_REFRESH_MS = 60_000;     // закрытые сделки (round trips из /api/stats?range=30d): раз в минуту, пока вкладка видна
 const CLOSED_FRESH_MS = 30_000;       // ответ, который вкладка «Статистика» получила недавно, берём из общего кэша
@@ -71,16 +71,16 @@ export function createLive(meta: Meta): Tab {
   const idle = { open: false, onToggle: (o: boolean) => { idle.open = o; } };   // «Неактивные ноги» не сворачиваются при автообновлении
   const lastFetch = h("span", { class: "muted small lv-updated" });
 
-  const head = pageHead("Бот (live)", SUB, [lastFetch,
-    h("button", { class: "btn ghost icon-btn sm", type: "button", "aria-label": "Обновить сейчас", "data-tip": "Обновить сейчас", "data-tip-pos": "left", onClick: () => void refresh() }, icon("refresh", 15))]);
+  const head = pageHead(t("tab.live"), t("live.sub"), [lastFetch,
+    h("button", { class: "btn ghost icon-btn sm", type: "button", "aria-label": t("live.refresh_now"), "data-tip": t("live.refresh_now"), "data-tip-pos": "left", onClick: () => void refresh() }, icon("refresh", 15))]);
 
   // ---------- график капитала
-  const rangeSeg = segmented({ label: "Период графика", options: RANGES.map((r) => ({ value: r.key, label: r.label })), value: S.range, onChange: (v) => { if (isRange(v)) { S.range = v; P.save(); repaintWindow(); void loadFull().then(fullLoop); } } });
+  const rangeSeg = segmented({ label: t("live.range_label"), options: RANGES.map((r) => ({ value: r.key, label: r.label })), value: S.range, onChange: (v) => { if (isRange(v)) { S.range = v; P.save(); repaintWindow(); void loadFull().then(fullLoop); } } });
   rangeSeg.el.classList.add("lv-range");
   const markerLegend = h("div", { class: "marker-legend lv-mk", hidden: true });
   const chartBody = h("div", { class: "lv-chart-body" });
-  const chartCard = h("section", { class: "card lv-chart", "aria-label": "График капитала" },
-    h("header", { class: "card-head" }, h("h3", { text: "Кошелёк счёта" }), rangeSeg.el), chartBody, markerLegend);
+  const chartCard = h("section", { class: "card lv-chart", "aria-label": t("live.chart_aria") },
+    h("header", { class: "card-head" }, h("h3", { text: t("live.wallet") }), rangeSeg.el), chartBody, markerLegend);
 
   function updateChart(s: LiveSnapshot) {
     const eqAll = parseSeries(s.equity_history);
@@ -98,7 +98,7 @@ export function createLive(meta: Meta): Tab {
     const eq = win.series;
     if (!eq.length) {
       chart?.destroy(); chart = null;
-      chartBody.replaceChildren(emptyState("История капитала пока пуста", "График появится, когда бот запишет первые точки.", null, { icon: "chart" }));
+      chartBody.replaceChildren(emptyState(t("live.chart_empty_t"), t("live.chart_empty_h"), null, { icon: "chart" }));
       markerLegend.hidden = true;
       return;
     }
@@ -107,25 +107,25 @@ export function createLive(meta: Meta): Tab {
     const a = alignSeries([{ t: stride(eq.map(sec)), v: stride(eq.map((p) => p.v)) }]);
     chart ??= lineChart(chartHost, {
       height: 300, yFmt: (v) => num(v, v >= 1000 ? 0 : 2),
-      series: [{ label: "Капитал", color: "--c1", width: 2, fmt: (v) => usd(v) }],
+      series: [{ label: t("live.equity"), color: "--c1", width: 2, fmt: (v) => usd(v) }],
     });
     chart.setData(a.x, a.ys);
     const mk = tradeMarkers(s.trades, eq, win.start);
     chart.setMarkers(mk);
     markerLegend.hidden = !mk.length;
     markerLegend.replaceChildren(
-      h("span", { class: "lg-item" }, h("i", { class: "mk up", "aria-hidden": "true" }), "Покупка (ордер)"),
-      h("span", { class: "lg-item" }, h("i", { class: "mk down", "aria-hidden": "true" }), "Продажа (ордер)"),
-      h("span", { class: "muted small", text: `${mk.length} в выбранном окне${win.source === "stats" ? " (из последних ордеров снимка)" : ""} · цвет маркера — покупка/продажа, не прибыль и не лонг/шорт` }));
+      h("span", { class: "lg-item" }, h("i", { class: "mk up", "aria-hidden": "true" }), t("live.legend_buy")),
+      h("span", { class: "lg-item" }, h("i", { class: "mk down", "aria-hidden": "true" }), t("live.legend_sell")),
+      h("span", { class: "muted small", text: t("live.markers_note", { n: mk.length, src: win.source === "stats" ? t("live.markers_src") : "" }) }));
   }
 
   // ---------- события
-  const evSeg = segmented({ label: "Фильтр событий", options: [{ value: "all", label: "Все" }, { value: "alerts", label: "Предупреждения и ошибки" }, { value: "trades", label: "Сделки" }], value: S.ev, onChange: (v) => { if (isEventFilter(v)) { S.ev = v; P.save(); if (lastSnap) paintEvents(lastSnap); } } });
+  const evSeg = segmented({ label: t("live.ev_filter"), options: [{ value: "all", label: t("live.ev_all") }, { value: "alerts", label: t("live.ev_alerts") }, { value: "trades", label: t("live.ev_trades") }], value: S.ev, onChange: (v) => { if (isEventFilter(v)) { S.ev = v; P.save(); if (lastSnap) paintEvents(lastSnap); } } });
   evSeg.el.classList.add("lv-range", "lv-evseg");
   const evHost = h("div", { class: "lv-ev-host" });
   const evCount = h("span", { class: "muted small" });
-  const eventsCard = h("section", { class: "card lv-events", "aria-label": "События" },
-    h("header", { class: "card-head" }, h("h3", { text: "События" }), evCount), evSeg.el, evHost);
+  const eventsCard = h("section", { class: "card lv-events", "aria-label": t("live.events") },
+    h("header", { class: "card-head" }, h("h3", { text: t("live.events") }), evCount), evSeg.el, evHost);
   function paintEvents(s: LiveSnapshot) {
     patchSection(evHost, eventsList(s.events, S.ev));
     evCount.textContent = eventsCountText(s.events, S.ev);
@@ -247,7 +247,7 @@ export function createLive(meta: Meta): Tab {
       // тот же снимок — ничего не перерисовываем («N мин назад» и отсчёты ведёт тикер, а не повторная отрисовка)
       const sig = JSON.stringify(s);
       if (sig !== lastJson) { lastJson = sig; render(s); }
-      lastFetch.textContent = `обновлено ${clockUtc(Date.now())} · авто каждые 10 с`;
+      lastFetch.textContent = t("live.updated", { time: clockUtc(Date.now()) });
     } catch (e) {
       if (c.signal.aborted) return;
       lastJson = "";

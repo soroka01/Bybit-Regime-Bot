@@ -1,4 +1,5 @@
 // Вкладка «Статистика»: суммы в долларах по закрытым сделкам, итоги окна, результат сделки (чистая логика).
+import { t } from "../i18n";
 import type { Num, StatsResponse, StatsTradeRow } from "../types";
 import { isNum as ok, spctU, susd, toneOf } from "../ui/fmt";
 
@@ -16,9 +17,9 @@ export function moneySummary(rows: readonly StatsTradeRow[]): MoneySummary {
 }
 
 /** «Закрыто 3: заработано +12,00 $, потеряно −4,00 $, итого +8,00 $»; без сделок — «Закрытых сделок нет». */
-export function moneyLine(s: MoneySummary, label = "Закрыто"): string {
-  if (!s.count) return "Закрытых сделок нет";
-  return `${label} ${s.count}: заработано ${susd(s.profit)}, потеряно ${susd(s.loss)}, итого ${susd(s.net)}`;
+export function moneyLine(s: MoneySummary, label = t("stats.money.closed")): string {
+  if (!s.count) return t("stats.money.none");
+  return t("stats.money.line", { label, n: s.count, profit: susd(s.profit), loss: susd(s.loss), net: susd(s.net) });
 }
 
 /**
@@ -33,7 +34,7 @@ export function periodSummary(r: StatsResponse | null | undefined): MoneySummary
 
 /** Результат сделки: доллары (главное) и «% счёта» (ret_account_pct) — вместе. Нет кошелька на входе — «% счёта: —». */
 export function resultText(net: Num | undefined, accountPct: Num | undefined): { usd: string; pct: string; tone: "pos" | "neg" | "" } {
-  return { usd: susd(net), pct: ok(accountPct) ? `${spctU(accountPct, 2)} счёта` : "% счёта: —", tone: toneOf(net, 0.005) };
+  return { usd: susd(net), pct: ok(accountPct) ? t("stats.money.of_account", { v: spctU(accountPct, 2) }) : t("stats.money.account_na"), tone: toneOf(net, 0.005) };
 }
 
 /** Нереализованный результат открытой позиции в % кошелька сейчас (проценты — в «процентных» единицах ответа); null — нет данных. */

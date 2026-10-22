@@ -1,6 +1,8 @@
 // Вкладка «Лаборатория»: одна стратегия, слайдеры параметров, пересчёт «на лету».
 import { api } from "../api";
 import { SWEEP_METRICS } from "../charts/heatmap";
+import { t } from "../i18n";
+import { strategyDesc } from "../i18n/serverText";
 import { MAX_LEVERAGE } from "../leverage";
 import { effLeverage, effLongOnly, isMarket, MARKET_OPTIONS, marketNote, marketUi, SPOT_LONG_NOTE, switchMarket } from "../market";
 import { onMetaChange } from "../meta";
@@ -95,7 +97,7 @@ export function createLab(meta: Meta): Tab {
     delay: 250,
     run: (b, sig) => api.backtest(b, sig),
     onStart: () => result.setBusy(true),
-    onRetry: (k, max) => result.setBusy(true, `Сервер занят, жду… попытка ${k}/${max}`),
+    onRetry: (k, max) => result.setBusy(true, t("lab.busyRetry", { k, max })),
     onData: (r, b) => {
       last = r;
       result.setBusy(false);
@@ -122,27 +124,27 @@ export function createLab(meta: Meta): Tab {
   const tfHint = h("p", { class: "muted small lab-tfhint" });
   const updateAvail = () => {
     const ok = meta.available[S.symbol]?.includes(S.tf);
-    availNote.textContent = ok ? "" : `Нет локальных данных ${S.symbol} ${S.tf}. Расчёт предложит загрузить их явно.`;
+    availNote.textContent = ok ? "" : t("lab.availNote", { symbol: S.symbol, tf: S.tf });
     availNote.hidden = !!ok;
     tfHint.textContent = (meta.timeframe_minutes[S.tf] ?? 60) < 15
-      ? "на коротких свечах комиссии съедают сигналы; параметры в свечах, а не в минутах" : "";
+      ? t("lab.tfHint") : "";
   };
   const symbolSel = select({
-    label: "Инструмент", value: S.symbol,
+    label: t("lab.symbol"), value: S.symbol,
     options: meta.symbols.map((s) => ({ value: s, label: s })),
     onChange: (v) => { S.symbol = v; updateAvail(); sweep.clear(); trigger(); notifyContext(); },
   });
   const tfSel = select({
-    label: "Таймфрейм", value: S.tf,
-    options: meta.timeframes.map((t) => ({ value: t, label: t })),
+    label: t("lab.timeframe"), value: S.tf,
+    options: meta.timeframes.map((tf) => ({ value: tf, label: tf })),
     onChange: (v) => { S.tf = v; applyCap(); updateAvail(); sweep.clear(); trigger(); notifyContext(); },
   });
 
   // ---------- панель: стратегия (поиск + карточка описания + параметры)
-  const comboItems = meta.strategies.map((s) => ({ value: s.name, label: s.name, desc: s.desc, tag: s.derivative ? "деривативы" : undefined }));
+  const comboItems = meta.strategies.map((s) => ({ value: s.name, label: s.name, desc: strategyDesc(s.name, s.desc), tag: s.derivative ? t("lab.derivTag") : undefined }));
   const comboList = comboItems.map((it) => ({ name: it.label, desc: it.desc ?? "", derivative: !!it.tag, it }));
   const stratSel = combobox({
-    label: "Стратегия", value: S.strategy, items: comboItems,
+    label: t("lab.strategy"), value: S.strategy, items: comboItems,
     filter: (_items, q) => filterStrategies(comboList, q).map((x) => x.it),
     onChange: (v) => { S.strategy = v; renderParams(); sweep.clear(); sweep.fillAxes(); updateMarketNotes(); trigger(); },
   });
@@ -152,23 +154,23 @@ export function createLab(meta: Meta): Tab {
   const desc = h("div", { class: "strat-desc" }, h("div", { class: "sd-top" }, descName, descTag), descText);
   const paramBox = h("div", { class: "params" });
   const paramsAllDef = h("button", {
-    class: "btn ghost sm", type: "button", hidden: true, "data-tip": "Вернуть все параметры к значениям по умолчанию", "data-tip-pos": "left",
+    class: "btn ghost sm", type: "button", hidden: true, "data-tip": t("lab.paramsResetAllTip"), "data-tip-pos": "left",
     onClick: () => { delete S.params[strat().name]; renderParams(); trigger(); },
-  }, icon("reset", 13), "все по умолч.");
-  const paramsHead = h("div", { class: "params-head" }, h("span", { class: "section-label", text: "Параметры" }), paramsAllDef);
+  }, icon("reset", 13), t("lab.paramsResetAll"));
+  const paramsHead = h("div", { class: "params-head" }, h("span", { class: "section-label", text: t("lab.params") }), paramsAllDef);
   const sliders = new Map<string, Control<number>>();
 
   function renderParams() {
     const st = strat();
     descName.textContent = st.name;
-    descText.textContent = st.desc;
-    descTag.replaceChildren(...(st.derivative ? [badge("деривативы", "info", { title: "Сигналы используют данные фандинга, открытого интереса или long/short ratio" })] : []));
+    descText.textContent = strategyDesc(st.name, st.desc);
+    descTag.replaceChildren(...(st.derivative ? [badge(t("lab.derivTag"), "info", { title: t("lab.derivTagTip") })] : []));
     sliders.clear();
     paramBox.replaceChildren(...Object.entries(st.params).map(([name, sp]) => {
       const cur = clamp(S.params[st.name]?.[name] ?? sp.default, sp.min, sp.max);   // устаревшее сохранённое значение не расширяет диапазон
       const c = slider({
         label: name, min: sp.min, max: sp.max, step: sp.step, value: cur, def: sp.default,
-        hint: `сетка исследования: ${sp.grid.join(", ")}`,
+        hint: t("lab.paramGrid", { grid: sp.grid.join(", ") }),
         onInput: (v) => { (S.params[st.name] ??= {})[name] = v; trigger(); },
       });
       sliders.set(name, c);
@@ -178,7 +180,7 @@ export function createLab(meta: Meta): Tab {
   }
 
   const daysSeg = segmented({
-    label: "Период", options: DAY_OPTIONS, value: String(S.days),
+    label: t("lab.period"), options: DAY_OPTIONS, value: String(S.days),
     onChange: (v) => { S.days = +v; trigger(); },
   });
   /** Период не длиннее истории таймфрейма: недоступные кнопки серые с подсказкой, текущее значение подгоняется. */
@@ -190,12 +192,12 @@ export function createLab(meta: Meta): Tab {
   applyCap();
 
   // ---------- панель: издержки, плечо, оверлеи
-  const feeS = slider({ label: "Комиссия", min: 0, max: 0.3, step: 0.005, value: S.fee, unit: "%", onInput: (v) => { S.fee = v; S.feeTouched = true; trigger(); } });
-  const slipS = slider({ label: "Проскальзывание", min: 0, max: 0.3, step: 0.005, value: S.slip, unit: "%", onInput: (v) => { S.slip = v; trigger(); } });
+  const feeS = slider({ label: t("lab.fee"), min: 0, max: 0.3, step: 0.005, value: S.fee, unit: "%", onInput: (v) => { S.fee = v; S.feeTouched = true; trigger(); } });
+  const slipS = slider({ label: t("lab.slip"), min: 0, max: 0.3, step: 0.005, value: S.slip, unit: "%", onInput: (v) => { S.slip = v; trigger(); } });
   const levS = leverageControl({ value: S.leverage, botNote: true, onInput: (v) => { S.leverage = v; trigger(); } });
-  const longT = toggle({ label: "Только лонг", checked: S.longOnly, onChange: (v) => { S.longOnly = v; trigger(); } });
+  const longT = toggle({ label: t("lab.longOnly"), checked: S.longOnly, onChange: (v) => { S.longOnly = v; trigger(); } });
   const marketSeg = segmented({
-    label: "Рынок", options: MARKET_OPTIONS, value: S.market,
+    label: t("lab.market"), options: MARKET_OPTIONS, value: S.market,
     onChange: (v) => {
       if (!isMarket(v)) return;
       if (switchMarket(S, v)) feeS.set(S.fee);     // комиссия переходит на умолчание рынка, если её не правили
@@ -216,9 +218,9 @@ export function createLab(meta: Meta): Tab {
     updateSummaries();
   }
   function updateMarketNotes() { marketNoteEl.textContent = marketNote(S.market, strat().derivative); }
-  const htfT = toggle({ label: "HTF-фильтр (дневная EMA)", checked: S.htfOn, hint: "Лонги только выше дневной EMA(n), шорты — ниже", onChange: (v) => { S.htfOn = v; trigger(); } });
-  const htfS = slider({ label: "EMA n (дней)", min: 10, max: 200, step: 1, value: S.htf, onInput: (v) => { S.htf = v; if (S.htfOn) trigger(); else { P.save(); updateSummaries(); } } });
-  const stopT = toggle({ label: "ATR-стоп (трейлинг)", checked: S.stopOn, hint: "Выход при откате от экстремума на k × ATR", onChange: (v) => { S.stopOn = v; trigger(); } });
+  const htfT = toggle({ label: t("lab.htf"), checked: S.htfOn, hint: t("lab.htf.hint"), onChange: (v) => { S.htfOn = v; trigger(); } });
+  const htfS = slider({ label: t("lab.htf.n"), min: 10, max: 200, step: 1, value: S.htf, onInput: (v) => { S.htf = v; if (S.htfOn) trigger(); else { P.save(); updateSummaries(); } } });
+  const stopT = toggle({ label: t("lab.stop"), checked: S.stopOn, hint: t("lab.stop.hint"), onChange: (v) => { S.stopOn = v; trigger(); } });
   const stopS = slider({ label: "k × ATR", min: 0.5, max: 10, step: 0.1, value: S.stop, onInput: (v) => { S.stop = v; if (S.stopOn) trigger(); else { P.save(); updateSummaries(); } } });
 
   // ---------- нижняя «липкая» панель действий
@@ -229,12 +231,12 @@ export function createLab(meta: Meta): Tab {
       feePct: S.fee, slipPct: S.slip, days: b.days, overlays: b.overlays, result: res,
     });
   };
-  const copyBtn = copyButton("Копировать для бота", () => copyPayload(body().params, metricsLine(last)));
-  copyBtn.title = "Стратегия, таймфрейм, параметры, плечо и Leg(...) для бота — в буфер обмена";
-  const sendBtn = sendButton("В бота", () => copyPayload(body().params, metricsLine(last)));
+  const copyBtn = copyButton(t("lab.copyBot"), () => copyPayload(body().params, metricsLine(last)));
+  copyBtn.title = t("lab.copyBotTip");
+  const sendBtn = sendButton(t("lab.sendBot"), () => copyPayload(body().params, metricsLine(last)));
   const optBtn = h("button", {
     class: "btn primary lg", type: "button",
-    title: "Подбирает только параметры стратегии; остальное — как сейчас выбрано",
+    title: t("lab.optimizeTip"),
     onClick: () => {
       const st = strat();
       openOptimize({
@@ -256,9 +258,9 @@ export function createLab(meta: Meta): Tab {
         copyText: (row) => copyPayload(row.params, `OOS: ${metricsOf(row.oos)}`),
       });
     },
-  }, icon("target", 15), "Подобрать параметры");
+  }, icon("target", 15), t("lab.optimize"));
   const resetBtn = h("button", {
-    class: "btn ghost", type: "button", text: "Сбросить", title: "Сбросить все настройки Лаборатории к значениям по умолчанию",
+    class: "btn ghost", type: "button", text: t("lab.reset"), title: t("lab.resetTip"),
     onClick: () => { P.reset(); location.reload(); },
   });
   const bar = h("div", { class: "panel-bar" }, optBtn, h("div", { class: "pb-row" }, copyBtn, sendBtn, resetBtn));
@@ -275,11 +277,11 @@ export function createLab(meta: Meta): Tab {
   });
 
   // ---------- секции панели
-  const secMarket = panelSection({ key: "lab.market", icon: "candles", title: "Рынок", summary: "", open: true, body: [marketSeg.el, marketNoteEl, symbolSel.el, tfSel.el, tfHint, availNote, daysSeg.el] });
-  const secStrat = panelSection({ key: "lab.strategy", icon: "flask", title: "Стратегия", summary: "", open: true, body: [stratSel.el, desc, paramsHead, paramBox] });
-  const secCosts = panelSection({ key: "lab.costs", icon: "percent", title: "Издержки и риск", summary: "", body: [feeS.el, slipS.el, longT.el] });
-  const secLev = panelSection({ key: "lab.leverage", icon: "gauge", title: "Плечо", summary: "", body: [levS.el] });
-  const secOver = panelSection({ key: "lab.overlays", icon: "layers", title: "Оверлеи", summary: "", body: [htfT.el, htfS.el, stopT.el, stopS.el] });
+  const secMarket = panelSection({ key: "lab.market", icon: "candles", title: t("lab.market"), summary: "", open: true, body: [marketSeg.el, marketNoteEl, symbolSel.el, tfSel.el, tfHint, availNote, daysSeg.el] });
+  const secStrat = panelSection({ key: "lab.strategy", icon: "flask", title: t("lab.strategy"), summary: "", open: true, body: [stratSel.el, desc, paramsHead, paramBox] });
+  const secCosts = panelSection({ key: "lab.costs", icon: "percent", title: t("lab.sec.costs"), summary: "", body: [feeS.el, slipS.el, longT.el] });
+  const secLev = panelSection({ key: "lab.leverage", icon: "gauge", title: t("lab.sec.leverage"), summary: "", body: [levS.el] });
+  const secOver = panelSection({ key: "lab.overlays", icon: "layers", title: t("lab.sec.overlays"), summary: "", body: [htfT.el, htfS.el, stopT.el, stopS.el] });
   /** Однострочные сводки свёрнутых секций. */
   function updateSummaries() {
     const st = strat();
@@ -293,7 +295,7 @@ export function createLab(meta: Meta): Tab {
   }
 
   const ly = panelLayout([secMarket.el, secStrat.el, secCosts.el, secLev.el, secOver.el], [result.el, sweep.el], {
-    head: pageHead("Лаборатория", "Один бэктест на локальных свечах: двигайте параметры — результат пересчитывается сам. «Подобрать параметры» честно делит период на IS и OOS."),
+    head: pageHead(t("lab.title"), t("lab.intro", { btn: t("lab.optimize") })),
     bar,
   });
 

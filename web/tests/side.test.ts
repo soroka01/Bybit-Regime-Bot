@@ -3,6 +3,7 @@
 // Плашка статуса бота в шапке: среды и режима запуска на сайте нет (бот работает только на основной сети).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveSnapshot } from "../src/types";
+import { RU } from "../src/i18n/messages";
 import { orderBadge, SIDE_GLYPH, SIDE_WORD, sideBadge } from "../src/ui/side";
 
 // Чтение исходников: vitest подменяет импорты .css пустышкой, а типов node в проекте нет — берём fs через process.getBuiltinModule (cwd = web/).
@@ -66,18 +67,27 @@ describe("CSS: --pos/--neg/--long/--short не красят сторону", () 
   });
 });
 
-describe("исходники: сторона не красится цветами P/L", () => {
-  const files = [
-    "tabs/liveHero.ts", "tabs/livePosition.ts", "tabs/liveSignals.ts", "tabs/liveRisk.ts", "tabs/liveTrades.ts", "tabs/liveEvents.ts",
-    "tabs/statsView.ts", "tabs/statsTrades.ts", "ui/botStatus.ts", "ui/side.ts",
-  ];
-  const raw = { ...readTree("src/tabs", ".ts", "tabs/"), ...readTree("src/ui", ".ts", "ui/") };
-  it("нет «LONG/SHORT» латиницей в тексте интерфейса", () => {
-    for (const f of files) {
-      const src = raw[f];
-      expect(src, f).toBeTruthy();
-      expect(src, f).not.toMatch(/"LONG"|"SHORT"|\? "LONG|\? "SHORT/);
-    }
+describe("слова стороны: русский интерфейс без латиницы LONG/SHORT, английский — с ней", () => {
+  const LATIN = /(LONG|SHORT)/;
+  afterEach(async () => { vi.resetModules(); (await import("../src/i18n")).__setLang("ru"); });     // importEn пересобирает граф модулей на en: следующие тесты файла снова на ru
+  it("ru: в русском словаре нигде нет «LONG/SHORT» латиницей, слова ЛОНГ/ШОРТ на месте", () => {
+    const bad = Object.entries(RU).filter(([, m]) => (typeof m === "string" ? [m] : Array.isArray(m) ? m : Object.values(m)).some((x) => LATIN.test(x))).map(([k]) => k);
+    expect(bad).toEqual([]);
+    expect(RU["live.side_long"]).toBe("ЛОНГ");
+    expect(RU["live.side_short"]).toBe("ШОРТ");
+    expect(RU["live.order_buy"]).toBe("Покупка");
+    expect(`${sideBadge("long").textContent}${sideBadge("short").textContent}${orderBadge(true).title}${sideBadge("short").title}`).not.toMatch(LATIN);   // вывод ru (язык тестов)
+  });
+  it("en: LONG/SHORT и Buy/Sell; цветовая семантика та же (классы и значки не зависят от языка)", async () => {
+    const { importEn } = await import("./enHelpers");
+    const en = await importEn(() => import("../src/ui/side"));
+    expect(en.SIDE_WORD).toEqual({ long: "LONG", short: "SHORT" });
+    expect(en.sideBadge("long").textContent).toBe("△LONG");
+    expect(en.sideBadge("short").title).toBe("Short: a position on falling price");
+    expect(en.orderBadge(true).textContent).toBe("△Buy");
+    expect(en.orderBadge(false).textContent).toBe("▽Sell");
+    expect(en.orderBadge(false).className).toBe("side-badge order sell");
+    expect(en.orderBadge(false).title).toBe("Sell (sell order)");
   });
 });
 

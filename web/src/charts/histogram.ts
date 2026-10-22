@@ -1,5 +1,6 @@
 // Гистограмма (SVG): распределение доходностей сделок. Столбцы по корзинам, цвет по знаку корзины (--neg / --pos; корзина, содержащая 0, — нейтральная --ref),
 // пунктирная линия нуля, подписи концов корзин по оси X, подсказка по hover/focus. Модель корзин — charts/histModel.ts: histModel (чистая функция).
+import { t } from "../i18n";
 import { cssVar, h, observeWidth, svg } from "../ui/dom";
 import { int, num, pct } from "../ui/fmt";
 import { niceScale } from "./scale";
@@ -7,7 +8,7 @@ import { chartTip } from "./tooltip";
 import type { HistModel } from "./histModel";
 
 const TONE_VAR = { neg: "--neg", pos: "--pos", mixed: "--ref" } as const;
-const TONE_WORD = { neg: "убыток", pos: "прибыль", mixed: "содержит 0" } as const;
+const TONE_WORD = { neg: t("charts.loss"), pos: t("charts.profit"), mixed: t("charts.contains_zero") } as const;
 
 export function histogramChart(host: HTMLElement, getModel: () => HistModel | null, o: { height?: number; unit?: string } = {}): { redraw(): void; destroy(): void } {
   let width = 0;
@@ -17,7 +18,7 @@ export function histogramChart(host: HTMLElement, getModel: () => HistModel | nu
     const m = getModel();
     tip.hide();
     if (!m || !m.total) {
-      host.replaceChildren(h("p", { class: "muted small", text: "Нет сделок для гистограммы" }));
+      host.replaceChildren(h("p", { class: "muted small", text: t("charts.hist.empty") }));
       return;
     }
     const H = o.height ?? 220, W = Math.max(width, 260);
@@ -26,7 +27,7 @@ export function histogramChart(host: HTMLElement, getModel: () => HistModel | nu
     const x = (v: number) => padL + ((v - m.min) / (m.max - m.min || 1)) * (W - padL - padR);
     const y = (c: number) => padT + ((hi - c) / (hi || 1)) * (H - padT - padB);
     const grid = cssVar("--grid"), muted = cssVar("--fg-muted"), axis = cssVar("--axis"), fg = cssVar("--fg");
-    const root = svg("svg", { class: "hist", viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img", "aria-label": "Гистограмма доходностей сделок" });
+    const root = svg("svg", { class: "hist", viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img", "aria-label": t("charts.hist.aria") });
     root.style.fontFamily = cssVar("--font-ui");
     for (const t of ticks) {
       if (!Number.isInteger(t)) continue;
@@ -39,13 +40,13 @@ export function histogramChart(host: HTMLElement, getModel: () => HistModel | nu
       const col = toneCol[b.tone];
       const x0 = x(b.lo) + 1, w = Math.max(2, x(b.hi) - x(b.lo) - 2);
       const top = y(b.count), hgt = Math.max(b.count > 0 ? 1.5 : 0, y(0) - top);
-      const label = `${b.label}: ${int(b.count)} сделок (${pct(b.share, 0)}), ${TONE_WORD[b.tone]}`;
+      const label = t("charts.hist.bin_aria", { n: b.count, label: b.label, count: int(b.count), share: pct(b.share, 0), tone: TONE_WORD[b.tone] });
       const g = svg("g", { class: "hbar", tabindex: b.count ? 0 : -1, role: "img", "aria-label": label });
       g.append(svg("rect", { x: x0, y: 0, width: w, height: H - padB, fill: "transparent" }));      // широкая зона наведения
       if (b.count) g.append(svg("path", { d: roundTop(x0, top, w, hgt, Math.min(4, w / 2)), fill: col }));
       const show = () => {
         const hr = host.getBoundingClientRect(), r = g.getBoundingClientRect();
-        tip.show({ title: b.label, rows: [{ label: "Сделок", value: `${int(b.count)} · ${pct(b.share, 0)}`, color: col, box: true }], note: TONE_WORD[b.tone] }, r.left - hr.left + r.width / 2, r.top - hr.top + Math.min(r.height / 2, 40));
+        tip.show({ title: b.label, rows: [{ label: t("charts.trades"), value: `${int(b.count)} · ${pct(b.share, 0)}`, color: col, box: true }], note: TONE_WORD[b.tone] }, r.left - hr.left + r.width / 2, r.top - hr.top + Math.min(r.height / 2, 40));
       };
       g.addEventListener("pointermove", show);
       g.addEventListener("focus", show);
@@ -69,7 +70,7 @@ export function histogramChart(host: HTMLElement, getModel: () => HistModel | nu
       const anchor = i === 0 ? "start" : i === edges.length - 1 ? "end" : "middle";     // крайние подписи не вылезают за SVG
       root.append(Object.assign(svg("text", { x: x(e), y: H - padB + 16, "text-anchor": anchor, fill: muted, "font-size": 11 }), { textContent: num(e, d) }));
     });
-    root.append(Object.assign(svg("text", { x: (padL + W - padR) / 2, y: H - 6, "text-anchor": "middle", fill: muted, "font-size": 11 }), { textContent: `доходность сделки, ${unit}` }));
+    root.append(Object.assign(svg("text", { x: (padL + W - padR) / 2, y: H - 6, "text-anchor": "middle", fill: muted, "font-size": 11 }), { textContent: t("charts.hist.x_label", { unit }) }));
     host.replaceChildren(root, tip.el);
   };
   const stop = observeWidth(host, (w) => { if (w > 0 && Math.abs(w - width) > 1) { width = w; draw(); } });

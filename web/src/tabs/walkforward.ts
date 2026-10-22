@@ -1,5 +1,6 @@
 // Вкладка «Walk-forward»: сводка, таблица вариантов с оценкой, OOS-кривые выбранных, доходность по тестовым окнам.
 import { api, asApiError } from "../api";
+import { t } from "../i18n";
 import { alignSeries } from "../charts/align";
 import { barChart } from "../charts/bars";
 import { lineChart, type LineChart } from "../charts/line";
@@ -51,21 +52,21 @@ export function createWalkForward(meta: Meta): Tab {
   let loadSeq = 0;
 
   const status = h("div", { class: "banner-slot" });
-  const how = disclosure("Как читать эти результаты", [
-    h("p", { text: "Walk-forward: параметры подбираются на 12 месяцах, затем торгуются 3 месяца «вслепую» (out-of-sample). Кривая — склейка таких кусков." }),
+  const how = disclosure(t("portfolio.wf.how.title"), [
+    h("p", { text: t("portfolio.wf.how.p1") }),
     h("ul", null,
-      h("li", { text: "Выборка OOS короткая (≈ 2 года, 8 окон): доверительные интервалы очень широкие, один удачный квартал способен перевесить всё остальное." }),
-      h("li", { text: "В таблице сотни вариантов (стратегия × таймфрейм × надстройка). Лучшие из них отобраны по результату на тех же данных — это смещение отбора (best-of-many): ожидайте меньше, чем показывает топ списка." }),
-      h("li", { text: "Прошлый результат не гарантирует будущий. Плечо усиливает и прибыль, и риск ликвидации; комиссии и проскальзывание учтены приблизительно." }),
-      h("li", { text: "Высокое плечо (10× и выше): ликвидация по модели с поддерживающей маржой 0,5 % срабатывает при небольшом ходе против позиции и обнуляет капитал свечи (−100 %), поэтому у таких вариантов видны просадки до −100 % и кривые, упавшие в ноль. Счётчик «Ликвид.» скрипт walk-forward пока не заполняет — ориентируйтесь на просадку." })),
-    h("p", { class: "small", text: "Оценка в таблице — быстрая сводка по строке, не серверный вердикт: «убыточен» — OOS не в плюсе; «мало сделок» — меньше 30; «стабилен» — не меньше 60 % прибыльных окон и средний месяц > 0; иначе «нестабилен»." }),
-  ], { key: "wf.how", defaultOpen: window.innerWidth >= 900, badge: "смещение отбора" });
+      h("li", { text: t("portfolio.wf.how.li1") }),
+      h("li", { text: t("portfolio.wf.how.li2") }),
+      h("li", { text: t("portfolio.wf.how.li3") }),
+      h("li", { text: t("portfolio.wf.how.li4") })),
+    h("p", { class: "small", text: t("portfolio.wf.how.rating") }),
+  ], { key: "wf.how", defaultOpen: window.innerWidth >= 900, badge: t("portfolio.wf.how.badge") });
   how.classList.add("wf-how");
 
   // ---------- сводка
   const summary = h("div", { class: "wf-summary", "aria-live": "polite" });
   const levSeg = segmented({
-    label: "Плечо", value: String(S.lev),
+    label: t("portfolio.wf.leverage"), value: String(S.lev),
     options: levs.map((l) => ({ value: String(l), label: `${l}×` })),     // список плеч — с сервера (какие файлы wf_*_lev*.csv есть)
     onChange: (v) => { S.lev = +v; P.save(); load(); },
   });
@@ -73,29 +74,29 @@ export function createWalkForward(meta: Meta): Tab {
     h("div", { class: "metric wf-tile" }, h("div", { class: "metric-top" }, h("div", { class: "metric-label", text: label })),
       h("div", { class: "metric-value wf-v", text: value }), h("div", { class: "metric-sub" }, ...(Array.isArray(sub) ? sub : [sub])), extra ?? null);
 
-  const clearSel = h("button", { class: "btn ghost sm", type: "button", onClick: () => { S.selected = []; P.save(); table.refresh(); renderSelection(); paintSummary(); } }, icon("x", 12), "снять");
+  const clearSel = h("button", { class: "btn ghost sm", type: "button", onClick: () => { S.selected = []; P.save(); table.refresh(); renderSelection(); paintSummary(); } }, icon("x", 12), t("portfolio.wf.clear"));
   function paintSummary() {
     if (!rows.length) { summary.replaceChildren(); return; }
     const span = windowSpan(windows);
-    const filters = [S.tf && `ТФ ${S.tf}`, S.strategy, S.variant, S.minTrades > 0 && `≥ ${S.minTrades} сделок`, S.q.trim() && `«${S.q.trim()}»`].filter(Boolean) as string[];
+    const filters = [S.tf && t("portfolio.wf.f.tf", { tf: S.tf }), S.strategy, S.variant, S.minTrades > 0 && t("portfolio.wf.f.min_trades", { n: S.minTrades }), S.q.trim() && t("portfolio.wf.f.query", { q: S.q.trim() })].filter(Boolean) as string[];
     const best = [...filtered].filter((r) => r.total_return != null).sort((a, b) => (b.total_return ?? 0) - (a.total_return ?? 0))[0];
     summary.replaceChildren(
-      h("div", { class: "metric wf-tile wf-lev" }, h("div", { class: "metric-top" }, h("div", { class: "metric-label", text: "Плечо" })), levSeg.el, h("div", { class: "metric-sub", text: `символ ${WF_SYMBOL}` })),
-      tile("Вариантов", `${int(filtered.length)}`, filters.length ? `из ${int(rows.length)} · фильтр: ${filters.join(" · ")}` : `из ${int(rows.length)} · без фильтров`),
-      tile("Тестовых окон", span ? String(span.count) : "—", span ? `с ${date(span.first)} · по 3 месяца каждое (последнее с ${date(span.lastStart)})` : "нет данных об окнах"),
-      tile("Выбрано кривых", `${S.selected.length} / ${MAX_SEL}`, S.selected.length ? [] : "клик по строке таблицы", S.selected.length ? clearSel : null),
-      ...(best ? [tile("Лучший по OOS", spct(best.total_return, 0), [h("span", { class: "wf-best-name", text: labelOf(best), title: "Отобран по результату на тех же данных — смещение отбора" })])] : []));
+      h("div", { class: "metric wf-tile wf-lev" }, h("div", { class: "metric-top" }, h("div", { class: "metric-label", text: t("portfolio.wf.leverage") })), levSeg.el, h("div", { class: "metric-sub", text: t("portfolio.wf.symbol", { symbol: WF_SYMBOL }) })),
+      tile(t("portfolio.wf.tile.variants"), `${int(filtered.length)}`, filters.length ? t("portfolio.wf.tile.variants_filtered", { total: int(rows.length), filters: filters.join(" · ") }) : t("portfolio.wf.tile.variants_all", { total: int(rows.length) })),
+      tile(t("portfolio.wf.tile.windows"), span ? String(span.count) : "—", span ? t("portfolio.wf.tile.windows_sub", { first: date(span.first), last: date(span.lastStart) }) : t("portfolio.wf.tile.windows_none")),
+      tile(t("portfolio.wf.tile.selected"), `${S.selected.length} / ${MAX_SEL}`, S.selected.length ? [] : t("portfolio.wf.tile.selected_hint"), S.selected.length ? clearSel : null),
+      ...(best ? [tile(t("portfolio.wf.tile.best"), spct(best.total_return, 0), [h("span", { class: "wf-best-name", text: labelOf(best), title: t("portfolio.wf.tile.best_tip") })])] : []));
   }
 
   // ---------- таблица
   const verdictCell = (r: WfRow) => { const v = wfVerdict(r); return badge(v.text, v.tone, { glyph: v.glyph, title: v.hint }); };
   const table = dataTable<WfRow>({
-    caption: "Варианты walk-forward",
+    caption: t("portfolio.wf.table.caption"),
     sort: { key: "total_return", dir: -1 },
     limit: 100,
     rowKey: keyOf,
     isSelected: (r) => S.selected.includes(keyOf(r)),
-    empty: "Нет вариантов под фильтр",
+    empty: t("portfolio.wf.table.empty"),
     onRowClick: (r) => {
       const k = keyOf(r);
       const i = S.selected.indexOf(k);
@@ -108,23 +109,23 @@ export function createWalkForward(meta: Meta): Tab {
       paintSummary();
     },
     columns: [
-      { key: "sel", label: "", align: "left", title: "Цвет кривой выбранного варианта", value: (r) => { const i = S.selected.indexOf(keyOf(r)); return i < 0 ? 99 : i; },
-        node: (r) => { const i = S.selected.indexOf(keyOf(r)); return h("i", { class: `wf-dot${i >= 0 ? " on" : ""}`, style: i >= 0 ? `--k:var(${COLORS[i % COLORS.length]})` : "", "aria-label": i >= 0 ? "выбран" : "не выбран", role: "img" }); } },
-      { key: "tf", label: "ТФ", align: "left", value: (r) => r.tf },
-      { key: "strategy", label: "Стратегия", align: "left", value: (r) => r.strategy },
-      { key: "variant", label: "Вариант", align: "left", value: (r) => r.variant },
-      { key: "verdict", label: "Оценка", align: "left", title: "Быстрая сводка по строке (не серверный вердикт)", value: (r) => VERDICT_ORDER[wfVerdict(r).key] ?? 9, node: verdictCell },
-      { key: "total_return", label: "Доходность OOS", value: (r) => r.total_return, render: (r) => spct(r.total_return, 0), cls: (r) => sgn(r.total_return) },
+      { key: "sel", label: "", align: "left", title: t("portfolio.wf.col.sel"), value: (r) => { const i = S.selected.indexOf(keyOf(r)); return i < 0 ? 99 : i; },
+        node: (r) => { const i = S.selected.indexOf(keyOf(r)); return h("i", { class: `wf-dot${i >= 0 ? " on" : ""}`, style: i >= 0 ? `--k:var(${COLORS[i % COLORS.length]})` : "", "aria-label": i >= 0 ? t("portfolio.wf.col.sel_on") : t("portfolio.wf.col.sel_off"), role: "img" }); } },
+      { key: "tf", label: t("portfolio.wf.col.tf"), align: "left", value: (r) => r.tf },
+      { key: "strategy", label: t("portfolio.wf.col.strategy"), align: "left", value: (r) => r.strategy },
+      { key: "variant", label: t("portfolio.wf.col.variant"), align: "left", value: (r) => r.variant },
+      { key: "verdict", label: t("portfolio.wf.col.rating"), align: "left", title: t("portfolio.wf.col.rating_tip"), value: (r) => VERDICT_ORDER[wfVerdict(r).key] ?? 9, node: verdictCell },
+      { key: "total_return", label: t("portfolio.wf.col.return"), value: (r) => r.total_return, render: (r) => spct(r.total_return, 0), cls: (r) => sgn(r.total_return) },
       { key: "bh", label: "B&H", value: (r) => r.buy_hold_return, render: (r) => spct(r.buy_hold_return, 0), cls: (r) => sgn(r.buy_hold_return) },
-      { key: "max_drawdown", label: "Макс. DD", value: (r) => r.max_drawdown, render: (r) => pct(r.max_drawdown, 0), cls: () => "neg" },
+      { key: "max_drawdown", label: t("portfolio.wf.col.dd"), value: (r) => r.max_drawdown, render: (r) => pct(r.max_drawdown, 0), cls: () => "neg" },
       { key: "sharpe", label: "Sharpe", value: (r) => r.sharpe, render: (r) => num(r.sharpe, 2), cls: (r) => sgn(r.sharpe) },
       { key: "calmar", label: "Calmar", value: (r) => r.calmar, render: (r) => num(r.calmar, 2), cls: (r) => sgn(r.calmar) },
-      { key: "avg_month", label: "Ср. месяц", value: (r) => r.avg_month, render: (r) => spct(r.avg_month, 1), cls: (r) => sgn(r.avg_month) },
-      { key: "m15", label: "Мес. ≥15%", value: (r) => r.months_15plus, render: (r) => pct(r.months_15plus, 0) },
-      { key: "trades", label: "Сделок", value: (r) => r.trades, render: (r) => int(r.trades) },
-      { key: "win", label: "Винрейт", value: (r) => r.win_rate, render: (r) => pct(r.win_rate, 0) },
-      { key: "wpos", label: "Окон > 0", value: (r) => r.windows_positive, render: (r) => pct(r.windows_positive, 0), title: "Доля прибыльных тестовых окон" },
-      { key: "liq", label: "Ликвид.", value: (r) => r.liquidations, render: (r) => int(r.liquidations), cls: (r) => ((r.liquidations ?? 0) > 0 ? "neg" : "") },
+      { key: "avg_month", label: t("portfolio.wf.col.avg_month"), value: (r) => r.avg_month, render: (r) => spct(r.avg_month, 1), cls: (r) => sgn(r.avg_month) },
+      { key: "m15", label: t("portfolio.wf.col.months15"), value: (r) => r.months_15plus, render: (r) => pct(r.months_15plus, 0) },
+      { key: "trades", label: t("portfolio.wf.col.trades"), value: (r) => r.trades, render: (r) => int(r.trades) },
+      { key: "win", label: t("portfolio.wf.col.win"), value: (r) => r.win_rate, render: (r) => pct(r.win_rate, 0) },
+      { key: "wpos", label: t("portfolio.wf.col.wpos"), value: (r) => r.windows_positive, render: (r) => pct(r.windows_positive, 0), title: t("portfolio.wf.col.wpos_tip") },
+      { key: "liq", label: t("portfolio.wf.col.liq"), value: (r) => r.liquidations, render: (r) => int(r.liquidations), cls: (r) => ((r.liquidations ?? 0) > 0 ? "neg" : "") },
     ],
   });
 
@@ -135,28 +136,28 @@ export function createWalkForward(meta: Meta): Tab {
       (!S.tf || r.tf === S.tf) && (!S.strategy || r.strategy === S.strategy) && (!S.variant || r.variant === S.variant) &&
       (r.trades ?? 0) >= S.minTrades && (!q || `${r.strategy} ${r.variant}`.toLowerCase().includes(q)));
     table.setRows(filtered);
-    countNote.textContent = `Показано ${filtered.length} из ${rows.length} вариантов. Клик по строке — добавить или убрать кривую (до ${MAX_SEL}).`;
+    countNote.textContent = t("portfolio.wf.count", { shown: filtered.length, total: rows.length, max: MAX_SEL });
     paintSummary();
   };
 
-  const tfSel = select({ label: "Таймфрейм", value: S.tf, options: [{ value: "", label: "Все" }], onChange: (v) => { S.tf = v; P.save(); applyFilter(); } });
-  const stSel = select({ label: "Стратегия", value: S.strategy, options: [{ value: "", label: "Все" }], onChange: (v) => { S.strategy = v; P.save(); applyFilter(); } });
-  const vaSel = select({ label: "Вариант", value: S.variant, options: [{ value: "", label: "Все" }], onChange: (v) => { S.variant = v; P.save(); applyFilter(); } });
-  const mt = h("input", { type: "number", min: 0, max: 1000, step: 5, value: S.minTrades, class: "num-input", "aria-label": "Минимум сделок" });
+  const tfSel = select({ label: t("portfolio.wf.timeframe"), value: S.tf, options: [{ value: "", label: t("portfolio.wf.all") }], onChange: (v) => { S.tf = v; P.save(); applyFilter(); } });
+  const stSel = select({ label: t("portfolio.wf.strategy"), value: S.strategy, options: [{ value: "", label: t("portfolio.wf.all") }], onChange: (v) => { S.strategy = v; P.save(); applyFilter(); } });
+  const vaSel = select({ label: t("portfolio.wf.variant"), value: S.variant, options: [{ value: "", label: t("portfolio.wf.all") }], onChange: (v) => { S.variant = v; P.save(); applyFilter(); } });
+  const mt = h("input", { type: "number", min: 0, max: 1000, step: 5, value: S.minTrades, class: "num-input", "aria-label": t("portfolio.wf.min_trades_aria") });
   mt.addEventListener("input", () => { S.minTrades = Math.max(0, +mt.value || 0); P.save(); applyFilter(); });
-  const q = h("input", { type: "search", placeholder: "Поиск…", value: S.q, "aria-label": "Поиск по стратегии", class: "search" });
+  const q = h("input", { type: "search", placeholder: t("portfolio.wf.search_ph"), value: S.q, "aria-label": t("portfolio.wf.search_aria"), class: "search" });
   q.addEventListener("input", () => { S.q = q.value; P.save(); applyFilter(); });
 
   const filters = h("div", { class: "filters wf-filters" },
     tfSel.el, stSel.el, vaSel.el,
-    h("div", { class: "field" }, h("div", { class: "field-head" }, h("label", { text: "Мин. сделок" })), mt),
-    h("div", { class: "field" }, h("div", { class: "field-head" }, h("label", { text: "Поиск" })), q));
+    h("div", { class: "field" }, h("div", { class: "field-head" }, h("label", { text: t("portfolio.wf.min_trades") })), mt),
+    h("div", { class: "field" }, h("div", { class: "field-head" }, h("label", { text: t("portfolio.wf.search") })), q));
 
   // ---------- графики выбранных
   const curveHost = h("div", { class: "chart" });
-  const curveEmpty = emptyState("Кривых пока нет", "Выберите строки в таблице выше — здесь появятся OOS-кривые капитала (до 8 вариантов).", null, { icon: "chart" });
+  const curveEmpty = emptyState(t("portfolio.wf.curves_empty.title"), t("portfolio.wf.curves_empty.text"), null, { icon: "chart" });
   let curveChart: LineChart | null = null;
-  const logT = toggle({ label: "лог. шкала", checked: S.log, onChange: (v) => { S.log = v; P.save(); curveChart?.setLog(v); } });
+  const logT = toggle({ label: t("portfolio.wf.log"), checked: S.log, onChange: (v) => { S.log = v; P.save(); curveChart?.setLog(v); } });
   const chipsBox = h("div", { class: "wf-chips" });
 
   const selectedRows = () => S.selected.map((k) => rows.find((r) => keyOf(r) === k)).filter((r): r is WfRow => !!r);
@@ -175,13 +176,13 @@ export function createWalkForward(meta: Meta): Tab {
       fmt: (v) => pct(v, 0), height: 220,
     };
   });
-    const barsEmpty = emptyState("Окна выбранных вариантов появятся здесь", "Выберите строки в таблице: по каждому окну — столбец и ячейка матрицы.", null, { icon: "chart" });
+  const barsEmpty = emptyState(t("portfolio.wf.bars_empty.title"), t("portfolio.wf.bars_empty.text"), null, { icon: "chart" });
   const barsBody = h("div");
 
   function paintChips(sel: WfRow[]) {
     chipsBox.replaceChildren(...sel.map((r, i) => h("span", { class: "wf-chip", style: `--k:var(${COLORS[i % COLORS.length]})` },
       h("i", { class: "wf-dot on", "aria-hidden": "true" }), h("span", { text: labelOf(r) }),
-      h("button", { type: "button", class: "wf-chip-x", "aria-label": `Убрать ${labelOf(r)}`, onClick: () => {
+      h("button", { type: "button", class: "wf-chip-x", "aria-label": t("portfolio.wf.chip_remove", { label: labelOf(r) }), onClick: () => {
         S.selected = S.selected.filter((k) => k !== keyOf(r)); P.save(); table.refresh(); renderSelection(); paintSummary();
       } }, icon("x", 11)))));
   }
@@ -190,17 +191,17 @@ export function createWalkForward(meta: Meta): Tab {
   function paintMatrix(sel: WfRow[]) {
     const m = windowMatrix(sel.map(keyOf), windows, (w) => keyOf(w));
     if (!sel.length || !m.starts.length) { barsBody.replaceChildren(barsEmpty); return; }
-    const head = h("tr", null, h("th", { class: "left", scope: "col", text: "Окно (начало)" }), ...sel.map((r, i) => h("th", { scope: "col", title: labelOf(r), style: `--k:var(${COLORS[i % COLORS.length]})` }, h("span", { class: "wf-th" }, h("i", { class: "wf-dot on", "aria-hidden": "true" }), r.strategy, h("span", { class: "muted", text: ` ${r.variant} · ${r.tf}` })))));
+    const head = h("tr", null, h("th", { class: "left", scope: "col", text: t("portfolio.wf.matrix.window") }), ...sel.map((r, i) => h("th", { scope: "col", title: labelOf(r), style: `--k:var(${COLORS[i % COLORS.length]})` }, h("span", { class: "wf-th" }, h("i", { class: "wf-dot on", "aria-hidden": "true" }), r.strategy, h("span", { class: "muted", text: ` ${r.variant} · ${r.tf}` })))));
     const body = m.starts.map((s, j) => h("tr", null, h("th", { class: "left", scope: "row", text: date(s) }),
       ...m.rows.map((row) => {
         const v = row.cells[j];
         const tone = windowTone(v ?? null);
         return h("td", { class: `wf-cell ${tone}`, text: v == null ? "—" : `${tone === "pos" ? "▲ " : tone === "neg" ? "▼ " : ""}${spct(v, 1)}` });
       })));
-    const foot = h("tr", { class: "wf-foot" }, h("th", { class: "left", scope: "row", text: "Прибыльных окон" }),
-      ...m.rows.map((row) => h("td", { class: row.total && row.positive / row.total >= 0.6 ? "pos strong" : "strong", text: row.total ? `${row.positive} из ${row.total} · ${pct(row.positive / row.total, 0)}` : "—" })));
+    const foot = h("tr", { class: "wf-foot" }, h("th", { class: "left", scope: "row", text: t("portfolio.wf.matrix.profitable") }),
+      ...m.rows.map((row) => h("td", { class: row.total && row.positive / row.total >= 0.6 ? "pos strong" : "strong", text: row.total ? t("portfolio.wf.matrix.share", { pos: row.positive, total: row.total, share: pct(row.positive / row.total, 0) }) : "—" })));
     barsBody.replaceChildren(
-      h("div", { class: "table-wrap wf-matrix", tabindex: 0, role: "region", "aria-label": "Доходность по тестовым окнам" }, h("table", { class: "data" }, h("thead", null, head), h("tbody", null, ...body), h("tfoot", null, foot))));
+      h("div", { class: "table-wrap wf-matrix", tabindex: 0, role: "region", "aria-label": t("portfolio.wf.card.windows") }, h("table", { class: "data" }, h("thead", null, head), h("tbody", null, ...body), h("tfoot", null, foot))));
   }
 
   let selSeq = 0;
@@ -238,22 +239,22 @@ export function createWalkForward(meta: Meta): Tab {
 
   const content = h("div", { class: "wf-content" },
     summary,
-    card("Варианты", [filters, countNote, table.el]),
-    card("OOS-кривые капитала выбранных вариантов", [chipsBox, curveHost], [logT.el]),
-    card("Доходность по тестовым окнам", [barHost, barsBody,
-      h("p", { class: "muted small", text: "Каждый столбец — один 3-месячный тестовый кусок; в подсказке — выбранные в этом окне параметры. Прибыльность окон — главный признак устойчивости: одно удачное окно ничего не доказывает." })]));
+    card(t("portfolio.wf.card.variants"), [filters, countNote, table.el]),
+    card(t("portfolio.wf.card.curves"), [chipsBox, curveHost], [logT.el]),
+    card(t("portfolio.wf.card.windows"), [barHost, barsBody,
+      h("p", { class: "muted small", text: t("portfolio.wf.card.windows_note") })]));
 
   function showLoading() {
     content.hidden = true;
-    status.replaceChildren(h("div", { class: "wf-skel", role: "status", "aria-label": "Загрузка результатов walk-forward" },
+    status.replaceChildren(h("div", { class: "wf-skel", role: "status", "aria-label": t("portfolio.wf.loading") },
       h("div", { class: "cards" }, ...Array.from({ length: 4 }, skeletonTile)), skeletonChart(220)));
   }
   function showEmpty(code: string, message: string) {
     content.hidden = true;
     if (code === "no_results") {
-      status.replaceChildren(emptyState(`Нет результатов walk-forward для плеча ${S.lev}×`,
-        `${message}. Результаты создаёт исследование research.walkforward (файлы wf_${WF_SYMBOL}*.csv и wf_windows_${WF_SYMBOL}*.csv в папке результатов); после запуска обновите страницу.`,
-        levs.length > 1 ? h("div", { class: "wf-levs" }, h("span", { class: "muted small", text: "Есть результаты для плеча:" }),
+      status.replaceChildren(emptyState(t("portfolio.wf.empty.title", { lev: S.lev }),
+        t("portfolio.wf.empty.text", { message, sym: WF_SYMBOL }),
+        levs.length > 1 ? h("div", { class: "wf-levs" }, h("span", { class: "muted small", text: t("portfolio.wf.empty.levs") }),
           ...levs.filter((l) => l !== S.lev).map((l) => h("button", { class: "btn sm", type: "button", text: `${l}×`, onClick: () => { S.lev = l; levSeg.set(String(l)); P.save(); void load(); } }))) : null,
         { big: true, icon: "chart" }));
     }
@@ -266,11 +267,11 @@ export function createWalkForward(meta: Meta): Tab {
       const [r, w] = await Promise.all([api.wf(S.lev, WF_SYMBOL), api.wfWindows(S.lev, WF_SYMBOL)]);
       if (my !== loadSeq) return;
       rows = r; windows = w;
-      if (!rows.length) { showEmpty("no_results", "Файл результатов пуст"); return; }
+      if (!rows.length) { showEmpty("no_results", t("portfolio.wf.empty.file")); return; }
       status.replaceChildren();
       content.hidden = false;
       const uniq = (f: (x: WfRow) => string) => [...new Set(rows.map(f))];
-      const opt = (vals: string[]) => [{ value: "", label: "Все" }, ...vals.map((v) => ({ value: v, label: v }))];
+      const opt = (vals: string[]) => [{ value: "", label: t("portfolio.wf.all") }, ...vals.map((v) => ({ value: v, label: v }))];
       const tfs = uniq((x) => x.tf), sts = uniq((x) => x.strategy), vas = uniq((x) => x.variant);
       if (!tfs.includes(S.tf)) S.tf = "";
       if (!sts.includes(S.strategy)) S.strategy = "";
@@ -294,7 +295,7 @@ export function createWalkForward(meta: Meta): Tab {
 
   // при отсутствии результатов сводка (с переключателем плеча) скрыта вместе с содержимым — плечи перечислены в пустом состоянии
   const el = h("div", { class: "page wf" },
-    pageHead("Walk-forward", "Честная проверка вне выборки: параметры подбираются на истории, затем торгуются «вслепую» на следующем отрезке."),
+    pageHead("Walk-forward", t("portfolio.wf.head.sub")),
     how, status, content);
 
   let started = false;

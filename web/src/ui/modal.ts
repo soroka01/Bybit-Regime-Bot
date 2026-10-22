@@ -1,4 +1,5 @@
 // Модальное окно на <dialog> (фокус-ловушка и Esc — из коробки), плюс возврат фокуса и подпись через aria-labelledby.
+import { t } from "../i18n";
 import { h } from "./dom";
 import { icon } from "./icons";
 import type { Verdict } from "../types";
@@ -18,7 +19,7 @@ export function openModal(title: string, onClose?: () => void): Modal {
   const titleId = `mt${++modalUid}`;
   const dlg = h("dialog", { class: "modal", "aria-labelledby": titleId, tabindex: -1 },
     h("header", { class: "modal-head" }, h("h2", { id: titleId, text: title }),
-      h("button", { class: "btn ghost icon-btn", type: "button", "aria-label": "Закрыть (Esc)", "data-tip": "Закрыть · Esc", "data-tip-pos": "left", onClick: () => dlg.close() }, icon("x", 16))),
+      h("button", { class: "btn ghost icon-btn", type: "button", "aria-label": t("common.modal.close_aria"), "data-tip": t("common.modal.close_tip"), "data-tip-pos": "left", onClick: () => dlg.close() }, icon("x", 16))),
     body);
   // Esc и клик по подложке закрывают окно; фокус возвращается на элемент, открывший его
   dlg.addEventListener("close", () => { dlg.remove(); onClose?.(); if (opener?.isConnected) opener.focus({ preventScroll: true }); });

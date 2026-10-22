@@ -1,14 +1,15 @@
 // Чистая логика таблицы сделок: фильтр (Все / Лонг / Шорт / Прибыльные / Убыточные) и выгрузка в CSV (на клиенте, без сети).
+import { t } from "../i18n";
 import type { TradeRow } from "../types";
 
 export type TradeFilter = "all" | "long" | "short" | "win" | "loss";
 
 export const TRADE_FILTERS: { key: TradeFilter; label: string }[] = [
-  { key: "all", label: "Все" },
-  { key: "long", label: "Лонг" },
-  { key: "short", label: "Шорт" },
-  { key: "win", label: "Прибыльные" },
-  { key: "loss", label: "Убыточные" },
+  { key: "all", label: t("stats.filter.all") },
+  { key: "long", label: t("stats.filter.long") },
+  { key: "short", label: t("stats.filter.short") },
+  { key: "win", label: t("stats.filter.win") },
+  { key: "loss", label: t("stats.filter.loss") },
 ];
 
 const matches = (r: TradeRow, f: TradeFilter): boolean => {

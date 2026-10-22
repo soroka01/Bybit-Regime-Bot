@@ -1,8 +1,10 @@
 // Вкладка «Портфель»: «ноги» бота (стратегия × таймфрейм × вес), бэктест на часовой сетке с фандингом.
 import { api, asApiError } from "../api";
+import { t } from "../i18n";
+import { strategyDesc } from "../i18n/serverText";
 import { signalStrips } from "../charts/strips";
 import { MAX_LEVERAGE } from "../leverage";
-import { effLeverage, isMarket, MARKET_OPTIONS, marketLabel, marketNote, marketUi, SPOT_LONG_NOTE, switchMarket } from "../market";
+import { effLeverage, isMarket, MARKET_OPTIONS, marketNote, marketUi, SPOT_LONG_NOTE, switchMarket } from "../market";
 import { persisted } from "../state";
 import type { BacktestResult, LegCfg, Market, Meta, PortfolioBody } from "../types";
 import { botNotes, copyButton, metricsLine, plainParams, pyLeg, sendButton } from "../ui/clipboard";
@@ -53,13 +55,13 @@ export function createPortfolio(meta: Meta): Tab {
   const stripsHost = h("div");
   const strips = signalStrips(stripsHost);
   const stripsLegend = h("div", { class: "strips-legend small muted" },
-    h("span", { class: "lg-item" }, h("i", { class: "lg-key area", style: "--k:var(--pos)", "aria-hidden": "true" }), "лонг"),
-    h("span", { class: "lg-item" }, h("i", { class: "lg-key area", style: "--k:var(--neg)", "aria-hidden": "true" }), "шорт"),
-    h("span", { class: "lg-item" }, h("i", { class: "lg-key area", style: "--k:var(--surface-2);box-shadow:inset 0 0 0 1px var(--border-strong)", "aria-hidden": "true" }), "вне позиции"),
-    h("span", { text: "яркость — доля позиции; «Итого» — сумма вкладов ног" }));
+    h("span", { class: "lg-item" }, h("i", { class: "lg-key area", style: "--k:var(--pos)", "aria-hidden": "true" }), t("portfolio.sig.long")),
+    h("span", { class: "lg-item" }, h("i", { class: "lg-key area", style: "--k:var(--neg)", "aria-hidden": "true" }), t("portfolio.sig.short")),
+    h("span", { class: "lg-item" }, h("i", { class: "lg-key area", style: "--k:var(--surface-2);box-shadow:inset 0 0 0 1px var(--border-strong)", "aria-hidden": "true" }), t("portfolio.sig.flat")),
+    h("span", { text: t("portfolio.sig.legend") }));
   result.slot.append(h("section", { class: "card" },
-    h("header", { class: "card-head" }, h("h3", { text: "Сигналы по ногам и итоговая экспозиция" })),
-    h("p", { class: "muted small", text: "Сигнал старшего таймфрейма применяется с момента закрытия его свечи." }),
+    h("header", { class: "card-head" }, h("h3", { text: t("portfolio.sig.title") })),
+    h("p", { class: "muted small", text: t("portfolio.sig.note") }),
     stripsLegend, stripsHost));
 
   let last: BacktestResult | null = null;
@@ -74,7 +76,7 @@ export function createPortfolio(meta: Meta): Tab {
     delay: 250,
     run: (b, sig) => api.portfolio(b, sig),
     onStart: () => result.setBusy(true),
-    onRetry: (k, max) => result.setBusy(true, `Сервер занят, жду… попытка ${k}/${max}`),
+    onRetry: (k, max) => result.setBusy(true, t("portfolio.busy_retry", { k, max })),
     onData: (r) => {
       last = r;
       result.setBusy(false);
@@ -82,7 +84,7 @@ export function createPortfolio(meta: Meta): Tab {
       if (r.strips) {
         const rows = Object.entries(r.strips.legs).map(([label, values]) => ({ label, values, max: 1 }));
         const total = S.legs.reduce((a, l) => a + l.weight, 0) || 1;
-        rows.push({ label: "Итого", values: r.strips.exposure, max: total });
+        rows.push({ label: t("portfolio.sig.total"), values: r.strips.exposure, max: total });
         strips.set(r.strips.t, rows);
       }
     },
@@ -91,11 +93,11 @@ export function createPortfolio(meta: Meta): Tab {
   const trigger = () => { P.save(); updatePanelSummaries(); runner.schedule(body()); };
 
   // ---------- общие параметры (панель)
-  const daysSeg = segmented({ label: "Период", options: DAY_OPTIONS, value: String(S.days), onChange: (v) => { S.days = +v; trigger(); } });
+  const daysSeg = segmented({ label: t("portfolio.period"), options: DAY_OPTIONS, value: String(S.days), onChange: (v) => { S.days = +v; trigger(); } });
   const levS = leverageControl({ value: S.leverage, botNote: true, onInput: (v) => { S.leverage = v; updateSum(); trigger(); } });
-  const feeS = slider({ label: "Комиссия", min: 0, max: 0.3, step: 0.005, value: S.fee, unit: "%", onInput: (v) => { S.fee = v; S.feeTouched = true; trigger(); } });
+  const feeS = slider({ label: t("portfolio.fee"), min: 0, max: 0.3, step: 0.005, value: S.fee, unit: "%", onInput: (v) => { S.fee = v; S.feeTouched = true; trigger(); } });
   const marketSeg = segmented({
-    label: "Рынок", options: MARKET_OPTIONS, value: S.market,
+    label: t("portfolio.market"), options: MARKET_OPTIONS, value: S.market,
     onChange: (v) => {
       if (!isMarket(v)) return;
       if (switchMarket(S, v)) feeS.set(S.fee);     // комиссия переходит на умолчание рынка, если её не правили
@@ -113,10 +115,10 @@ export function createPortfolio(meta: Meta): Tab {
     updateSum();
     updatePanelSummaries();
   }
-  const slipS = slider({ label: "Проскальзывание", min: 0, max: 0.3, step: 0.005, value: S.slip, unit: "%", onInput: (v) => { S.slip = v; trigger(); } });
+  const slipS = slider({ label: t("portfolio.slip"), min: 0, max: 0.3, step: 0.005, value: S.slip, unit: "%", onInput: (v) => { S.slip = v; trigger(); } });
 
   // ---------- сумма весов
-  const wbar = h("div", { class: "wbar", role: "meter", "aria-label": "Суммарный вес ног", "aria-valuemin": 0 });
+  const wbar = h("div", { class: "wbar", role: "meter", "aria-label": t("portfolio.wsum.aria"), "aria-valuemin": 0 });
   const wHead = h("div", { class: "wsum-head" });
   const wLines = h("div", { class: "wsum-lines" });
   const wsum = h("div", { class: "wsum" }, wHead, wbar, wLines);
@@ -131,15 +133,15 @@ export function createPortfolio(meta: Meta): Tab {
     wbar.style.setProperty("--mark", `${((LIVE_WEIGHT_CAP / max) * 100).toFixed(2)}%`);
     wbar.setAttribute("aria-valuemax", String(max));
     wbar.setAttribute("aria-valuenow", String(+rep.sum.toFixed(3)));
-    wbar.setAttribute("aria-valuetext", `${rep.headline}${rep.over ? ", выше лимита бота 100 %" : ""}`);
+    wbar.setAttribute("aria-valuetext", `${rep.headline}${rep.over ? t("portfolio.wsum.over_suffix") : ""}`);
     wbar.replaceChildren(
-      ...S.legs.map((l, i) => h("i", { class: "wseg", style: `width:${((l.weight / max) * 100).toFixed(2)}%;--k:var(${LEG_COLORS[i % LEG_COLORS.length]})`, title: `Нога ${i + 1}: ${l.strategy}@${l.tf} · ${pct(l.weight, 0)}` })),
-      h("i", { class: "wmark", "aria-hidden": "true", style: `left:${((LIVE_WEIGHT_CAP / max) * 100).toFixed(2)}%`, title: "лимит живого бота: 100 %" }));
+      ...S.legs.map((l, i) => h("i", { class: "wseg", style: `width:${((l.weight / max) * 100).toFixed(2)}%;--k:var(${LEG_COLORS[i % LEG_COLORS.length]})`, title: t("portfolio.wsum.seg_title", { n: i + 1, leg: `${l.strategy}@${l.tf}`, w: pct(l.weight, 0) }) })),
+      h("i", { class: "wmark", "aria-hidden": "true", style: `left:${((LIVE_WEIGHT_CAP / max) * 100).toFixed(2)}%`, title: t("portfolio.wsum.mark_title") }));
     wHead.replaceChildren(
       h("span", { class: `wsum-val ${rep.tone}`, text: rep.headline }),
-      h("span", { class: "muted small", text: `лимит живого бота 100 % · макс. экспозиция ≈ ${num(rep.sum * lev, 2)}× капитала` }),
-      rep.tone === "ok" ? badge("в пределах лимита", "ok", { glyph: "✓" }) : rep.over ? badge("выше лимита бота", "warn", { glyph: "!" }) : badge(rep.sum <= 1e-9 ? "нет весов" : "есть нулевые ноги", rep.sum <= 1e-9 ? "bad" : "warn", { glyph: "!" }));
-    wLines.replaceChildren(...rep.lines.map((t) => h("div", { class: `notice${rep.tone === "ok" ? "" : rep.tone === "bad" ? " bad" : " warn"}`, role: rep.over ? "alert" : "status" }, h("span", { text: t }))));
+      h("span", { class: "muted small", text: t("portfolio.wsum.limit", { exp: num(rep.sum * lev, 2) }) }),
+      rep.tone === "ok" ? badge(t("portfolio.wsum.badge_ok"), "ok", { glyph: "✓" }) : rep.over ? badge(t("portfolio.wsum.badge_over"), "warn", { glyph: "!" }) : badge(rep.sum <= 1e-9 ? t("portfolio.wsum.badge_none") : t("portfolio.wsum.badge_zero"), rep.sum <= 1e-9 ? "bad" : "warn", { glyph: "!" }));
+    wLines.replaceChildren(...rep.lines.map((line) => h("div", { class: `notice${rep.tone === "ok" ? "" : rep.tone === "bad" ? " bad" : " warn"}`, role: rep.over ? "alert" : "status" }, h("span", { text: line }))));
     legChips.forEach((c, i) => { const l = S.legs[i]; if (l) c.textContent = pct(l.weight, 0); });
     legCards.forEach((c, i) => c.classList.toggle("is-zero", (S.legs[i]?.weight ?? 1) <= 1e-9));
     updatePanelSummaries();
@@ -159,18 +161,18 @@ export function createPortfolio(meta: Meta): Tab {
       const paramSliders = paramEntries.map(([name, sp]) =>
         slider({
           label: name, min: sp.min, max: sp.max, step: sp.step, value: leg.params[name] ?? sp.default, def: sp.default,
-          hint: `сетка исследования: ${sp.grid.join(", ")}`,
+          hint: t("portfolio.leg.param_hint", { grid: sp.grid.join(", ") }),
           onInput: (v) => { leg.params[name] = v; changed.textContent = changedText(); trigger(); },
         }).el);
-      const changedText = () => { const n = changedParams(leg.params, st.params).length; return n ? `изменено ${n}` : "по умолчанию"; };
+      const changedText = () => { const n = changedParams(leg.params, st.params).length; return n ? t("portfolio.leg.changed", { n }) : t("portfolio.leg.default"); };
       const changed = h("span", { class: "muted small", text: changedText() });
       const det = h("details", { class: "leg-params", open: paramsOpen.has(leg) },
-        h("summary", null, h("span", { text: `Параметры (${paramEntries.length})` }), changed),
+        h("summary", null, h("span", { text: t("portfolio.leg.params", { n: paramEntries.length }) }), changed),
         h("div", { class: "params" }, ...paramSliders));
       det.addEventListener("toggle", () => { if (det.open) paramsOpen.add(leg); else paramsOpen.delete(leg); });
       const stratSel = select({
-        label: "Стратегия", value: leg.strategy,
-        options: meta.strategies.map((s) => ({ value: s.name, label: s.derivative ? `${s.name} · деривативы` : s.name })),
+        label: t("portfolio.leg.strategy"), value: leg.strategy,
+        options: meta.strategies.map((s) => ({ value: s.name, label: s.derivative ? t("portfolio.leg.derivative", { name: s.name }) : s.name })),
         onChange: (v) => {
           leg.strategy = v;
           leg.params = Object.fromEntries(Object.entries(strategies.get(v)!.params).map(([k, sp]) => [k, sp.default]));
@@ -178,30 +180,30 @@ export function createPortfolio(meta: Meta): Tab {
         },
       });
       const tfSel = select({
-        label: "Таймфрейм", value: leg.tf,
+        label: t("portfolio.leg.timeframe"), value: leg.tf,
         options: meta.portfolio_tfs.map((t) => ({ value: t, label: t })),
         onChange: (v) => { leg.tf = v; updateSum(); trigger(); notifyContext(); },
       });
-      const w = slider({ label: "Вес", min: 0, max: 1.5, step: 0.05, value: leg.weight, onInput: (v) => { leg.weight = v; updateSum(); trigger(); } });
+      const w = slider({ label: t("portfolio.leg.weight"), min: 0, max: 1.5, step: 0.05, value: leg.weight, onInput: (v) => { leg.weight = v; updateSum(); trigger(); } });
       const spot = S.market === "spot";
-      const lo = toggle({ label: "Только лонг", checked: spot || leg.long_only, onChange: (v) => { leg.long_only = v; trigger(); } });
+      const lo = toggle({ label: t("portfolio.leg.long_only"), checked: spot || leg.long_only, onChange: (v) => { leg.long_only = v; trigger(); } });
       lo.disable(marketUi(S.market).longLocked, SPOT_LONG_NOTE);
       const rm = h("button", {
         class: "btn ghost icon-btn sm", type: "button", disabled: S.legs.length <= 1,
-        "aria-label": `Удалить ногу ${idx + 1}`, "data-tip": S.legs.length <= 1 ? "Нужна хотя бы одна нога" : "Удалить ногу", "data-tip-pos": "left",
+        "aria-label": t("portfolio.leg.remove_aria", { n: idx + 1 }), "data-tip": S.legs.length <= 1 ? t("portfolio.leg.keep_one") : t("portfolio.leg.remove_tip"), "data-tip-pos": "left",
         onClick: () => { S.legs.splice(idx, 1); renderLegs(); applyMarketUi(); trigger(); notifyContext(); },
       }, icon("trash", 14));
-      const chip = h("span", { class: "leg-w", title: "Вес ноги", text: pct(leg.weight, 0) });
+      const chip = h("span", { class: "leg-w", title: t("portfolio.leg.weight_title"), text: pct(leg.weight, 0) });
       legChips.push(chip);
-      const card = h("section", { class: "leg leg-card", style: `--leg:var(${color})`, "aria-label": `Нога ${idx + 1}` },
+      const card = h("section", { class: "leg leg-card", style: `--leg:var(${color})`, "aria-label": t("portfolio.leg.title", { n: idx + 1 }) },
         h("header", { class: "leg-head" },
           h("span", { class: "leg-n", "aria-hidden": "true", text: String(idx + 1) }),
-          h("div", { class: "leg-title" }, h("strong", { text: `Нога ${idx + 1}` }), h("span", { class: "muted small", text: `${leg.strategy} · ${leg.tf}` })),
+          h("div", { class: "leg-title" }, h("strong", { text: t("portfolio.leg.title", { n: idx + 1 }) }), h("span", { class: "muted small", text: `${leg.strategy} · ${leg.tf}` })),
           chip, rm),
-        h("p", { class: "leg-desc muted small", text: st.desc }),
+        h("p", { class: "leg-desc muted small", text: strategyDesc(st.name, st.desc) }),
         h("div", { class: "leg-sel" }, stratSel.el, tfSel.el),
         w.el, lo.el, det,
-        h("p", { class: "leg-zero small", text: "вес 0 — нога не торгует" }));
+        h("p", { class: "leg-zero small", text: t("portfolio.leg.zero_note") }));
       legCards.push(card);
       return card;
     }));
@@ -211,7 +213,7 @@ export function createPortfolio(meta: Meta): Tab {
   const addBtn = h("button", {
     class: "btn", type: "button",
     onClick: () => {
-      if (S.legs.length >= MAX_LEGS) { toast(`Не больше ${MAX_LEGS} ног`, "info"); return; }
+      if (S.legs.length >= MAX_LEGS) { toast(t("portfolio.legs.max", { n: MAX_LEGS }), "info"); return; }
       const st = meta.strategies[0]!;
       S.legs.push({
         strategy: st.name, tf: meta.portfolio_tfs.includes("4h") ? "4h" : meta.portfolio_tfs[0]!, weight: 0.25, long_only: false,
@@ -219,15 +221,15 @@ export function createPortfolio(meta: Meta): Tab {
       });
       renderLegs(); applyMarketUi(); trigger(); notifyContext();
     },
-  }, icon("plus", 14), "Добавить ногу");
+  }, icon("plus", 14), t("portfolio.legs.add"));
   const defaultsBtn = h("button", {
-    class: "btn ghost", type: "button", title: "Набор ног по умолчанию из дашборда (может отличаться от текущих настроек живого бота)",
+    class: "btn ghost", type: "button", title: t("portfolio.legs.defaults_tip"),
     onClick: () => { S.legs = structuredClone(meta.legs); importNote.replaceChildren(); renderLegs(); applyMarketUi(); trigger(); notifyContext(); },
-  }, icon("reset", 14), "Стандартный набор");
+  }, icon("reset", 14), t("portfolio.legs.defaults"));
   const liveBtn = h("button", {
-    class: "btn", type: "button", title: "Загрузить ноги, веса и параметры из текущего снимка живого бота (только чтение)",
+    class: "btn", type: "button", title: t("portfolio.legs.live_tip"),
     onClick: () => void importFromLive(),
-  }, icon("bot", 14), "Взять ноги живого бота");
+  }, icon("bot", 14), t("portfolio.legs.live"));
 
   async function importFromLive() {
     setLoading(liveBtn, true);
@@ -236,29 +238,29 @@ export function createPortfolio(meta: Meta): Tab {
       const snap = await api.live();
       const r = importLiveLegs(snap, strategies, meta.portfolio_tfs);
       if (!r.ok) {
-        importNote.replaceChildren(h("div", { class: "notice warn", role: "alert" }, h("span", null, h("strong", { text: "Не удалось взять ноги бота. " }), r.reason ?? "")));
+        importNote.replaceChildren(h("div", { class: "notice warn", role: "alert" }, h("span", null, h("strong", { text: t("portfolio.import.fail") }), r.reason ?? "")));
         return;
       }
       S.legs = r.legs;
       renderLegs(); applyMarketUi(); trigger(); notifyContext();
       const sum = r.legs.reduce((a, l) => a + l.weight, 0);
-      const parts = [`Загружено ног: ${r.legs.length}, Σ весов ${pct(sum, 0)}.`,
-        r.disabled ? ` Выключенных пропущено: ${r.disabled}.` : "",
-        r.skipped.length ? ` Не перенесено: ${r.skipped.join("; ")}.` : ""];
-      importNote.replaceChildren(h("div", { class: `notice${r.skipped.length ? " warn" : ""}`, role: "status" }, h("span", null, h("strong", { text: "Ноги живого бота. " }), parts.join(""))));
-      toast("Ноги бота загружены", "ok");
+      const parts = [t("portfolio.import.loaded", { n: r.legs.length, sum: pct(sum, 0) }),
+        r.disabled ? t("portfolio.import.disabled", { n: r.disabled }) : "",
+        r.skipped.length ? t("portfolio.import.skipped", { list: r.skipped.join("; ") }) : ""];
+      importNote.replaceChildren(h("div", { class: `notice${r.skipped.length ? " warn" : ""}`, role: "status" }, h("span", null, h("strong", { text: t("portfolio.import.head") }), parts.join(""))));
+      toast(t("portfolio.import.toast"), "ok");
     } catch (e) {
       const err = asApiError(e);
       if (err.silent) return;
-      importNote.replaceChildren(h("div", { class: "notice warn", role: "alert" }, h("span", null, h("strong", { text: "Снимок бота недоступен. " }), err.message)));
+      importNote.replaceChildren(h("div", { class: "notice warn", role: "alert" }, h("span", null, h("strong", { text: t("portfolio.import.unavailable") }), err.message)));
     } finally {
       setLoading(liveBtn, false);
     }
   }
 
-  const legsCard = h("section", { class: "card legs-card", "aria-label": "Ноги портфеля" },
+  const legsCard = h("section", { class: "card legs-card", "aria-label": t("portfolio.legs.title") },
     h("header", { class: "card-head" },
-      h("h3", { text: "Ноги портфеля" }),
+      h("h3", { text: t("portfolio.legs.title") }),
       h("div", { class: "legs-actions" }, liveBtn, defaultsBtn, addBtn)),
     importNote, wsum, legsBox);
 
@@ -266,24 +268,25 @@ export function createPortfolio(meta: Meta): Tab {
     const legs = effLegs();
     const lev = effLeverage(S.market, S.leverage);
     const legsTxt = legs.map((l) => `${l.strategy}@${l.tf} (${plainParams(l.params)}; вес ${l.weight})`).join("; ");
-    const head = `Портфель: ${S.symbol} | Рынок: ${marketLabel(S.market)} | Плечо: ${lev}x | Комиссия: ${+S.fee.toFixed(4)}% | Проскальзывание: ${+S.slip.toFixed(4)}% | Период: ${S.days} дн. | Ноги: ${legsTxt} | Результат: ${metricsLine(last)}`;
+    const marketRu = S.market === "spot" ? "Спот" : "Перп";      // протокол для русского бота (core/legspec.py): слова остаются русскими на любом языке
+    const head = `Портфель: ${S.symbol} | Рынок: ${marketRu} | Плечо: ${lev}x | Комиссия: ${+S.fee.toFixed(4)}% | Проскальзывание: ${+S.slip.toFixed(4)}% | Период: ${S.days} дн. | Ноги: ${legsTxt} | Результат: ${metricsLine(last)}`;
     return [head, ...legs.map((l) => pyLeg(l)), `# плечо: ${lev}x`, ...botNotes(S.market, lev)].join("\n");
   };
-  const copyBtn = copyButton("Копировать для бота", botText);
-  const sendBtn = sendButton("В бота", botText);
+  const copyBtn = copyButton(t("portfolio.copy_bot"), botText);
+  const sendBtn = sendButton(t("portfolio.send_bot"), botText);
   const bar = h("div", { class: "panel-bar" }, h("div", { class: "pb-row" }, copyBtn, sendBtn));
 
-  const secMarket = panelSection({ key: "pf.market", icon: "candles", title: "Рынок и период", summary: "", open: true, body: [marketSeg.el, marketNoteEl, daysSeg.el] });
-  const secLev = panelSection({ key: "pf.leverage", icon: "gauge", title: "Плечо", summary: "", open: true, body: [levS.el] });
-  const secCosts = panelSection({ key: "pf.costs", icon: "percent", title: "Издержки", summary: "", body: [feeS.el, slipS.el] });
+  const secMarket = panelSection({ key: "pf.market", icon: "candles", title: t("portfolio.sec.market"), summary: "", open: true, body: [marketSeg.el, marketNoteEl, daysSeg.el] });
+  const secLev = panelSection({ key: "pf.leverage", icon: "gauge", title: t("portfolio.sec.leverage"), summary: "", open: true, body: [levS.el] });
+  const secCosts = panelSection({ key: "pf.costs", icon: "percent", title: t("portfolio.sec.costs"), summary: "", body: [feeS.el, slipS.el] });
   function updatePanelSummaries() {
-    secMarket.setSummary(`${S.symbol} · ${S.market === "spot" ? "спот · " : ""}${S.days >= 365 && S.days % 365 === 0 ? `${S.days / 365} г.` : `${S.days} д`}`);
-    secLev.setSummary(S.market === "spot" ? "1× · спот, без плеча" : `${+S.leverage.toFixed(2)}×`);
-    secCosts.setSummary(`комиссия ${num(S.fee, 3)} % · проскальз. ${num(S.slip, 3)} %`);
+    secMarket.setSummary(`${S.symbol} · ${S.market === "spot" ? t("portfolio.sum.spot") : ""}${S.days >= 365 && S.days % 365 === 0 ? t("portfolio.sum.years", { n: S.days / 365 }) : t("portfolio.sum.days", { n: S.days })}`);
+    secLev.setSummary(S.market === "spot" ? t("portfolio.sum.lev_spot") : `${+S.leverage.toFixed(2)}×`);
+    secCosts.setSummary(t("portfolio.sum.costs", { fee: num(S.fee, 3), slip: num(S.slip, 3) }));
   }
 
   const ly = panelLayout([secMarket.el, secLev.el, secCosts.el], [legsCard, result.el], {
-    head: pageHead("Портфель бота", "Ноги бота — стратегия × таймфрейм × вес: общий бэктест на часовой сетке с фандингом. Можно взять текущие ноги живого бота и посмотреть, как они торговали бы на истории."),
+    head: pageHead(t("portfolio.head.title"), t("portfolio.head.sub")),
     bar,
   });
 

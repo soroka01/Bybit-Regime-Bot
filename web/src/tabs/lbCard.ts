@@ -1,10 +1,13 @@
 // Карточки «Лучших стратегий»: чистая отрисовка (данные + контекст -> DOM) без состояния и сетевых вызовов.
+import { t, tDyn } from "../i18n";
+import { strategyDesc } from "../i18n/serverText";
 import type { LbItem, LbPlanItem, Market, Metrics, Num } from "../types";
 import { h, svg } from "../ui/dom";
 import { int, num, pct, sgn, spct, utcShort } from "../ui/fmt";
 import { icon } from "../ui/icons";
 import { glyph } from "../ui/kit";
 import { verdictBadge } from "../ui/modal";
+import { MIN_OOS_DAYS } from "../ui/verdicts";
 import type { Entry } from "./lbState";
 
 /** Настройки, при которых посчитаны карточки, и обработчики кнопок (их подставляет вкладка). */
@@ -18,6 +21,22 @@ export interface CardCtx {
 }
 
 const utc = (s: string | null | undefined) => (s ? utcShort(s) + " UTC" : "—");
+
+/** Необязательный стабильный код причины (`reason_code`), который сервер добавит к LbItem / LbPlanItem; в types.ts пока не объявлен. */
+export interface CodedReason { reason_code?: string | null }
+
+/** Тексты причин, которые сервер отдаёт по-русски (web/research.py), -> стабильные коды (пока нет reason_code). */
+const REASON_CODES: Readonly<Record<string, string>> = {
+  "нет свечей — скачайте данные": "no_klines",
+  "нет данных фандинга/OI/LSR": "no_derivs",
+  "недостаточно сделок на in-sample для надёжного подбора": "few_trades",
+};
+
+/** Причина с сервера на языке интерфейса: по reason_code, иначе по точному тексту сервера; неизвестный текст показывается как есть. */
+export function lbReasonText(raw: string | null | undefined, code?: string | null): string {
+  const c = code || (raw ? REASON_CODES[raw] : undefined);
+  return (c ? tDyn(`leaderboard.reason.${c}`) : undefined) ?? raw ?? "";
+}
 
 let sparkUid = 0;
 
@@ -37,7 +56,7 @@ export function spark(it: LbItem): SVGElement | null {
   const pts = (ys: Num[]) => xy(ys).map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
   const eq = xy(c.equity);
   const gid = `spk${++sparkUid}`;
-  const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: "spark", role: "img", "aria-label": "Капитал на OOS против Buy & Hold" });
+  const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: "spark", role: "img", "aria-label": t("leaderboard.card.spark_aria") });
   const grad = svg("linearGradient", { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 },
     svg("stop", { offset: "0%", "stop-color": "var(--c1)", "stop-opacity": 0.28 }), svg("stop", { offset: "100%", "stop-color": "var(--c1)", "stop-opacity": 0 }));
   root.append(svg("defs", {}, grad));
@@ -69,7 +88,7 @@ const heroNum = (label: string, value: string, tone: string, subs: string[], tip
 
 /** Медаль для первой тройки (число внутри — смысл не держится на цвете), у остальных — просто номер. */
 const rankBadge = (rank: number): HTMLElement =>
-  h("div", { class: "lb-rank" }, h("span", { class: rank <= 3 ? `medal m${rank}` : "rank-n", title: rank <= 3 ? `Место ${rank}` : "", text: String(rank) }));
+  h("div", { class: "lb-rank" }, h("span", { class: rank <= 3 ? `medal m${rank}` : "rank-n", title: rank <= 3 ? t("leaderboard.card.rank_title", { rank }) : "", text: String(rank) }));
 
 /** Отпечаток карточки: если не изменился — DOM переиспользуется (см. ui/keyed.ts). */
 export function itemSig(rank: number, it: LbItem, ctx: CardCtx): string {
@@ -84,56 +103,59 @@ export function itemCard(rank: number, it: LbItem, ctx: CardCtx): HTMLElement {
   const r = it.result!;
   const o: Metrics = r.oos, i: Metrics = r.is;
   const overlays = it.overlays ?? { htf: null, stop: null };
-  const extra = [overlays.htf ? `HTF EMA(${overlays.htf})` : "", overlays.stop ? `ATR-стоп ${overlays.stop}×` : ""].filter(Boolean);
+  const extra = [overlays.htf ? `HTF EMA(${overlays.htf})` : "", overlays.stop ? t("leaderboard.card.atr_stop", { n: overlays.stop }) : ""].filter(Boolean);
   const sp = spark(it);
   const oosDays = it.oos_days ?? it.oos_range?.days ?? 0;
-  const tip = it.short_oos ? `аннуализировано по ${Math.round(oosDays)} дн. — шумная оценка` : undefined;
-  const tooShort = r.verdict === "few" && oosDays > 0 && oosDays < 90;
+  const tip = it.short_oos ? t("leaderboard.card.annualized", { days: Math.round(oosDays) }) : undefined;
+  const tooShort = r.verdict === "few" && oosDays > 0 && oosDays < MIN_OOS_DAYS;
   const bh = it.buy_hold_oos ?? o.buy_hold_return;
   return h("article", { class: `lb-card ${r.verdict}${rank <= 3 ? ` top top${rank}` : ""}`, "aria-label": `${rank}. ${it.strategy}` },
     rankBadge(rank),
     h("div", { class: "lb-main" },
       h("div", { class: "lb-title" },
-        h("h3", { text: it.strategy }), verdictBadge(r.verdict, tooShort ? "слишком короткий проверочный период" : undefined),
-        it.derivative ? h("span", { class: "badge info", text: "деривативы" }) : null,
-        it.from_cache ? h("span", { class: "cache-chip", title: `посчитано ${it.computed_at ? utc(it.computed_at) : "ранее"}; данные от ${utc(it.data_last)}` }, icon("clock", 12), "из кэша") : null),
-      h("p", { class: "lb-desc muted small", text: it.desc }),
+        h("h3", { text: it.strategy }), verdictBadge(r.verdict, tooShort ? t("leaderboard.card.too_short") : undefined),
+        it.derivative ? h("span", { class: "badge info", text: t("leaderboard.card.derivative") }) : null,
+        it.from_cache ? h("span", { class: "cache-chip", title: t("leaderboard.card.cached_tip", { when: it.computed_at ? utc(it.computed_at) : t("leaderboard.card.earlier"), data: utc(it.data_last) }) }, icon("clock", 12), t("leaderboard.card.cached")) : null),
+      h("p", { class: "lb-desc muted small", text: strategyDesc(it.strategy, it.desc) }),
       h("div", { class: "chips" },
         ...Object.entries(r.params).map(([k, v]) => h("span", { class: "chip-param", text: `${k}=${v}` })),
         ...extra.map((e) => h("span", { class: "chip-param alt", text: e }))),
       h("div", { class: "lb-hero" },
-        heroNum("Доход за OOS", spct(o.total_return, 0), sgn(o.total_return), [`B&H за OOS ${spct(bh, 0)}`, `IS ${spct(i.total_return, 0)}`]),
-        heroNum("Макс. просадка", pct(o.max_drawdown, 0), "neg", [`IS ${pct(i.max_drawdown, 0)}`]),
+        heroNum(t("leaderboard.card.oos_return"), spct(o.total_return, 0), sgn(o.total_return), [t("leaderboard.card.bh_oos", { v: spct(bh, 0) }), `IS ${spct(i.total_return, 0)}`]),
+        heroNum(t("leaderboard.card.max_dd"), pct(o.max_drawdown, 0), "neg", [`IS ${pct(i.max_drawdown, 0)}`]),
         heroNum("Sharpe", num(o.sharpe, 2), sgn(o.sharpe), [`IS ${num(i.sharpe, 2)}`], tip)),
       h("details", { class: "lb-more" },
-        h("summary", {}, h("span", { text: "Ещё метрики" }), h("span", { class: "lb-more-peek muted small", text: `Calmar ${num(o.calmar, 2)} · сделок ${int(o.trades)} · зелёных мес. ${pct(o.green_months, 0)}` })),
+        h("summary", {}, h("span", { text: t("leaderboard.card.more") }), h("span", { class: "lb-more-peek muted small", text: t("leaderboard.card.peek", { calmar: num(o.calmar, 2), trades: int(o.trades), green: pct(o.green_months, 0) }) })),
         h("div", { class: "minis" },
           mini("Calmar", num(o.calmar, 2), sgn(o.calmar), num(i.calmar, 2), undefined, tip),
-          mini("Сделок", int(o.trades), "", int(i.trades)),
-          mini("Зелёных мес.", pct(o.green_months, 0), "", pct(i.green_months, 0)),
-          mini("Ср. месяц", spct(o.avg_month, 1), sgn(o.avg_month), spct(i.avg_month, 1)))),
-      tooShort ? h("p", { class: "muted small lb-note", text: "○ слишком короткий проверочный период (меньше 90 дн.)" }) : null,
-      ctx.market === "perp" && !it.funding_included && !it.derivative ? h("p", { class: "muted small lb-note", text: "Фандинг не учтён (нет локального кэша деривативов)." }) : null,
-      ctx.market === "spot" && it.derivative ? h("p", { class: "muted small lb-note", text: "Спот: сигналы этой стратегии считаются по данным перпа (фандинг/OI/LSR)." }) : null),
+          mini(t("leaderboard.card.trades"), int(o.trades), "", int(i.trades)),
+          mini(t("leaderboard.card.green_months"), pct(o.green_months, 0), "", pct(i.green_months, 0)),
+          mini(t("leaderboard.card.avg_month"), spct(o.avg_month, 1), sgn(o.avg_month), spct(i.avg_month, 1)))),
+      tooShort ? h("p", { class: "muted small lb-note", text: t("leaderboard.card.too_short_note", { days: MIN_OOS_DAYS }) }) : null,
+      ctx.market === "perp" && !it.funding_included && !it.derivative ? h("p", { class: "muted small lb-note", text: t("leaderboard.card.no_funding") }) : null,
+      ctx.market === "spot" && it.derivative ? h("p", { class: "muted small lb-note", text: t("leaderboard.card.spot_deriv") }) : null),
     h("div", { class: "lb-side" },
-      sp ?? h("div", { class: "muted small", text: "нет графика" }),
-      h("div", { class: "lb-spark-cap muted small" }, h("i", { class: "lg-key", "aria-hidden": "true" }), "капитал на OOS", h("i", { class: "lg-key dash", "aria-hidden": "true" }), "Buy&Hold"),
-      h("div", { class: "btn-group lb-btns", role: "group", "aria-label": "Действия" },
-        h("button", { class: "btn sm", type: "button", text: "Открыть в Лаборатории", onClick: () => ctx.onOpenLab(it) }),
-        h("button", { class: "btn sm", type: "button", text: "Копировать для бота", title: "Скопировать строку Leg(...) и параметры для бота", onClick: () => ctx.onCopy(it) }),
-        h("button", { class: "btn sm", type: "button", text: "В бота", title: "Отправить в бота: карточка придёт в Telegram, вес и подтверждение — там", onClick: () => ctx.onSend(it) }))));
+      sp ?? h("div", { class: "muted small", text: t("leaderboard.card.no_chart") }),
+      h("div", { class: "lb-spark-cap muted small" }, h("i", { class: "lg-key", "aria-hidden": "true" }), t("leaderboard.card.spark_cap"), h("i", { class: "lg-key dash", "aria-hidden": "true" }), "Buy&Hold"),
+      h("div", { class: "btn-group lb-btns", role: "group", "aria-label": t("leaderboard.card.actions") },
+        h("button", { class: "btn sm", type: "button", text: t("leaderboard.card.open_lab"), onClick: () => ctx.onOpenLab(it) }),
+        h("button", { class: "btn sm", type: "button", text: t("leaderboard.card.copy"), title: t("leaderboard.card.copy_tip"), onClick: () => ctx.onCopy(it) }),
+        h("button", { class: "btn sm", type: "button", text: t("leaderboard.card.send"), title: t("leaderboard.card.send_tip"), onClick: () => ctx.onSend(it) }))));
 }
 
 /** Текст и вид «компактной» карточки для стратегий без рейтингового значения. */
 export function compactInfo(e: Entry | undefined): { cls: string; text: string } {
-  if (!e) return { cls: "pending", text: "не рассчитано" };
+  if (!e) return { cls: "pending", text: t("leaderboard.compact.none") };
   switch (e.k) {
-    case "item": return { cls: "skipped", text: e.item.reason ?? "недостаточно сделок на in-sample для надёжного подбора" };
-    case "error": return { cls: "failed", text: `ошибка: ${e.error}` };
-    case "skip": return { cls: "skipped", text: `нет данных — ${e.skip}` };
-    case "pending": return { cls: "running", text: "считаю…" };
-    case "busy": return { cls: "failed", text: "сервер занят — попробуйте позже («Досчитать недостающие»)" };
-    case "none": return { cls: "pending", text: "не рассчитано" };
+    case "item": {
+      const code = (e.item as LbItem & CodedReason).reason_code;
+      return { cls: "skipped", text: e.item.reason == null && !code ? t("leaderboard.reason.few_trades") : lbReasonText(e.item.reason, code) };
+    }
+    case "error": return { cls: "failed", text: t("leaderboard.compact.error", { error: e.error }) };
+    case "skip": return { cls: "skipped", text: t("leaderboard.compact.skip", { reason: lbReasonText(e.skip, e.code) }) };
+    case "pending": return { cls: "running", text: t("leaderboard.compact.pending") };
+    case "busy": return { cls: "failed", text: t("leaderboard.compact.busy") };
+    case "none": return { cls: "pending", text: t("leaderboard.compact.none") };
   }
 }
 
@@ -141,6 +163,6 @@ export function compactCard(name: string, p: LbPlanItem | undefined, e: Entry | 
   const { cls, text } = compactInfo(e);
   return h("article", { class: `lb-card compact ${cls}` },
     h("div", { class: "lb-rank" }, h("span", { class: "rank-n", text: "–" })),
-    h("div", { class: "lb-main" }, h("div", { class: "lb-title" }, h("h3", { text: name }), p?.derivative ? h("span", { class: "badge info", text: "деривативы" }) : null),
-      h("p", { class: "muted small", text: `${p?.desc ?? ""} — ${text}` })));
+    h("div", { class: "lb-main" }, h("div", { class: "lb-title" }, h("h3", { text: name }), p?.derivative ? h("span", { class: "badge info", text: t("leaderboard.card.derivative") }) : null),
+      h("p", { class: "muted small", text: `${strategyDesc(name, p?.desc ?? "")} — ${text}` })));
 }

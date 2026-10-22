@@ -1,6 +1,7 @@
 // Полосы сигналов/экспозиции по ногам портфеля (canvas): «плюс» — --pos (лонг), «минус» — --neg (шорт), интенсивность = |значение|.
 // Дорожки скруглены, подпись ряда — текстовым токеном; при наведении — плавающая подсказка и тонкая вертикаль.
 // Основной слой рисуется только при изменении данных/размера/темы, вертикаль наведения — на отдельном прозрачном слое (mousemove не перерисовывает полосы).
+import { t as tr } from "../i18n";
 import type { Num } from "../types";
 import { cssVar, h, observeWidth } from "../ui/dom";
 import { date, num } from "../ui/fmt";
@@ -10,7 +11,12 @@ interface StripRow {
   label: string;
   values: Num[];
   max: number; // |значение| для полной насыщенности
+  /** Итоговая строка (выделяется шрифтом); по умолчанию — подпись «Итого» / «Total». */
+  total?: boolean;
 }
+
+/** Итоговая ли строка: явный признак или подпись «Итого» (ru) / «Total» (en) — сравнение с данными вкладки, не отображаемый текст. */
+const isTotal = (r: StripRow): boolean => r.total ?? (r.label === "Итого" || r.label === "Total");
 
 /** Токены цвета и шрифта: читаются один раз на перерисовку (getComputedStyle не вызывается в циклах и на mousemove). */
 function readPalette() {
@@ -29,10 +35,10 @@ export function signalStrips(host: HTMLElement) {
   const ROW = 22, GAP = 6;
   let LABEL = 132;
   host.classList.add("strips-wrap");
-  const canvas = h("canvas", { class: "strips", role: "img", "aria-label": "Сигналы и экспозиция по ногам портфеля" });
+  const canvas = h("canvas", { class: "strips", role: "img", "aria-label": tr("charts.strips.aria") });
   const overlay = h("canvas", { class: "strips-overlay", "aria-hidden": "true" });
   const stage = h("div", { class: "strips-stage" }, canvas, overlay);
-  const readout = h("div", { class: "muted small", "aria-live": "off", text: "Наведите курсор на полосу" });
+  const readout = h("div", { class: "muted small", "aria-live": "off", text: tr("charts.strips.hover") });
   const tip = chartTip(host);
   host.append(stage, readout);
 
@@ -79,8 +85,8 @@ export function signalStrips(host: HTMLElement) {
     const plotW = w - LABEL;
     rows.forEach((r, k) => {
       const y = k * (ROW + GAP);
-      ctx.fillStyle = r.label === "Итого" ? fg : text;
-      ctx.font = `${r.label === "Итого" ? "600 " : ""}12px ${font}`;
+      ctx.fillStyle = isTotal(r) ? fg : text;
+      ctx.font = `${isTotal(r) ? "600 " : ""}12px ${font}`;
       let lab = r.label;
       while (lab.length > 3 && ctx.measureText(lab).width > LABEL - 10) lab = lab.slice(0, -2) + "…";
       ctx.fillText(lab, 0, y + ROW / 2);
@@ -102,7 +108,7 @@ export function signalStrips(host: HTMLElement) {
     drawOverlay();
   };
 
-  const leave = () => { hoverX = -1; tip.hide(); readout.textContent = "Наведите курсор на полосу"; drawOverlay(); };
+  const leave = () => { hoverX = -1; tip.hide(); readout.textContent = tr("charts.strips.hover"); drawOverlay(); };
   canvas.addEventListener("mouseleave", leave);
   canvas.addEventListener("mousemove", (e) => {
     const rect = canvas.getBoundingClientRect();

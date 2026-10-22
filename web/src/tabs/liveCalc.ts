@@ -1,6 +1,7 @@
 // Чистая логика вкладки «Бот (live)» (без DOM; тесты: tests/liveCalc.test.ts).
 // Всё, что здесь считается «по оценке» (стоп, ликвидация, P/L за день), на экране помечено как расчётное: источник правды — биржа и бот.
 import { stepValueAt } from "../charts/align";
+import { t } from "../i18n";
 import { MMR } from "../leverage";
 import type { LiveSnapshot, Num } from "../types";
 import { parseTime } from "../ui/fmt";
@@ -70,7 +71,7 @@ export function drawdownFrac(equity: Num | undefined, peak: Num | undefined): nu
 
 /** Начало окна графика; якорь — время последней точки (или «сейчас»), чтобы у остановившегося бота график не пустел. */
 export type RangeKey = "24h" | "7d" | "all";
-export const RANGES: { key: RangeKey; label: string }[] = [{ key: "24h", label: "24 ч" }, { key: "7d", label: "7 д" }, { key: "all", label: "Всё" }];
+export const RANGES: { key: RangeKey; label: string }[] = [{ key: "24h", label: t("live.range_24h") }, { key: "7d", label: t("live.range_7d") }, { key: "all", label: t("live.range_all") }];
 export const isRange = (v: unknown): v is RangeKey => v === "24h" || v === "7d" || v === "all";
 export function rangeStart(range: RangeKey, anchorMs: number): number {
   return range === "24h" ? anchorMs - DAY_MS : range === "7d" ? anchorMs - 7 * DAY_MS : -Infinity;
@@ -111,7 +112,7 @@ export function fmtCountdown(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   const d = Math.floor(s / 86400), hh = Math.floor((s % 86400) / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
   const p2 = (n: number) => String(n).padStart(2, "0");
-  if (d > 0) return `${d} д ${p2(hh)}:${p2(mm)}:${p2(ss)}`;
+  if (d > 0) return `${d} ${t("time.d")} ${p2(hh)}:${p2(mm)}:${p2(ss)}`;
   if (hh > 0) return `${hh}:${p2(mm)}:${p2(ss)}`;
   return `${p2(mm)}:${p2(ss)}`;
 }
@@ -207,7 +208,7 @@ export function stopRiskWarning(settings: LiveSnapshot["settings"] | null | unde
   const risk = stopRisk(st.stop_pct, st.leverage, weights);
   if (risk == null || weights == null) return null;
   let lim: { k: "kill_dd" | "kill_daily"; label: string; v: number } | null = null;     // при равенстве лимитов — просадка (как в боте)
-  for (const [k, label] of [["kill_dd", "просадка"], ["kill_daily", "убыток за день"]] as const) {
+  for (const [k, label] of [["kill_dd", t("live.limit_dd")], ["kill_daily", t("live.limit_daily")]] as const) {
     const v = st[k];
     if (fin(v) && v > 0 && (!lim || v < lim.v)) lim = { k, label, v };
   }
