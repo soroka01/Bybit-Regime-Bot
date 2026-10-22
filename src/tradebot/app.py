@@ -12,6 +12,7 @@ import signal
 import sys
 import threading
 
+from tradebot.i18n import tr
 from tradebot.paths import LOGS, STATE
 from tradebot.telegram import messages as M
 
@@ -73,11 +74,11 @@ def start_web():
         from tradebot.web.api import app
         import uvicorn
     except Exception as e:
-        log.info("веб-дашборд недоступен (%s: %s) — продолжаю без него", type(e).__name__, e)
+        log.info(tr("web dashboard unavailable (%s: %s) — continuing without it"), type(e).__name__, e)
         return None
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=8000, log_level="warning"))
     threading.Thread(target=server.run, name="web", daemon=True).start()
-    log.info("дашборд: http://127.0.0.1:8000")
+    log.info(tr("dashboard: http://127.0.0.1:8000"))
     return server
 
 
@@ -118,13 +119,13 @@ def finished_task_error(done) -> BaseException | None:
         if t.get_name() == "stop":
             continue
         if t.cancelled():
-            exc: BaseException | None = RuntimeError(f"задача {t.get_name()} была отменена")
+            exc: BaseException | None = RuntimeError(tr("task {name} was cancelled").format(name=t.get_name()))
         else:
             exc = t.exception()
         if exc is None and not stopping:
-            exc = RuntimeError(f"задача {t.get_name()} завершилась без ошибки, хотя остановки никто не просил")
+            exc = RuntimeError(tr("task {name} finished without an error although nobody asked it to stop").format(name=t.get_name()))
         if exc is not None:
-            log.error("задача %s упала: %r", t.get_name(), exc)
+            log.error(tr("task %s failed: %r"), t.get_name(), exc)
             return exc
     return None
 
@@ -169,7 +170,7 @@ async def amain(env) -> None:
     try:
         await client.sync_time()
     except Exception as e:
-        log.warning("синхронизация времени: %s", type(e).__name__)
+        log.warning(tr("time sync: %s"), type(e).__name__)
     await executor.setup()
     M.emit(notify, "info", await startup_data(store, client))
 
@@ -183,7 +184,7 @@ async def amain(env) -> None:
         if exc is not None:
             raise exc
     finally:
-        log.info("останавливаюсь...")
+        log.info(tr("stopping..."))
         runner.stop.set()
         panel.cancel()
         locked = False
@@ -191,7 +192,7 @@ async def amain(env) -> None:
             await asyncio.wait_for(executor.lock.acquire(), 30)
             locked = True
         except Exception:
-            log.warning("торговая операция не завершилась за 30 с")
+            log.warning(tr("trading operation did not finish within 30 s"))
         for t in tasks:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -210,10 +211,11 @@ async def amain(env) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="python -m tradebot.app", description="Бот торговли BTCUSDT на Bybit (только mainnet, реальные деньги)")
+    ap = argparse.ArgumentParser(prog="python -m tradebot.app",
+                                 description=tr("BTCUSDT trading bot for Bybit (mainnet only, real money)"))
     ap.add_argument("--check", action="store_true",
-                    help="проверить .env, права API-ключа и настройки аккаунта (только чтение) и выйти; бот не запускается: "
-                         "без bot.db, без блокировки bot.lock, без Telegram и ордеров. Коды: 0 - в порядке, 4 - есть проблема, 1 - биржа недоступна")
+                    help=tr("check .env, the API key permissions and the account settings (read-only) and exit; the bot is not started: "
+                            "no bot.db, no bot.lock, no Telegram, no orders. Exit codes: 0 - all good, 4 - a problem found, 1 - exchange unavailable"))
     args = ap.parse_args(argv)
     if args.check:
         from tradebot.check import check_main
@@ -225,16 +227,16 @@ def main(argv: list[str] | None = None) -> int:
     try:
         lock = acquire_lock()
     except AlreadyRunning:
-        print("Бот уже запущен (занят storage/state/bot.lock). Закройте другой экземпляр.")
+        print(tr("The bot is already running (storage/state/bot.lock is held). Close the other instance."))
         return EXIT_LOCKED
     setup_logging()
     try:
         env = load_env()
     except ConfigError as e:
-        print(f"Ошибка конфигурации: {e}")
+        print(tr("Configuration error: {error}").format(error=e))
         lock.close()
         return EXIT_CONFIG
-    log.info("старт")
+    log.info(tr("starting"))
     try:
         asyncio.run(amain(env))
     except KeyboardInterrupt:

@@ -10,11 +10,24 @@ from __future__ import annotations
 import asyncio
 from typing import Callable
 
+from tradebot.i18n import tr
 from tradebot.trading.config import MAINNET_URL, MAX_LEVERAGE, ConfigError, load_env
 from tradebot.trading.exchange import BybitClient, ExchangeError, NetworkError, key_block_reason
 
 EXIT_OK, EXIT_NETWORK, EXIT_PROBLEM = 0, 1, 4
-OK, WARN, BAD = "[ОК]       ", "[ВНИМАНИЕ] ", "[ОШИБКА]   "
+
+
+# маркеры строк отчёта: язык известен только во время вызова, поэтому функции, а не константы
+def OK() -> str:  # noqa: N802
+    return tr("[OK]       ")
+
+
+def WARN() -> str:  # noqa: N802
+    return tr("[WARN]     ")
+
+
+def BAD() -> str:  # noqa: N802
+    return tr("[ERROR]    ")
 
 
 async def run_check(client, out: Callable[[str], None] = print) -> int:
@@ -25,79 +38,82 @@ async def run_check(client, out: Callable[[str], None] = print) -> int:
     def bad(text: str) -> None:
         nonlocal problems
         problems += 1
-        out(BAD + text)
+        out(BAD() + text)
 
-    out("Проверка (только чтение: ни ордеров, ни изменений настроек на бирже; bot.db не открывается)")
+    out(tr("Check (read-only: no orders, no account setting changes on the exchange; bot.db is not opened)"))
     try:
         await client.sync_time()
-        out(OK + f"время биржи: поправка часов {client.offset_ms:+d} мс")
+        out(OK() + tr("exchange time: clock offset {offset:+d} ms").format(offset=client.offset_ms))
 
         try:
             ki = await client.key_info()
         except NetworkError:
             raise
         except ExchangeError as e:
-            bad(f"ключ API отклонён биржей или права не прочитаны: {e}")
+            bad(tr("API key rejected by the exchange or its permissions could not be read: {error}").format(error=e))
         else:
             reason = key_block_reason(ki)
             if reason == "read_only":
-                bad("ключ API только на чтение: торговля заблокирована. Создайте ключ с правами Contract Orders + Positions (Read-Write)")
+                bad(tr("API key is read-only: trading is blocked. Create a key with Contract Orders + Positions (Read-Write) permissions"))
             elif reason == "withdraw":
-                bad("у ключа API есть право вывода (Withdraw): торговля заблокирована. Выпустите ключ без Withdraw")
+                bad(tr("API key has the Withdraw permission: trading is blocked. Issue a key without Withdraw"))
             else:
-                out(OK + "ключ API: торговать можно (запись разрешена), права вывода (Withdraw) нет")
+                out(OK() + tr("API key: trading allowed (write access enabled), no Withdraw permission"))
 
         try:
             acc = await client.read_account()
         except NetworkError:
             raise
         except ExchangeError as e:
-            bad(f"настройки аккаунта не прочитаны: {e}")
+            bad(tr("account settings could not be read: {error}").format(error=e))
         else:
             lev = acc["leverage"]
-            line = f"плечо {lev:g}x, {'изолированная' if acc['isolated'] else 'НЕ изолированная'} маржа, " \
-                   f"{'односторонний' if acc['one_way'] else 'НЕ односторонний'} режим"
+            line = tr("leverage {lev:g}x, {margin} margin, {mode} mode").format(
+                lev=lev, margin=tr("isolated") if acc["isolated"] else tr("NOT isolated"),
+                mode=tr("one-way") if acc["one_way"] else tr("NOT one-way"))
             if not acc["isolated"] or not acc["one_way"]:
-                bad(line + ". Бот при старте попробует переключить это сам, но с открытой позицией биржа может не разрешить; "
-                           "переключите вручную в приложении Bybit (Isolated Margin, One-Way Mode)")
+                bad(line + tr(". The bot will try to switch this itself on startup, but the exchange may refuse while a position is open; "
+                              "switch it manually in the Bybit app (Isolated Margin, One-Way Mode)"))
             elif lev > MAX_LEVERAGE:
-                bad(line + f". Это выше потолка бота ({MAX_LEVERAGE}x): при старте бот выставит своё плечо")
+                bad(line + tr(". This is above the bot's ceiling ({ceiling}x): on startup the bot will set its own leverage").format(ceiling=MAX_LEVERAGE))
             else:
-                out(OK + "аккаунт: " + line)
+                out(OK() + tr("account: ") + line)
 
         try:
             eq, bal = await client.equity(), await client.sizing_balance()
         except NetworkError:
             raise
         except ExchangeError as e:
-            bad(f"баланс не прочитан (нужен единый аккаунт UTA с USDT): {e}")
+            bad(tr("balance could not be read (a unified UTA account with USDT is required): {error}").format(error=e))
         else:
-            out(OK + f"баланс: equity {eq:.2f} $, база для размера позиции {bal:.2f} $")
+            out(OK() + tr("balance: equity {equity:.2f} $, position sizing base {base:.2f} $").format(equity=eq, base=bal))
             if not bal > 0:
-                bad("баланс для расчёта размера равен нулю: бот не сможет открыть позицию")
+                bad(tr("the balance used for position sizing is zero: the bot cannot open a position"))
 
         try:
             pos = await client.position()
         except NetworkError:
             raise
         except ExchangeError as e:
-            bad(f"позиция не прочитана: {e}")
+            bad(tr("position could not be read: {error}").format(error=e))
         else:
             if pos is None:
-                out(OK + "позиция: нет")
+                out(OK() + tr("position: none"))
             else:
-                stop = f"биржевой стоп {pos.stop:g}" if pos.stop else "БЕЗ биржевого стопа (бот выставит его при старте)"
-                out((OK if pos.stop else WARN) + f"позиция: {'лонг' if pos.side == 'long' else 'шорт'} {pos.qty:g} BTC, вход {pos.entry:g}, {stop}")
+                stop = (tr("exchange stop {stop:g}").format(stop=pos.stop) if pos.stop
+                        else tr("NO exchange stop (the bot will set it on startup)"))
+                out((OK() if pos.stop else WARN()) + tr("position: {side} {qty:g} BTC, entry {entry:g}, {stop}").format(
+                    side=tr("long") if pos.side == "long" else tr("short"), qty=pos.qty, entry=pos.entry, stop=stop))
     except NetworkError as e:
-        out(BAD + f"биржа недоступна: {e}. Проверка не завершена")
+        out(BAD() + tr("exchange unavailable: {error}. The check did not finish").format(error=e))
         return EXIT_NETWORK
     except (ExchangeError, KeyError, IndexError, AttributeError, TypeError, ValueError) as e:      # ответ биржи не того вида (например, не JSON Bybit)
-        out(BAD + f"ответ биржи не разобран ({type(e).__name__}): проверка не завершена")
+        out(BAD() + tr("exchange response could not be parsed ({exc}): the check did not finish").format(exc=type(e).__name__))
         return EXIT_NETWORK
     if problems:
-        out(f"Итог: проблем: {problems} - в таком виде запускать бота не стоит (код {EXIT_PROBLEM})")
+        out(tr("Result: {problems} problem(s) - the bot should not be started as is (code {code})").format(problems=problems, code=EXIT_PROBLEM))
         return EXIT_PROBLEM
-    out(f"Итог: всё в порядке (код {EXIT_OK})")
+    out(tr("Result: all good (code {code})").format(code=EXIT_OK))
     return EXIT_OK
 
 
@@ -108,9 +124,9 @@ def check_main(environ: dict | None = None, client_factory: Callable[[str, str, 
     try:
         env = load_env(environ)
     except ConfigError as e:
-        out(f"Ошибка конфигурации: {e}")
+        out(tr("Configuration error: {error}").format(error=e))
         return EXIT_PROBLEM
-    out("Конфигурация .env: в порядке (токен Telegram и числовой id владельца заданы, ключи Bybit заданы)")
+    out(tr(".env configuration: OK (Telegram token and numeric owner id are set, Bybit keys are set)"))
     client = (client_factory or BybitClient)(MAINNET_URL, env.api_key, env.api_secret)
 
     async def go() -> int:
