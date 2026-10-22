@@ -20,7 +20,7 @@ TELEGRAM_OWNER_ID, а если их нет - из файла .env в корне 
 Планировщик заданий Windows (запускает ВЛАДЕЛЕЦ, не бот; раз в 5 минут, без окна консоли, под текущим пользователем).
 Выполните в обычной командной строке один раз:
 
-    schtasks /Create /SC MINUTE /MO 5 /TN "tradebot-watchdog" /TR "\\"D:\\Program Files\\Python314\\pythonw.exe\\" \\"D:\\Documents\\Code\\crypto\\tools\\watchdog.py\\" --once" /F
+    schtasks /Create /SC MINUTE /MO 5 /TN "tradebot-watchdog" /TR "\\"C:\\Path\\To\\Python\\pythonw.exe\\" \\"C:\\Path\\To\\Bybit-Regime-Bot\\tools\\watchdog.py\\" --once" /F
 
 Проверить:  schtasks /Run /TN "tradebot-watchdog"      Удалить:  schtasks /Delete /TN "tradebot-watchdog" /F
 Сторож не зависит от бота: если бот и run.bat остановлены, сторож по-прежнему сообщит «процесс молчит».
