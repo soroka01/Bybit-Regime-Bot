@@ -22,3 +22,4 @@ build/
 web/node_modules/
 web/dist/
 web/dist.build/
+.claude/
