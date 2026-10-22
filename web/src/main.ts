@@ -16,6 +16,7 @@ import { errorBanner } from "./ui/banner";
 import { h } from "./ui/dom";
 import { jobsIndicator } from "./ui/jobs";
 import { themeSwitch } from "./ui/theme";
+import { githubLink } from "./ui/githubLink";
 import { botStatusPill } from "./ui/botStatus";
 import { brandMark } from "./ui/icons";
 import { kbd, skeletonChart } from "./ui/kit";
@@ -92,7 +93,7 @@ function shell() {
   const header = h("header", { class: "topbar" },
     h("div", { class: "brand" }, h("span", { class: "logo", "aria-hidden": "true" }, brandMark()), h("span", { class: "brand-name", text: "Tradebot" })),
     wrap, h("div", { class: "spacer" }),
-    h("div", { class: "topbar-end" }, pal.button, botStatusPill(), jobsIndicator(), sc.button, themeSwitch()));
+    h("div", { class: "topbar-end" }, pal.button, botStatusPill(), jobsIndicator(), sc.button, themeSwitch(), githubLink()));
   app.replaceChildren(h("a", { class: "skip", href: "#content", text: "К содержимому" }), header, fresh, content);
   return { links, content, fresh, layoutTabs };
 }

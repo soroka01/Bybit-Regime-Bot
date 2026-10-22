@@ -4,6 +4,7 @@ import { setPendingLab, setRoute, ROUTES, type Route } from "../state";
 import type { LiveSnapshot, Meta } from "../types";
 import { h } from "./dom";
 import { copyWithToast, pyLeg } from "./clipboard";
+import { REPO_URL } from "./githubLink";
 import { icon } from "./icons";
 import { kbd } from "./kit";
 import { filterCommands, pushRecent, type Command } from "./paletteCore";
@@ -74,6 +75,8 @@ export function buildCommands(): Command[] {
     out.push({ id: "act:live-legs", title: "Скопировать текущие ноги и веса бота", hint: "из снимка «Бот (live)»", group: "Действия", icon: "copy", keywords: "copy live веса weights",
       run: () => void copyWithToast(l.legs!.map((x) => `${x.key}: вес ${x.weight}${x.enabled ? "" : " (выкл)"}, сигнал ${x.signal ?? "—"}, ${JSON.stringify(x.params)}`).join("\n")) });
   }
+  out.push({ id: "act:github", title: "Открыть репозиторий на GitHub", hint: "исходный код проекта, README и CI", group: "Действия", icon: "github", keywords: "github git repo репозиторий исходники код source",
+    run: () => { window.open(REPO_URL, "_blank", "noopener,noreferrer"); } });
   for (const s of meta?.strategies ?? []) {
     out.push({ id: `lab:${s.name}`, title: `Открыть в Лаборатории: ${s.name}`, hint: s.desc, group: "Стратегии", icon: "flask", keywords: `lab strategy стратегия ${s.derivative ? "деривативы" : ""}`, run: () => labPreset(s.name) });
   }

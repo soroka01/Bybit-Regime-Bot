@@ -56,6 +56,7 @@
 | Кнопки | `.btn` [`.primary` `.ghost` `.danger`] [`.sm` `.lg`] [`.icon-btn`] [`.is-loading`]; состояния hover/active/disabled/focus | `setLoading(btn, on)` |
 | Поля | `select`, `.num-input`, `.search`, `input[type=range]` (заливка дорожки — `--fill`) | `ui/controls.ts: slider/select/toggle/segmented`, `syncRange(input)` |
 | Переключатель | `label.toggle > input[role=switch] + .track + span` | `toggle()` |
+| Ссылка на репозиторий | `a.btn.ghost.icon-btn.gh-link` (внешняя: `target=_blank`, `rel=noopener noreferrer`) справа от переключателя темы в шапке, подпись «GitHub» от 1600 px; команда палитры `act:github` | `ui/githubLink.ts: githubLink(), REPO_URL` |
 | Сегмент | `.segmented > button[aria-pressed]` | `segmented()` |
 | Бейдж / чип | `.badge.ok/warn/bad/info/off` (точка или знак `.has-glyph`), `.chip`, `.chip-param`, `.chip-btn` | `badge(text, tone, {glyph, live, title})` |
 | Баннер | `.banner` [`.warn` `.error` `.ok`] — иконка рисуется CSS-маской, разметка не нужна | `ui/banner.ts: errorBanner/showError` |

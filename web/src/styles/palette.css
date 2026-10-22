@@ -4,7 +4,7 @@
 .palette-btn-k { display: inline-flex; gap: 3px; margin-left: 2px; }
 .palette-btn-k .kbd { height: 17px; min-width: 17px; font-size: 10px; }
 @media (max-width: 1320px) { .palette-btn-t { display: none; } }
-@media (max-width: 1000px) { .palette-btn { width: var(--h-sm); padding: 0; justify-content: center; } .palette-btn-k { display: none; } }
+@media (max-width: 1279px) { .palette-btn { width: var(--h-sm); padding: 0; justify-content: center; } .palette-btn-k { display: none; } }   /* место под ссылку на GitHub в шапке */
 
 dialog.palette {
   width: min(640px, calc(100vw - 24px)); max-height: min(520px, 80vh); margin: 12vh auto auto; padding: 0; overflow: hidden; display: none; flex-direction: column;
