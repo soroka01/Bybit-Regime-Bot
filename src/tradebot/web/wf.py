@@ -4,6 +4,7 @@ from __future__ import annotations
 import pandas as pd
 
 from tradebot import paths
+from tradebot.i18n import tr
 from tradebot.web import serialize as S
 from tradebot.web.meta import wf_levs
 from tradebot.web.schemas import SYMBOLS
@@ -17,7 +18,8 @@ def _wf_tag(lev: int) -> str:
     if lev == 1:
         return ""
     if lev not in wf_levs():           # список плеч определяют реально существующие файлы результатов
-        raise ValueError(f"нет результатов walk-forward для плеча {lev}x (есть: {', '.join(map(str, wf_levs())) or 'нет'})")
+        raise ValueError(tr("no walk-forward results for leverage {lev}x (available: {available})").format(
+            lev=lev, available=', '.join(map(str, wf_levs())) or tr("none")))
     return f"_lev{lev}"
 
 
@@ -35,7 +37,7 @@ def _cached_file(path, loader):
 
 def _wf_symbol(symbol: str) -> str:
     if symbol not in SYMBOLS:
-        raise ValueError("неизвестный символ")
+        raise ValueError(tr("unknown symbol"))
     return symbol
 
 
@@ -55,6 +57,6 @@ def wf_curve(lev: int, tf: str, strategy: str, variant: str, symbol: str = "BTCU
     curves = _cached_file(p, pd.read_pickle)          # локальный файл, создан research.walkforward
     eq = curves.get((tf, strategy, variant))
     if eq is None:
-        raise ValueError("такой кривой нет")
+        raise ValueError(tr("no such curve"))
     pick = S.pick_indices(eq.to_numpy(), 1500)
     return {"t": S.secs(eq.index)[pick].tolist(), "equity": S.fl(eq.to_numpy()[pick])}

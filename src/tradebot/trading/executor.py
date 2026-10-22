@@ -16,6 +16,7 @@ import time
 from datetime import datetime, timezone
 from typing import Callable
 
+from tradebot.i18n import tr
 from tradebot.telegram import messages as M
 from tradebot.trading import pnl, state
 from tradebot.trading.config import MAX_LEVERAGE
@@ -250,7 +251,7 @@ class Executor:
             return 0.0
         if cur != 0 and (cur > 0) == (target > 0):
             self.store.set("acted_qty", cur)
-            log.info("размер текущей позиции %s BTC принят как удерживаемый (обновление бота)", abs(cur))
+            log.info(tr("size of the current position %s BTC accepted as held (bot update)"), abs(cur))
             return cur
         return None
 
@@ -272,7 +273,7 @@ class Executor:
                 await asyncio.sleep(self.retry_wait)
             if o is None:
                 if await self._book_by_delta(side, link, reason, before, eq_hint, t0_ms):  # позиция изменилась — ордер дошёл
-                    log.warning("ордер %s неоднозначен, но позиция изменилась", link)
+                    log.warning(tr("order %s is ambiguous, but the position changed"), link)
                     self.notify("warn", M.w_order_ambiguous())
                     return
                 try:
@@ -321,7 +322,7 @@ class Executor:
         try:
             self._book(side, filled, price, oid, reason, before, eq_hint, t0_ms)
         except Exception:
-            log.exception("учёт исполнения (на торговлю не влияет)")
+            log.exception(tr("fill accounting (does not affect trading)"))
 
     def _book(self, side: str, filled: float, price: float, oid: str, reason: str, before: float, eq_hint: float | None,
               t0_ms: int) -> None:
@@ -495,7 +496,7 @@ class Executor:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                log.exception("оповещение о закрытии биржей")
+                log.exception(tr("notification about an exchange-side close"))
         for f in fills:
             try:
                 r = await self._announce_fill(f, deadline, ctx, quiet)
@@ -504,7 +505,7 @@ class Executor:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                log.exception("оповещение об исполнении")
+                log.exception(tr("fill notification"))
         self._results = results
         return results
 
@@ -604,23 +605,23 @@ class Executor:
         except asyncio.CancelledError:
             raise
         except asyncio.TimeoutError:
-            log.info("добор итогов сделок: биржа не ответила за %.0f с — пропускаю", timeout)
+            log.info(tr("trade results backfill: the exchange did not respond within %.0f s — skipping"), timeout)
             return {"skipped": "таймаут"}
         except Exception as e:
-            log.info("добор итогов сделок пропущен: %s", type(e).__name__)
+            log.info(tr("trade results backfill skipped: %s"), type(e).__name__)
             return {"skipped": type(e).__name__}
         try:
             st = self.store
             plan = pnl.plan_backfill(recs or [], st.all_trades(), st.roundtrip_rows(), breaks=st.stop_breaks())
             res = st.apply_backfill(plan)
         except Exception:
-            log.exception("добор итогов сделок")
+            log.exception(tr("trade results backfill"))
             return {"skipped": "ошибка"}
         if res["inserted"] or res["updated"]:
             for it in plan:
-                log.info("добор итога сделки %s: %+.4f $ (комиссии %.4f, фандинг %+.4f) ордер %s", it["ts_close"], it["pnl"], it["fees"],
+                log.info(tr("backfilled trade result %s: %+.4f $ (fees %.4f, funding %+.4f) order %s"), it["ts_close"], it["pnl"], it["fees"],
                          it["funding"], it["order_id"])
-        log.info("добор итогов сделок: записей биржи %d, добавлено %d, обновлено %d, без изменений %d", len(recs or []),
+        log.info(tr("trade results backfill: exchange records %d, added %d, updated %d, unchanged %d"), len(recs or []),
                  res["inserted"], res["updated"], res["skipped"])
         return res
 
@@ -763,7 +764,7 @@ class Executor:
                 if abs(target - (st.get("latch_exposure") or 0.0)) <= EPS:
                     return "защёлка: жду смены сигнала"
                 st.set("latch", False)
-                log.info("целевая экспозиция изменилась — защёлка снята")
+                log.info(tr("target exposure changed — latch released"))
             inst, price = await self.ex.instrument(), await self.ex.mark_price()
             cur = pos.signed if pos else 0.0
             lev = float(s["leverage"])
@@ -794,7 +795,7 @@ class Executor:
                     return f"баланс недоступен: {e}"
                 tgt = target_qty(target, balance, lev, price, inst)
                 if tgt == 0:  # ниже minOrderQty -> считаем целью 0 (закрыть/не открывать)
-                    log.info("целевой размер ниже minOrderQty — цель 0")
+                    log.info(tr("target size is below minOrderQty — target 0"))
                 orders = plan_orders(cur, tgt, inst)
             skipped = False
             if gated:
@@ -909,10 +910,10 @@ class Executor:
                     try:
                         await self.cleanup_orders()
                     except ExchangeError as e:
-                        log.warning("kill-switch: отмена ордеров после повторного закрытия: %s", e)
+                        log.warning(tr("kill-switch: cancelling orders after the repeated close: %s"), e)
                     res = "закрыто"
             except ExchangeError as e:
-                log.warning("kill-switch: повторное закрытие не удалось: %s", e)
+                log.warning(tr("kill-switch: repeated close failed: %s"), e)
             finally:
                 await self._announce()
             if res != "закрыто":

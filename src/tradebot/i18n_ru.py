@@ -89,4 +89,111 @@ RU: dict[str, str] = {
     "The bot is already running (storage/state/bot.lock is held). Close the other instance.":
         "Бот уже запущен (занят storage/state/bot.lock). Закройте другой экземпляр.",
     "starting": "старт",
+
+    # ---- trading/executor.py (только log.*: notify/events/return-значения остаются русскими) ----
+    "size of the current position %s BTC accepted as held (bot update)":
+        "размер текущей позиции %s BTC принят как удерживаемый (обновление бота)",
+    "order %s is ambiguous, but the position changed": "ордер %s неоднозначен, но позиция изменилась",
+    "fill accounting (does not affect trading)": "учёт исполнения (на торговлю не влияет)",
+    "notification about an exchange-side close": "оповещение о закрытии биржей",
+    "fill notification": "оповещение об исполнении",
+    "trade results backfill: the exchange did not respond within %.0f s — skipping":
+        "добор итогов сделок: биржа не ответила за %.0f с — пропускаю",
+    "trade results backfill skipped: %s": "добор итогов сделок пропущен: %s",
+    "trade results backfill": "добор итогов сделок",
+    "backfilled trade result %s: %+.4f $ (fees %.4f, funding %+.4f) order %s":
+        "добор итога сделки %s: %+.4f $ (комиссии %.4f, фандинг %+.4f) ордер %s",
+    "trade results backfill: exchange records %d, added %d, updated %d, unchanged %d":
+        "добор итогов сделок: записей биржи %d, добавлено %d, обновлено %d, без изменений %d",
+    "target exposure changed — latch released": "целевая экспозиция изменилась — защёлка снята",
+    "target size is below minOrderQty — target 0": "целевой размер ниже minOrderQty — цель 0",
+    "kill-switch: cancelling orders after the repeated close: %s": "kill-switch: отмена ордеров после повторного закрытия: %s",
+    "kill-switch: repeated close failed: %s": "kill-switch: повторное закрытие не удалось: %s",
+
+    # ---- trading/runner.py, market_feed.py, state.py (только log.*) ----
+    "acting %d min late (after a restart/pause)": "действую с опозданием на %d мин (после перезапуска/паузы)",
+    "bar %s target %+.3f -> %s": "бар %s цель %+.3f -> %s",
+    "reconcile: %s": "сверка: %s",
+    "trade results backfill: %s": "добор итогов сделок: %s",
+    "the last bar is behind the expected one (%s) — one catch-up recalculation":
+        "последний бар отстаёт от ожидаемого (%s) — один догоняющий пересчёт",
+    "DB maintenance: %s": "обслуживание БД: %s",
+    "DB maintenance: backup %s, purged %s": "обслуживание БД: копия %s, удалено %s",
+    "could not get the server time: %s": "не удалось получить серверное время: %s",
+    "data load (attempt %d/%d): %s": "загрузка данных (попытка %d/%d): %s",
+    "DB migration v1 postponed: %s": "миграция БД v1 отложена: %s",
+    "backup before the DB migration: %s": "копия перед миграцией БД: %s",
+    "DB migration v1 failed: %s": "миграция БД v1 не выполнена: %s",
+    "DB migration v1 completed": "миграция БД v1 выполнена",
+
+    # ---- market/klines.py, derivs.py, guard.py (только log.*) ----
+    "%s: gaps in the data: %d, %d bars missing; first after %s, last before %s":
+        "%s: пропуски в данных: %d шт., не хватает %d баров; первый после %s, последний до %s",
+    "klines %s %s: the file is busy with another update — using the existing data without a top-up":
+        "klines %s %s: файл занят другим обновлением — использую имеющиеся данные без докачки",
+    "derivs %s: the file is busy with another update — using the existing data without a top-up":
+        "derivs %s: файл занят другим обновлением — использую имеющиеся данные без докачки",
+    "%s: could not check the freshness of the series": "%s: не удалось проверить свежесть ряда",
+    "~year {value}": "~год {value}",
+    "%s: data forward-filled (ffill) from old values: last record %s, lag behind the close of the last "
+    "candle %s, candles with a value older than %s: %d":
+        "%s: данные протянуты вперёд (ffill) со старых значений: последняя запись %s, отставание от закрытия "
+        "последней свечи %s, свечей со значением старше %s: %d",
+    "file %s has been busy with another update for longer than %.0f s": "файл %s занят другим обновлением дольше %.0f с",
+
+    # ---- web/lanes.py, cache.py, common.py, meta.py, wf.py, research/sweep.py ----
+    "request superseded by a newer one": "запрос вытеснен более новым",
+    "the server is busy with another calculation": "сервер занят другим расчётом",
+    "a data download is already in progress": "уже идёт загрузка данных",
+    "the server is shutting down": "сервер останавливается",
+    "the client cancelled the request": "клиент отменил запрос",
+    "calculation took longer than {seconds} s": "расчёт дольше {seconds} с",
+    "%s/%s: the job did not finish within %.0f s, but %d threads are already abandoned — the slot stays occupied":
+        "%s/%s: задание не завершилось за %.0f с, но брошенных потоков уже %d — слот остаётся занятым",
+    "%s/%s: the job did not finish within %.0f s (timeout %.0f s) — the semaphore was replaced, the thread keeps running":
+        "%s/%s: задание не завершилось за %.0f с (таймаут %.0f с) — семафор заменён, поток продолжает работать",
+    "cache DB error (%s) — skipped without a reset": "cache DB error (%s) — пропуск без сброса",
+    "calculation time exceeded": "превышено время расчёта",
+    "unknown strategy: {name}": "неизвестная стратегия: {name}",
+    "no walk-forward results for leverage {lev}x (available: {available})":
+        "нет результатов walk-forward для плеча {lev}x (есть: {available})",
+    "none": "нет",
+    "unknown symbol": "неизвестный символ",
+    "no such curve": "такой кривой нет",
+    "no column {column} in the data": "в данных нет колонки {column}",
+    "sweep %s %s: strategy «%s» skipped — %s": "sweep %s %s: стратегия «%s» пропущена — %s",
+    "skipped: {why}": "пропущена: {why}",
+
+    # ---- web/api.py, security.py, schemas.py, data.py, backtests.py, stats.py: тексты ошибок API ----
+    "the database is temporarily unavailable": "база данных временно недоступна",
+    "the results file is corrupted ({kind})": "файл результатов повреждён ({kind})",
+    "no key/column {key} in the data or the request": "в данных или запросе нет ключа/колонки {key}",
+    "no walk-forward results file: {detail}": "нет файла результатов walk-forward: {detail}",
+    "unknown range «{range}»: allowed {allowed}": "неизвестный диапазон «{range}»: допустимо {allowed}",
+    "unknown range {range}: allowed {allowed}": "неизвестный диапазон {range}: допустимо {allowed}",
+    "failed to update the data: ": "не удалось обновить данные: ",
+    "The UI is not built": "Интерфейс не собран",
+    "Run <code>cd web &amp;&amp; npm install &amp;&amp; npm run build</code>.":
+        "Выполните <code>cd web &amp;&amp; npm install &amp;&amp; npm run build</code>.",
+    "cross-site is forbidden": "cross-site запрещён",
+    "cross-origin is forbidden": "cross-origin запрещён",
+    "the request body must be application/json": "тело запроса должно быть application/json",
+    "unknown timeframe (allowed: {allowed})": "неизвестный таймфрейм (допустимо: {allowed})",
+    "No local data for {symbol} {tf}: {missing}. Download it explicitly (POST /api/data/fetch).":
+        "Нет локальных данных {symbol} {tf}: {missing}. Скачайте их явно (POST /api/data/fetch).",
+    "the data file is empty (or has fewer than 2 rows): {name}. Download the data again.":
+        "файл данных пуст (или в нём меньше 2 строк): {name}. Скачайте данные заново.",
+    "unknown symbol or timeframe": "неизвестный символ или таймфрейм",
+    "candles updated, but the derivatives failed to load: {exc}: {err}":
+        "свечи обновлены, но деривативы не загрузились: {exc}: {err}",
+    "no column {column} in the data for strategy {strategy}": "в данных нет колонки {column} для стратегии {strategy}",
+    "data": "данные",
+    "too little data for the selected period": "слишком мало данных за выбранный период",
+    "pick strategy parameters (two different ones for 2D)": "нужно выбрать параметры стратегии (для 2D — два разных)",
+    "too many cells (maximum {max})": "слишком много ячеек (максимум {max})",
+    "leg timeframe {tf} is not supported: allowed {allowed} (not shorter than the base grid {base} and multiples of it)":
+        "таймфрейм ноги {tf} не поддерживается: допустимы {allowed} (не короче базовой сетки {base} и кратные ей)",
+    "legs must differ by the strategy@timeframe pair": "ноги должны различаться по паре стратегия@таймфрейм",
+    "unknown criterion: {criterion}": "неизвестный критерий: {criterion}",
+    "too little data to split into IS/OOS": "слишком мало данных для разделения IS/OOS",
 }

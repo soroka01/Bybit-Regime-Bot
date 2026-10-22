@@ -8,6 +8,7 @@ import time
 import pandas as pd
 import requests
 
+from tradebot.i18n import tr
 from tradebot.market import guard
 from tradebot.market import klines as data
 from tradebot.market.klines import _atomic_parquet
@@ -90,7 +91,7 @@ def _incremental(name: str, fetch, days: int, refresh: bool = True, step_min: fl
         if not got:
             if not p.exists():
                 raise guard.LockTimeout(f"{p.name} занят другим обновлением, локальной копии нет")
-            log.warning("derivs %s: файл занят другим обновлением — использую имеющиеся данные без докачки", name)
+            log.warning(tr("derivs %s: the file is busy with another update — using the existing data without a top-up"), name)
             return data._read_parquet(p)
         now = int(time.time() * 1000)
         old = data._read_parquet(p) if p.exists() else pd.DataFrame()
@@ -175,11 +176,11 @@ def _warn_stale(label: str, series: pd.Series, close_t: pd.DatetimeIndex, max_ag
         if _stale_seen.get(label) == sig:
             return
         _stale_seen[label] = sig
-        log.warning("%s: данные протянуты вперёд (ffill) со старых значений: последняя запись %s, отставание от закрытия "
-                    "последней свечи %s, свечей со значением старше %s: %d", label, series.index[-1].isoformat(), lag, max_age,
+        log.warning(tr("%s: data forward-filled (ffill) from old values: last record %s, lag behind the close of the last "
+                       "candle %s, candles with a value older than %s: %d"), label, series.index[-1].isoformat(), lag, max_age,
                     stale)
     except Exception:  # noqa: BLE001
-        log.debug("%s: не удалось проверить свежесть ряда", label, exc_info=True)
+        log.debug(tr("%s: could not check the freshness of the series"), label, exc_info=True)
 
 
 def enrich(df: pd.DataFrame, symbol="BTCUSDT", refresh=True, days=1095) -> pd.DataFrame:
@@ -216,7 +217,7 @@ def enrich(df: pd.DataFrame, symbol="BTCUSDT", refresh=True, days=1095) -> pd.Da
 
 if __name__ == "__main__":
     f = funding()
-    print("funding", len(f), f.index[0], f.index[-1], f"mean/8h {f.mean():.6f}  ~год {f.mean() * 3 * 365:.1%}")
+    print("funding", len(f), f.index[0], f.index[-1], f"mean/8h {f.mean():.6f}  " + tr("~year {value}").format(value=f"{f.mean() * 3 * 365:.1%}"))
     o = open_interest(interval='1h')
     print("oi", len(o), o.index[0], o.index[-1])
     try:

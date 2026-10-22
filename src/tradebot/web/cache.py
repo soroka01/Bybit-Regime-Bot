@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 from tradebot.core import optimize
+from tradebot.i18n import tr
 from tradebot.paths import RESULTS
 
 log = logging.getLogger("tradebot.web.cache")
@@ -100,7 +101,7 @@ def _run(fn, default=None):
                     con.close()
             except sqlite3.DatabaseError as e:      # «not a database», malformed — сброс; locked/full/IO — просто промах
                 if not _is_corrupt(e):
-                    log.warning("cache DB error (%s) — пропуск без сброса", e)
+                    log.warning(tr("cache DB error (%s) — skipped without a reset"), e)
                     return default
                 log.warning("cache DB corrupt (%s) — reset", e)
                 _quarantine()

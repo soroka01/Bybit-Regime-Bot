@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import HTTPException, Request
 
+from tradebot.i18n import tr
 from tradebot.market import guard
 
 log = logging.getLogger("tradebot.web")
@@ -124,10 +125,10 @@ async def _acquire(lane: Lane, kind: str, my: int) -> asyncio.Semaphore:
         except asyncio.TimeoutError:
             pass
         if lane.supersede and lane.latest.get(kind) != my:
-            raise _err(429, "superseded", "запрос вытеснен более новым")
+            raise _err(429, "superseded", tr("request superseded by a newer one"))
         if time.monotonic() >= end:
             waited = time.monotonic() - t0
-            raise _err(429, "busy", "сервер занят другим расчётом" if lane.name == "calc" else "уже идёт загрузка данных",
+            raise _err(429, "busy", tr("the server is busy with another calculation") if lane.name == "calc" else tr("a data download is already in progress"),
                        waited_s=round(waited, 1), queue_wait_s=lane.queue_wait)
 
 
@@ -137,16 +138,16 @@ async def run_heavy(request: Request, kind: str, fn, timeout: float = HEAVY_TIME
     завершилась за WATCHDOG_FACTOR*timeout — watchdog подменяет семафор свежим (и пишет в лог)."""
     lane, my = (_net if kind in NET_KINDS else _calc), next(_ids)
     if lane.closed:
-        raise _err(503, "shutting_down", "сервер останавливается")
+        raise _err(503, "shutting_down", tr("the server is shutting down"))
     if lane.supersede:
         lane.latest[kind] = my
     sem = await _acquire(lane, kind, my)
     handed_off = False
     try:
         if lane.supersede and lane.latest.get(kind) != my:
-            raise _err(429, "superseded", "запрос вытеснен более новым")
+            raise _err(429, "superseded", tr("request superseded by a newer one"))
         if await request.is_disconnected():
-            raise _err(499, "cancelled", "клиент отменил запрос")
+            raise _err(499, "cancelled", tr("the client cancelled the request"))
         loop = asyncio.get_running_loop()
         cancel = threading.Event()
         lane.events.add(cancel)
@@ -161,14 +162,14 @@ async def run_heavy(request: Request, kind: str, fn, timeout: float = HEAVY_TIME
             if fut.done():
                 return
             if lane.abandoned >= lane.abandon_limit:
-                log.error("%s/%s: задание не завершилось за %.0f с, но брошенных потоков уже %d — слот остаётся занятым",
+                log.error(tr("%s/%s: the job did not finish within %.0f s, but %d threads are already abandoned — the slot stays occupied"),
                           lane.name, kind, timeout * WATCHDOG_FACTOR, lane.abandoned)
                 return
             lane.abandoned += 1
             state["abandoned"] = True
             if lane.sem is sem:
                 lane.sem = asyncio.Semaphore(1)
-            log.error("%s/%s: задание не завершилось за %.0f с (таймаут %.0f с) — семафор заменён, поток продолжает работать",
+            log.error(tr("%s/%s: the job did not finish within %.0f s (timeout %.0f s) — the semaphore was replaced, the thread keeps running"),
                       lane.name, kind, timeout * WATCHDOG_FACTOR, timeout)
         wd = loop.call_later(timeout * WATCHDOG_FACTOR, _watchdog)
 
@@ -185,7 +186,7 @@ async def run_heavy(request: Request, kind: str, fn, timeout: float = HEAVY_TIME
         try:
             return await asyncio.wait_for(asyncio.shield(fut), timeout)
         except asyncio.TimeoutError:
-            raise _err(504, "timeout", f"расчёт дольше {int(timeout)} с")
+            raise _err(504, "timeout", tr("calculation took longer than {seconds} s").format(seconds=int(timeout)))
     finally:
         if not handed_off:
             sem.release()

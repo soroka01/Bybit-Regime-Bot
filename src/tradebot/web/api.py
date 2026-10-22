@@ -17,6 +17,7 @@ import logging
 import math
 import os
 import pickle
+import re
 import sqlite3
 import time
 from collections import OrderedDict
@@ -31,6 +32,8 @@ from pandas.errors import EmptyDataError, ParserError
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from tradebot import i18n
+from tradebot.i18n import tr
 from tradebot.market import guard
 from tradebot.paths import WEB_DIST
 from tradebot.web import backtests, common, data, lanes, meta, research, stats, stats_base, wf
@@ -106,19 +109,19 @@ def _map_exc(e: Exception, upstream: bool = False):
     if isinstance(e, HTTPException):
         return e
     if isinstance(e, guard.Cancelled):
-        return _err(503, "shutting_down", "сервер останавливается")
+        return _err(503, "shutting_down", tr("the server is shutting down"))
     if isinstance(e, data.DataMissing):
         return _err(409, "data_missing", str(e), symbol=e.symbol, tf=e.tf, missing=e.missing, estimate=e.estimate)
     if isinstance(e, sqlite3.Error):
-        return _err(503, "db_error", "база данных временно недоступна")
+        return _err(503, "db_error", tr("the database is temporarily unavailable"))
     if isinstance(e, (EOFError, pickle.PickleError, EmptyDataError, ParserError)):    # битый pkl/csv результатов
-        return _err(500, "bad_results", f"файл результатов повреждён ({type(e).__name__})")
+        return _err(500, "bad_results", tr("the results file is corrupted ({kind})").format(kind=type(e).__name__))
     if upstream:
         return _err(422, "bad_request", str(e)) if isinstance(e, ValueError) else None
     if isinstance(e, TimeoutError):
         return _err(504, "timeout", str(e))
     if isinstance(e, KeyError):      # str(KeyError) = "'col'" — без контекста; пишем понятное сообщение
-        return _err(422, "bad_request", f"в данных или запросе нет ключа/колонки {e.args[0] if e.args else '?'}")
+        return _err(422, "bad_request", tr("no key/column {key} in the data or the request").format(key=e.args[0] if e.args else '?'))
     if isinstance(e, ValueError):
         return _err(422, "bad_request", str(e))
     return None
@@ -227,7 +230,7 @@ def _wf(request: Request, fn, *args):
     try:
         return etagged(request, fn(*args), max_age=60)
     except FileNotFoundError as e:
-        raise _err(404, "no_results", f"нет файла результатов walk-forward: {e}")
+        raise _err(404, "no_results", tr("no walk-forward results file: {detail}").format(detail=e))
     except Exception as e:  # noqa: BLE001
         raise _fail(e, "walkforward")
 
@@ -312,7 +315,7 @@ def api_stats(range_: str = Query(stats_base.DEFAULT_RANGE, alias="range")):
     """Статистика РЕАЛЬНОЙ торговой истории бота (bot.db, только чтение): сделки, equity-метрики, ряды для графиков.
     Для допустимого range ответ всегда 200 (при отсутствии данных — available:false + reason). Неверный range -> 400."""
     if range_ not in stats_base.RANGE_SECONDS:
-        raise _err(400, "bad_request", f"неизвестный диапазон «{range_}»: допустимо {', '.join(stats_base.RANGE_SECONDS)}")
+        raise _err(400, "bad_request", tr("unknown range «{range}»: allowed {allowed}").format(range=range_, allowed=', '.join(stats_base.RANGE_SECONDS)))
     headers = {"Cache-Control": "no-store"}
     try:
         from tradebot.trading import state  # ленивый импорт, как в /api/live
@@ -337,7 +340,7 @@ async def api_data_update(request: Request, req: FetchReq):
     try:
         out = await lanes.run_heavy(request, "update", lambda: clean(data.update_data(req.symbol, req.tf)), lanes.FETCH_TIMEOUT)
     except Exception as e:  # noqa: BLE001
-        raise _fail(e, "update", (502, "update_failed", "не удалось обновить данные: "), upstream=True)
+        raise _fail(e, "update", (502, "update_failed", tr("failed to update the data: ")), upstream=True)
     _cache.clear()
     return out
 
@@ -354,8 +357,36 @@ async def api_fetch(request: Request, req: FetchReq):
 
 
 # ---------------------------------------------------------------- статика (web/dist)
-_FALLBACK = ("<!doctype html><meta charset=utf-8><title>tradebot</title><body style='font-family:sans-serif;padding:2rem'>"
-             "<h2>Интерфейс не собран</h2><p>Выполните <code>cd web &amp;&amp; npm install &amp;&amp; npm run build</code>.</p>")
+def _fallback_html() -> str:
+    return ("<!doctype html><meta charset=utf-8><title>tradebot</title><body style='font-family:sans-serif;padding:2rem'>"
+            "<h2>" + tr("The UI is not built") + "</h2><p>"
+            + tr("Run <code>cd web &amp;&amp; npm install &amp;&amp; npm run build</code>.") + "</p>")
+
+
+# Язык интерфейса по умолчанию SPA берёт из <meta name="tb-default-lang" content="en"> в index.html; сервер подставляет сюда APP_LANGUAGE
+_LANG_META = re.compile(r"""<meta\b(?=[^>]*\bname\s*=\s*["']tb-default-lang["'])[^>]*>""", re.IGNORECASE)
+_CONTENT_ATTR = re.compile(r"""(\bcontent\s*=\s*)(["'])[^"']*\2""", re.IGNORECASE)
+
+
+def _index_response(f: Path):
+    """index.html с подставленным языком по умолчанию. Нет тега (или у него нет content) — файл отдаётся как есть."""
+    headers = {"Cache-Control": "no-cache"}
+    try:
+        html = f.read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        return FileResponse(f, headers=headers)
+    lang = i18n.lang()
+    changed = False
+
+    def meta(m: re.Match) -> str:
+        nonlocal changed
+        tag, n = _CONTENT_ATTR.subn(lambda c: f"{c.group(1)}{c.group(2)}{lang}{c.group(2)}", m.group(0), count=1)
+        changed = changed or n > 0
+        return tag
+    html = _LANG_META.sub(meta, html, count=1)
+    if not changed:
+        return FileResponse(f, headers=headers)
+    return HTMLResponse(html, headers=headers)        # media_type text/html; charset=utf-8
 
 
 @app.get("/{path:path}", include_in_schema=False)
@@ -369,11 +400,13 @@ def static(path: str):
     except (ValueError, OSError):          # NUL-байт в пути, слишком длинное имя, недопустимые символы Windows
         raise HTTPException(404)
     if inside:
+        if f == root / "index.html":
+            return _index_response(f)
         headers = {"Cache-Control": "no-cache"}
         return FileResponse(f, headers=headers)
     index = root / "index.html"
     if not path and index.is_file():
-        return FileResponse(index, headers={"Cache-Control": "no-cache"})
+        return _index_response(index)
     if not path:
-        return HTMLResponse(_FALLBACK)
+        return HTMLResponse(_fallback_html())
     raise HTTPException(404)

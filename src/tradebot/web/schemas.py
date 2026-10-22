@@ -6,6 +6,7 @@ from typing import Annotated, Literal, Optional
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from tradebot.core.engine import DEFAULT_PERP_FEE
+from tradebot.i18n import tr
 from tradebot.market.klines import TIMEFRAMES
 
 SYMBOLS = ("BTCUSDT", "ETHUSDT")
@@ -18,7 +19,7 @@ Market = Literal["perp", "spot"]
 
 def _check_tf(v: str) -> str:
     if v not in TIMEFRAMES:
-        raise ValueError(f"неизвестный таймфрейм (допустимо: {', '.join(TIMEFRAMES)})")
+        raise ValueError(tr("unknown timeframe (allowed: {allowed})").format(allowed=', '.join(TIMEFRAMES)))
     return v
 
 

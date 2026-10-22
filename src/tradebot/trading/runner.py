@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from tradebot.i18n import tr
 from tradebot.telegram import messages as M
 from tradebot.trading import risk
 from tradebot.trading.executor import Executor, Notify
@@ -117,13 +118,13 @@ class Runner:
             late = await self.feed.now() - bar_close
             # ручной пересчёт (смена настроек/включение) всегда идёт по уже закрытой свече — «опоздание» там не новость
             if late >= pd.Timedelta(minutes=2) and why != MANUAL_RECALC:
-                log.info("действую с опозданием на %d мин (после перезапуска/паузы)", int(late.total_seconds() // 60))
+                log.info(tr("acting %d min late (after a restart/pause)"), int(late.total_seconds() // 60))
             reason = M.stored_reason(why, changes)
             sent0 = getattr(self.ex, "sent", 0)
             res = await self.ex.reconcile(target, fd.bar.to_pydatetime(), reason)
-            log.info("бар %s цель %+.3f -> %s", fd.bar, target, res)
+            log.info(tr("bar %s target %+.3f -> %s"), fd.bar, target, res)
             if res.startswith("ошибка") or res in ("аккаунт не настроен", "защёлка: жду смены сигнала"):
-                log.info("сверка: %s", res)        # причина уже отправлена владельцу самим исполнителем (или это штатное ожидание)
+                log.info(tr("reconcile: %s"), res)        # причина уже отправлена владельцу самим исполнителем (или это штатное ожидание)
             if changes and getattr(self.ex, "sent", 0) == sent0:
                 M.emit(self.notify, "signal", {"kind": "signal", "changes": changes, "target": target,
                                                "note": M.NO_ORDER_NOTES.get(res)})
@@ -135,7 +136,7 @@ class Runner:
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            log.info("добор итогов сделок: %s", type(e).__name__)
+            log.info(tr("trade results backfill: %s"), type(e).__name__)
 
     async def run(self) -> None:
         bf = asyncio.create_task(self._backfill(), name="backfill") if hasattr(self.ex, "backfill_pnl") else None
@@ -173,7 +174,7 @@ class Runner:
                 # Инвариант: ровно ОДИН цикл на последнем баре; пропущенные бары не переигрываем (цикл всегда берёт свежую ленту
                 # и действует по ней — торговать «задним числом» по старым барам нельзя).
                 self._catchup_for = expected_last_bar(now, "1h")
-                log.info("последний бар отстаёт от ожидаемого (%s) — один догоняющий пересчёт", self._catchup_for)
+                log.info(tr("the last bar is behind the expected one (%s) — one catch-up recalculation"), self._catchup_for)
                 await self._safe_cycle("догоняющий пересчёт")
                 continue
             try:
@@ -241,12 +242,12 @@ class Runner:
             res = {"error": f"{type(e).__name__}: {e}"}
         if res.get("error"):
             self._maint_next = time.monotonic() + MAINT_RETRY_S
-            log.warning("обслуживание БД: %s", res["error"])
+            log.warning(tr("DB maintenance: %s"), res["error"])
             self._alert("db_backup", f"Резервная копия базы бота не сделана ({res['error']}) — повторю через час.", every=86400)
         else:
             self._alert_clear("db_backup")
             if res.get("ran"):
-                log.info("обслуживание БД: копия %s, удалено %s", res.get("backup"), res.get("purged"))
+                log.info(tr("DB maintenance: backup %s, purged %s"), res.get("backup"), res.get("purged"))
 
     async def tick(self) -> None:
         st = self.store

@@ -5,6 +5,8 @@ from __future__ import annotations
 from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse
 
+from tradebot.i18n import tr
+
 SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
 BAD_FETCH_SITES = ("cross-site", "same-site")        # Sec-Fetch-Site: запрос инициирован другой страницей/сайтом
 
@@ -44,16 +46,16 @@ class SameOriginGuard:
             h = dict(scope["headers"])
             site = h.get(b"sec-fetch-site")
             if site and site.decode("latin-1").strip().lower() in BAD_FETCH_SITES:
-                await JSONResponse({"detail": "cross-site запрещён"}, status_code=403)(scope, receive, send)
+                await JSONResponse({"detail": tr("cross-site is forbidden")}, status_code=403)(scope, receive, send)
                 return
             origin = h.get(b"origin")
             if origin:
                 host = h.get(b"host")
                 if origin.decode("latin-1").split("://", 1)[-1] != (host.decode("latin-1") if host is not None else None):
-                    await JSONResponse({"detail": "cross-origin запрещён"}, status_code=403)(scope, receive, send)
+                    await JSONResponse({"detail": tr("cross-origin is forbidden")}, status_code=403)(scope, receive, send)
                     return
             if _has_body(h) and not _is_json(h.get(b"content-type")):
-                await JSONResponse({"detail": "тело запроса должно быть application/json"}, status_code=415)(scope, receive, send)
+                await JSONResponse({"detail": tr("the request body must be application/json")}, status_code=415)(scope, receive, send)
                 return
         await self.app(scope, receive, send)
 

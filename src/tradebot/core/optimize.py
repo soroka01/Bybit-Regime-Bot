@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 from tradebot.core.engine import backtest
+from tradebot.i18n import tr
 
 # Версия логики оптимизатора/вердиктов/движка для дисковых кэшей. ПОВЫШАЙТЕ при любой правке, меняющей результаты
 # (дополнительно кэш сам инвалидируется по хэшу исходников core/optimize|engine|strategies|overlays|indicators).
@@ -118,17 +119,17 @@ def optimize(df: pd.DataFrame, grid: dict[str, list], make_signal: Callable[[dic
              criterion: str = "robust", top: int = 10, curve: bool = False,
              check: Callable[[], None] | None = None, is_frac: float = IS_FRAC) -> dict:
     if criterion not in CRITERIA:
-        raise ValueError(f"неизвестный критерий: {criterion}")
+        raise ValueError(tr("unknown criterion: {criterion}").format(criterion=criterion))
     t0 = time.monotonic()
     mask = df.index >= df.index[-1] - pd.Timedelta(days=days)
     sub = df[mask]
     if len(sub) < 50:
-        raise ValueError("слишком мало данных за выбранный период")
+        raise ValueError(tr("too little data for the selected period"))
     cut = sub.index[0] + (sub.index[-1] - sub.index[0]) * is_frac
     is_m_, oos_m_ = sub.index < cut, sub.index >= cut
     sub_is, sub_oos = sub[is_m_], sub[oos_m_]
     if len(sub_is) < 30 or len(sub_oos) < 30:
-        raise ValueError("слишком мало данных для разделения IS/OOS")
+        raise ValueError(tr("too little data to split into IS/OOS"))
     need = min_trades(_rng(sub_is.index)["days"])
     oos_days = _rng(sub_oos.index)["days"]
 

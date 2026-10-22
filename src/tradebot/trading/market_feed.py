@@ -14,6 +14,7 @@ import pandas as pd
 from tradebot.core.portfolio import WARMUP_BARS, Leg, exposure
 from tradebot.core.strategies import STRATEGIES
 from tradebot.market import derivs, klines
+from tradebot.i18n import tr
 from tradebot.trading.config import MAINNET_URL, SYMBOL
 
 log = logging.getLogger("feed")
@@ -140,7 +141,7 @@ class MarketFeed:
                 self.offset = srv - (pd.Timestamp(t0 + (time.time() - t0) / 2, unit="s", tz="UTC"))
                 self._synced = time.time()
             except Exception as e:
-                log.warning("не удалось получить серверное время: %s", type(e).__name__)
+                log.warning(tr("could not get the server time: %s"), type(e).__name__)
         return pd.Timestamp.now(tz="UTC") + self.offset
 
     @staticmethod
@@ -210,7 +211,7 @@ class MarketFeed:
                     errs[tf] = str(e)
             if errs:
                 last = "; ".join(f"{e}" for e in errs.values())
-                log.warning("загрузка данных (попытка %d/%d): %s", i + 1, tries, last)
+                log.warning(tr("data load (attempt %d/%d): %s"), i + 1, tries, last)
             if not errs or (i == tries - 1 and BASE not in errs):
                 return FeedData(dfs, dfs[BASE].index[-1], oi_ok, errs)
             if i < tries - 1:

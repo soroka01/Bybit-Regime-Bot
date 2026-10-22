@@ -16,6 +16,7 @@ from pathlib import Path
 
 from tradebot.core.portfolio import DEFAULT_LEGS, Leg
 from tradebot.core.strategies import STRATEGIES
+from tradebot.i18n import tr
 from tradebot.paths import STATE, STORAGE
 from tradebot.trading.config import MAX_LEVERAGE
 
@@ -178,7 +179,7 @@ class Store:
                 self._pre_migration_copy()
             except Exception as e:
                 self.migration_error = f"копия перед миграцией не сделана ({type(e).__name__}: {e})"
-                log.warning("миграция БД v1 отложена: %s", self.migration_error)
+                log.warning(tr("DB migration v1 postponed: %s"), self.migration_error)
                 todo = False
         self._db.executescript(SCHEMA)
         if fresh:
@@ -191,7 +192,7 @@ class Store:
         if dest.exists():          # повторная миграция (например, после восстановления старой копии): прежнюю страховку не затираем
             dest = dest.with_name(f"bot_pre_v1_{datetime.now(timezone.utc):%Y%m%d_%H%M%S}.db")
         out = self._snapshot_to(dest)
-        log.info("копия перед миграцией БД: %s", out)
+        log.info(tr("backup before the DB migration: %s"), out)
         return out
 
     def _migrate_v1(self) -> None:
@@ -210,10 +211,10 @@ class Store:
                 pass
             if isinstance(e, sqlite3.Error):
                 self.migration_error = f"{type(e).__name__}: {e}"
-                log.warning("миграция БД v1 не выполнена: %s", self.migration_error)
+                log.warning(tr("DB migration v1 failed: %s"), self.migration_error)
                 return
             raise
-        log.info("миграция БД v1 выполнена")
+        log.info(tr("DB migration v1 completed"))
 
     def _x(self, sql: str, args=()):
         with self._lock:

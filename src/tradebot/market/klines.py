@@ -13,6 +13,7 @@ import pandas as pd
 import requests
 
 URL = "https://api.bybit.com/v5/market/kline"
+from tradebot.i18n import tr
 from tradebot.market import guard
 from tradebot.paths import MARKET as DATA_DIR
 
@@ -167,7 +168,7 @@ def warn_gaps(label: str, gaps: list) -> None:
     if _gap_seen.get(label) == sig:
         return
     _gap_seen[label] = sig
-    log.warning("%s: пропуски в данных: %d шт., не хватает %d баров; первый после %s, последний до %s",
+    log.warning(tr("%s: gaps in the data: %d, %d bars missing; first after %s, last before %s"),
                 label, len(gaps), sig[3], gaps[0][0].isoformat(), gaps[-1][1].isoformat())
 
 
@@ -227,7 +228,7 @@ def load(symbol: str = "BTCUSDT", tf: str = "1h", days: int = 1095, refresh: boo
         if not got:
             if not p.exists():
                 raise guard.LockTimeout(f"{p.name} занят другим обновлением, локальной копии нет")
-            log.warning("klines %s %s: файл занят другим обновлением — использую имеющиеся данные без докачки", symbol, tf)
+            log.warning(tr("klines %s %s: the file is busy with another update — using the existing data without a top-up"), symbol, tf)
             old = _read_parquet(p)
             return old[old.index >= cutoff]
 

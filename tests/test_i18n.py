@@ -237,3 +237,133 @@ def test_argparse_help_follows_the_language(capsys, monkeypatch, lang, needle):
     with pytest.raises(SystemExit):
         app.main(["--help"])
     assert needle in " ".join(capsys.readouterr().out.split())
+
+
+# ------------------------------------------------------------------------------------------------ тексты ошибок API
+def _client():
+    from fastapi.testclient import TestClient
+    from tradebot.web.api import app as web_app
+    return TestClient(web_app)
+
+
+JSON = {"content-type": "application/json"}
+
+
+@pytest.mark.parametrize("lang,site_msg,body_msg", [
+    ("en", "cross-site is forbidden", "the request body must be application/json"),
+    ("ru", "cross-site запрещён", "тело запроса должно быть application/json"),
+])
+def test_security_middleware_messages_follow_the_language(lang, site_msg, body_msg):
+    i18n.set_language(lang)
+    c = _client()
+    r = c.post("/api/backtest", content=b"{}", headers={**JSON, "Sec-Fetch-Site": "cross-site"})
+    assert r.status_code == 403 and r.json() == {"detail": site_msg}
+    r = c.post("/api/backtest", content=b"x", headers={"content-type": "text/plain"})
+    assert r.status_code == 415 and r.json() == {"detail": body_msg}
+
+
+def test_api_error_codes_stay_and_messages_switch():
+    c = _client()
+    i18n.set_language("en")
+    r = c.get("/api/stats", params={"range": "bogus"})
+    d = r.json()["detail"]
+    assert r.status_code == 400 and d["code"] == "bad_request" and d["message"].startswith("unknown range «bogus»: allowed ")
+    i18n.set_language("ru")
+    r = c.get("/api/stats", params={"range": "bogus"})
+    d = r.json()["detail"]
+    assert r.status_code == 400 and d["code"] == "bad_request" and d["message"].startswith("неизвестный диапазон «bogus»: допустимо ")
+
+
+def test_web_error_texts_in_english():
+    from tradebot.web import data, meta
+    i18n.set_language("en")
+    e = data.DataMissing("BTCUSDT", "1h", ["candles", "funding"])
+    assert str(e) == "No local data for BTCUSDT 1h: candles, funding. Download it explicitly (POST /api/data/fetch)."
+    assert str(data.DataEmpty("x.parquet")).startswith("the data file is empty")
+    with pytest.raises(ValueError, match="unknown strategy: nope"):
+        meta.get_strategy("nope")
+    with pytest.raises(ValueError, match="unknown symbol or timeframe"):
+        data.check_sym_tf("XXX", "1h")
+    i18n.set_language("ru")
+    with pytest.raises(ValueError, match="неизвестная стратегия: nope"):
+        meta.get_strategy("nope")
+
+
+# ------------------------------------------------------------------------------------------------ index.html и язык по умолчанию
+INDEX_TEXT = ("<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"tb-default-lang\" content=\"en\">"
+              "<title>Дашборд</title></head><body>Привет, мир</body></html>")
+
+
+@pytest.fixture
+def dist(tmp_path, monkeypatch):
+    from tradebot.web import api
+    d = tmp_path / "dist"
+    d.mkdir()
+    (d / "app.js").write_text("console.log(1)", encoding="utf-8")
+    monkeypatch.setattr(api, "WEB_DIST", d)
+    return d
+
+
+@pytest.mark.parametrize("path", ["/", "/index.html"])
+@pytest.mark.parametrize("lang", ["en", "ru"])
+def test_index_html_default_language_is_injected(dist, path, lang):
+    (dist / "index.html").write_bytes(INDEX_TEXT.encode("utf-8"))
+    i18n.set_language(lang)
+    r = _client().get(path)
+    assert r.status_code == 200
+    assert r.headers["content-type"].replace(" ", "").lower() == "text/html;charset=utf-8"
+    assert r.headers["cache-control"] == "no-cache"
+    assert f'<meta name="tb-default-lang" content="{lang}">' in r.text
+    assert "Дашборд" in r.text and "Привет, мир" in r.text                       # кириллица в utf-8 цела
+    assert r.text.count("tb-default-lang") == 1
+
+
+@pytest.mark.parametrize("tag", [
+    "<meta content='en' name='tb-default-lang'>",
+    '<META NAME="tb-default-lang" CONTENT="de" />',
+    '<meta   name = "tb-default-lang"   content = "en">',
+])
+def test_index_html_tag_variants(dist, tag):
+    (dist / "index.html").write_text(f"<head>{tag}</head>", encoding="utf-8")
+    i18n.set_language("ru")
+    for path in ("/", "/index.html"):
+        assert re.search(r"""content\s*=\s*(['"])ru\1""", _client().get(path).text, re.I)
+
+
+@pytest.mark.parametrize("html", ["<head><title>x</title></head>", '<meta name="tb-default-lang">', '<meta name="other" content="en">'])
+def test_index_html_without_a_usable_tag_is_served_unchanged(dist, html):
+    (dist / "index.html").write_text(html, encoding="utf-8")
+    i18n.set_language("ru")
+    for path in ("/", "/index.html"):
+        r = _client().get(path)
+        assert r.status_code == 200 and r.text == html
+
+
+def test_other_static_files_and_traversal_are_unchanged(dist):
+    (dist / "index.html").write_bytes(INDEX_TEXT.encode("utf-8"))
+    c = _client()
+    assert c.get("/app.js").text == "console.log(1)"
+    assert c.get("/missing.js").status_code == 404
+    assert c.get("/%2e%2e/secret.txt").status_code == 404
+
+
+@pytest.mark.parametrize("lang,title,text", [("en", "The UI is not built", "Run <code>cd web"),
+                                             ("ru", "Интерфейс не собран", "Выполните <code>cd web")])
+def test_fallback_page_follows_the_language(dist, lang, title, text):
+    i18n.set_language(lang)
+    r = _client().get("/")
+    assert r.status_code == 200 and title in r.text and text in r.text
+
+
+# ------------------------------------------------------------------------------------------------ watchdog (отдельный инструмент): простой английский
+def test_watchdog_console_text_is_plain_english(capsys, monkeypatch):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("tools_watchdog_i18n", SRC.parents[1] / "tools" / "watchdog.py")
+    wd = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(wd)
+    monkeypatch.setattr(wd, "read_env", lambda *_: {"TELEGRAM_BOT_TOKEN": "", "TELEGRAM_OWNER_ID": ""})
+    assert wd.main(["--once"]) == 4
+    assert "are not set" in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        wd.main(["--help"])
+    assert not CYRILLIC.search(capsys.readouterr().out)
