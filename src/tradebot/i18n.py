@@ -3,6 +3,7 @@
 его тексты всегда русские. lang() никогда не бросает исключений: неизвестное значение -> "en" (строгая проверка - в load_env)."""
 from __future__ import annotations
 
+import logging
 import os
 
 from tradebot.paths import ROOT
@@ -21,6 +22,9 @@ def _from_sources() -> str:
         except Exception:
             raw = None
     value = (raw or "").strip().lower()
+    if value and value not in LANGS:
+        # отдельный веб-процесс (python -m tradebot.web) не проверяет значение так строго, как load_env бота (там ConfigError): хотя бы скажем об этом
+        logging.getLogger("i18n").warning("APP_LANGUAGE=%r is not supported (use en or ru): falling back to en", value)
     return value if value in LANGS else "en"
 
 

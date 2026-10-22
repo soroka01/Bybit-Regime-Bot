@@ -367,3 +367,65 @@ def test_watchdog_console_text_is_plain_english(capsys, monkeypatch):
     with pytest.raises(SystemExit):
         wd.main(["--help"])
     assert not CYRILLIC.search(capsys.readouterr().out)
+
+
+def test_tr_is_never_called_at_import_time():
+    """tr() на уровне модуля (или тела класса) выполнился бы при импорте: до load_env и до установки языка. Допустимы только вызовы внутри функций."""
+    bad = []
+
+    class V(ast.NodeVisitor):
+        depth = 0
+
+        def _fn(self, node):
+            self.depth += 1
+            self.generic_visit(node)
+            self.depth -= 1
+        visit_FunctionDef = visit_AsyncFunctionDef = visit_Lambda = _fn
+
+        def visit_If(self, node):                                               # `if __name__ == "__main__":` при импорте не выполняется
+            main_guard = (isinstance(node.test, ast.Compare) and isinstance(node.test.left, ast.Name) and node.test.left.id == "__name__")
+            if main_guard:
+                self.depth += 1
+            self.generic_visit(node)
+            if main_guard:
+                self.depth -= 1
+
+        def visit_Call(self, node):
+            if isinstance(node.func, ast.Name) and node.func.id == "tr" and self.depth == 0:
+                bad.append((self.path, node.lineno))
+            self.generic_visit(node)
+
+    for path in sorted(SRC.rglob("*.py")):
+        v = V()
+        v.path = str(path.relative_to(SRC))
+        v.visit(ast.parse(path.read_text(encoding="utf-8")))
+    assert not bad, f"tr() вызывается при импорте модуля: {bad}"
+
+
+def test_main_exits_4_with_english_message_for_unsupported_language(monkeypatch, capsys):
+    """Путь, на который опирается run.bat (код 4 = не перезапускать): неверный APP_LANGUAGE -> ConfigError -> печать по-английски, язык не менялся."""
+    calls = []
+
+    class Lock:
+        def close(self):
+            calls.append("unlock")
+    monkeypatch.setattr(app, "disable_quickedit", lambda: None)
+    monkeypatch.setattr(app, "setup_logging", lambda: calls.append("log"))
+    monkeypatch.setattr(app, "acquire_lock", lambda: calls.append("lock") or Lock())
+    monkeypatch.setattr(config, "load_dotenv", lambda *a, **k: None)           # настоящий .env владельца в тесте не читаем
+    for k, v in GOOD.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("APP_LANGUAGE", "de")
+    i18n.reset()
+    assert app.main([]) == app.EXIT_CONFIG == 4
+    assert "APP_LANGUAGE must be 'en' or 'ru'" in capsys.readouterr().out
+    assert i18n.lang() == "en" and calls[:2] == ["lock", "log"]
+
+
+def test_unsupported_language_warns_once_in_standalone_resolution(monkeypatch, caplog):
+    monkeypatch.setenv("APP_LANGUAGE", "de")
+    i18n.reset()
+    with caplog.at_level("WARNING", logger="i18n"):
+        assert i18n.lang() == "en"
+        assert i18n.lang() == "en"                                              # результат кэшируется: предупреждение одно
+    assert [r.getMessage() for r in caplog.records].count("APP_LANGUAGE='de' is not supported (use en or ru): falling back to en") == 1

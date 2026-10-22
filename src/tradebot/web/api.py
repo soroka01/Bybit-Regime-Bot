@@ -119,7 +119,7 @@ def _map_exc(e: Exception, upstream: bool = False):
     if upstream:
         return _err(422, "bad_request", str(e)) if isinstance(e, ValueError) else None
     if isinstance(e, TimeoutError):
-        return _err(504, "timeout", str(e))
+        return _err(504, "timeout", str(e), limit_s=int(lanes.HEAVY_TIMEOUT))
     if isinstance(e, KeyError):      # str(KeyError) = "'col'" — без контекста; пишем понятное сообщение
         return _err(422, "bad_request", tr("no key/column {key} in the data or the request").format(key=e.args[0] if e.args else '?'))
     if isinstance(e, ValueError):

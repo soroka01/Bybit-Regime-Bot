@@ -70,6 +70,30 @@ describe("English: баннеры ошибок API по известным ко�
     for (const c of CASES) expect((await fail(c)).message, c.code).toBe(c.message);
   });
 
+  it("сервер отвечает по-английски (APP_LANGUAGE=en, по умолчанию): те же коды, тот же текст на языке интерфейса — en и ru", async () => {
+    // структурные поля lane / limit_s и английские тексты сервера: сопоставление не зависит от языка сервера
+    const SERVER_EN: { code: string; status: number; message: string; extra?: Record<string, unknown>; en: string; ru: string }[] = [
+      { code: "busy", status: 429, message: "the server is busy with another calculation", extra: { lane: "calc" }, en: "the server is busy with another calculation", ru: "сервер занят другим расчётом" },
+      { code: "busy", status: 429, message: "a data download is already in progress", extra: { lane: "net" }, en: "a data download is already in progress", ru: "уже идёт загрузка данных" },
+      { code: "timeout", status: 504, message: "calculation took longer than 600 s", extra: { limit_s: 600 }, en: "the calculation took longer than 600 s", ru: "расчёт дольше 600 с" },
+      { code: "timeout", status: 504, message: "calculation time exceeded", extra: { limit_s: 60 }, en: "the calculation took longer than 60 s", ru: "расчёт дольше 60 с" },
+      { code: "no_results", status: 404, message: "no walk-forward results file: boom", en: "no walk-forward results file: boom", ru: "нет файла результатов walk-forward: boom" },
+      { code: "update_failed", status: 502, message: "failed to update the data: ConnectError: boom", en: "failed to update the data: ConnectError: boom", ru: "не удалось обновить данные: ConnectError: boom" },
+      { code: "http", status: 403, message: "cross-site is forbidden", en: "cross-site requests are forbidden", ru: "cross-site запрещён" },
+      { code: "http", status: 415, message: "the request body must be application/json", en: "the request body must be application/json", ru: "тело запроса должно быть application/json" },
+    ];
+    const { i18n } = await load();
+    const failPlain = async (c: (typeof SERVER_EN)[number]) => {
+      const body = c.code === "http" ? { detail: c.message } : { detail: { code: c.code, message: c.message, ...c.extra } };
+      vi.stubGlobal("fetch", vi.fn(async () => json(body, c.status)));
+      const { api } = await import("../src/api");
+      return rejected(api.meta());
+    };
+    for (const c of SERVER_EN) expect((await failPlain(c)).message, `${c.code}: ${c.message}`).toBe(c.en);
+    i18n.__setLang("ru");
+    for (const c of SERVER_EN) expect((await failPlain(c)).message, `ru ${c.code}: ${c.message}`).toBe(c.ru);
+  });
+
   it("data_missing: кнопка загрузки и строка оценки — по-английски", async () => {
     const { errorBanner, fail } = await load();
     const box = errorBanner(await fail(CASES[0]!), () => {});
