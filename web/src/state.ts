@@ -32,13 +32,18 @@ export function validate<T extends object>(defaults: T, raw: unknown, checks: Ch
 }
 
 /** Отложенные записи по ключам: clearPersisted гасит их, чтобы упавшая вкладка не воскресила сброшенное состояние. */
-const pendingSaves = new Map<string, number>();
+const pendingSaves = new Map<string, { timer: number; write: () => void }>();
 
 /** Стереть сохранённое состояние вкладки (только её ключ tb.<key>; остальные настройки не трогаются). */
 export function clearPersisted(key: string): void {
-  clearTimeout(pendingSaves.get(key));
+  clearTimeout(pendingSaves.get(key)?.timer);
   pendingSaves.delete(key);
   try { localStorage.removeItem("tb." + key); } catch { /* приватный режим */ }
+}
+
+/** Немедленно записать все отложенные (200 мс) сохранения: вызывается перед перезагрузкой страницы (смена языка), чтобы не потерять последнюю правку. */
+export function flushSaves(): void {
+  for (const { timer, write } of [...pendingSaves.values()]) { clearTimeout(timer); write(); }
 }
 
 /** Объект состояния, сохраняемый в localStorage под ключом tb.<key>. Недостающие/некорректные поля берутся из defaults. */
@@ -56,11 +61,12 @@ export function persisted<T extends object>(
     state,
     save() {
       clearTimeout(timer);
-      timer = window.setTimeout(() => {
+      const write = () => {
         pendingSaves.delete(key);
         try { localStorage.setItem(k, JSON.stringify(state)); } catch { /* ignore */ }
-      }, 200);
-      pendingSaves.set(key, timer);
+      };
+      timer = window.setTimeout(write, 200);
+      pendingSaves.set(key, { timer, write });
     },
     reset() {
       clearTimeout(timer);   // отложенная запись не должна воскресить сброшенное состояние

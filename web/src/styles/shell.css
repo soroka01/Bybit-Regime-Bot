@@ -57,6 +57,7 @@
 .theme-switch button[aria-pressed="true"] { color: var(--fg); background: var(--surface-3); box-shadow: var(--shadow-1), 0 0 0 1px var(--border-strong); }
 .theme-switch button:active { transform: scale(.96); }
 .theme-switch .ts-label { display: none; }
+.lang-switch button { font-weight: 600; letter-spacing: .02em; }   /* «EN | RU»: текстовые кнопки в том же сегменте, что и тема */
 @media (min-width: 1600px) { .theme-switch .ts-label { display: inline; } }
 
 /* ссылка на репозиторий: иконка-кнопка в правом краю шапки; подпись «GitHub» — на широких экранах (.btn.gh-link перекрывает .icon-btn из components.css) */

@@ -1,14 +1,17 @@
 <!doctype html>
-<html lang="ru" data-theme="dark" data-theme-mode="dark">
+<html lang="en" data-theme="dark" data-theme-mode="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0a0d13">
-  <title>Tradebot — дашборд</title>
+  <title>Tradebot — dashboard</title>
+  <!-- Язык по умолчанию подставляет сервер (APP_LANGUAGE из .env) при отдаче этой страницы; без сервера остаётся en. -->
+  <meta name="tb-default-lang" content="en">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235ca4ff'/%3E%3Cstop offset='1' stop-color='%231b64cc'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M6 22l7-8 5 5 8-10' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <!-- Тема выставляется ДО первой отрисовки (без вспышки): ?theme=dark|light (не сохраняется) > localStorage "tb.theme" (light|dark|auto) > dark.
-       Должно совпадать с applyTheme() в src/ui/theme.ts. -->
+  <!-- Тема и язык выставляются ДО первой отрисовки (без вспышки).
+       Тема: ?theme=dark|light (не сохраняется) > localStorage "tb.theme" (light|dark|auto) > dark; должна совпадать с applyTheme() в src/ui/theme.ts.
+       Язык: ?lang=en|ru (не сохраняется) > localStorage "tb.lang" > <meta name="tb-default-lang"> > en; должен совпадать с detectLang() в src/i18n/index.ts. -->
   <script>
     (function () {
       var d = document.documentElement, m = null;
@@ -22,13 +25,20 @@
       var cs = document.querySelector('meta[name="color-scheme"]'), tc = document.querySelector('meta[name="theme-color"]');
       if (cs) cs.setAttribute("content", t);
       if (tc) tc.setAttribute("content", t === "dark" ? "#0a0d13" : "#f3f5f8");
+      var l = null;
+      try { var ql = /[?&]lang=(en|ru)(?:&|#|$)/.exec(location.search); l = ql && ql[1]; } catch (e) {}
+      if (!l) { try { l = localStorage.getItem("tb.lang"); } catch (e) {} }
+      if (l !== "en" && l !== "ru") { var dm = document.querySelector('meta[name="tb-default-lang"]'); l = dm && dm.getAttribute("content"); }
+      if (l !== "en" && l !== "ru") l = "en";
+      d.setAttribute("lang", l);
+      document.title = l === "ru" ? "Tradebot — дашборд" : "Tradebot — dashboard";
     })();
   </script>
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
   <div id="app"></div>
-  <noscript>Для работы дашборда нужен JavaScript.</noscript>
+  <noscript>JavaScript is required for the dashboard. / Для работы дашборда нужен JavaScript.</noscript>
   <script type="module" src="app.js"></script>
 </body>
 </html>

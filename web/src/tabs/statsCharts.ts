@@ -11,7 +11,7 @@ import { num, pctU, snum, spctU, susd, usd } from "../ui/fmt";
 import { emptyState } from "../ui/kit";
 import { BUCKET_TITLE, bucketLabel, bucketTitle, bucketValues, type BucketKind } from "./statsBuckets";
 import { calendarIsCompact } from "../charts/calendarModel";
-import { ddmm, stamp, ymdRu } from "../ui/fmtTime";
+import { ddmm, stamp, ymdLocal } from "../ui/fmtTime";
 import { equityMapper, tradeMarkers } from "./statsMarkers";
 import { histModel, type HistModel } from "../charts/histModel";
 import { infoMark } from "./statsView";
@@ -146,7 +146,7 @@ export function createStatsCharts(o: { getUnit(): EqUnit; setUnit(u: EqUnit): vo
   const dayBars = barChart(dayHost, () => {
     const d = last?.series?.daily_returns ?? [];
     return { categories: d.map((x) => x.date.slice(5).split("-").reverse().join(".")), height: 220, bySign: true, fmt: (v) => spctU(v, Math.abs(v) < 10 ? 1 : 0),
-      series: [{ name: "Доходность дня", color: "--c1", values: d.map((x) => x.ret_pct), titles: d.map((x) => ymdRu(x.date)) }] };
+      series: [{ name: "Доходность дня", color: "--c1", values: d.map((x) => x.ret_pct), titles: d.map((x) => ymdLocal(x.date)) }] };
   });
   const dayCard = sec("Дневная доходность кошелька", [h("div", { role: "group", "aria-label": "Столбцы дневной доходности" }, dayHost), daySummary], [infoMark("Доходность кошелька по дням UTC (по последней точке каждого дня); дни без данных пропущены.")], "st-daily");
 

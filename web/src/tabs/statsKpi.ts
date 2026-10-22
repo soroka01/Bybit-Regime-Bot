@@ -1,7 +1,7 @@
 // Вкладка «Статистика»: плитки KPI, определения метрик и сравнение с предыдущим окном (чистая логика).
 import type { Num, StatsResponse } from "../types";
 import { isNum as ok, num, pctU, snum, spctU, susd, toneOf, usd } from "../ui/fmt";
-import { ddmm, ddmmyy, fmtDuration, ymdRu } from "../ui/fmtTime";
+import { ddmm, ddmmyy, fmtDuration, mdLocal } from "../ui/fmtTime";
 
 type CmpGroup = "kpis" | "equity";
 interface CmpSpec { group: CmpGroup; field: string; kind: "pp" | "ratio" | "usd" | "count"; better: "up" | "none" }
@@ -101,7 +101,7 @@ export function miniKpis(r: StatsResponse): Kpi[] {
   if (!r.available || !k || !e) return [];
   const ls = longShort(r);
   const ref = (t: { n: number; net: Num; ret_pct: Num } | null) => (t ? `#${t.n} · ${spctU(t.ret_pct, 2)}` : undefined);
-  const day = (d: { date: string; ret_pct: Num } | null) => (d ? `${ymdRu(d.date).slice(0, 5)} · ${spctU(d.ret_pct, 2)}` : "—");
+  const day = (d: { date: string; ret_pct: Num } | null) => (d ? `${mdLocal(d.date)} · ${spctU(d.ret_pct, 2)}` : "—");
   const m = (key: string, label: string, def: string, value: string, tone: "pos" | "neg" | "" = "", extra: Partial<Kpi> = {}): Kpi => ({ key, label, def, value, tone, ...extra });
   return [
     m("avg_win", "Ср. выигрыш", "avg_win", susd(k.avg_win), toneOf(k.avg_win, 0.005), { est: true }),

@@ -17,6 +17,8 @@ import { h } from "./ui/dom";
 import { jobsIndicator } from "./ui/jobs";
 import { themeSwitch } from "./ui/theme";
 import { githubLink } from "./ui/githubLink";
+import { langSwitch } from "./ui/langSwitch";
+import { applyLangToDocument, t } from "./i18n";
 import { botStatusPill } from "./ui/botStatus";
 import { brandMark } from "./ui/icons";
 import { kbd, skeletonChart } from "./ui/kit";
@@ -24,12 +26,12 @@ import { installPalette, setPaletteContext } from "./ui/palette";
 import { installShortcuts } from "./ui/shortcuts";
 
 const TITLES: Record<Route, string> = {
-  lab: "Лаборатория",
-  portfolio: "Портфель",
-  wf: "Walk-forward",
-  best: "Лучшие стратегии",
-  live: "Бот (live)",
-  stats: "Статистика",
+  lab: t("tab.lab"),
+  portfolio: t("tab.portfolio"),
+  wf: t("tab.wf"),
+  best: t("tab.best"),
+  live: t("tab.live"),
+  stats: t("tab.stats"),
 };
 const FACTORIES: Record<Route, TabFactory> = {
   lab: createLab,
@@ -44,13 +46,13 @@ const app = document.getElementById("app")!;
 
 function shell() {
   const links = new Map<Route, HTMLAnchorElement>();
-  const nav = h("nav", { class: "tabs", role: "tablist", "aria-label": "Разделы" });
+  const nav = h("nav", { class: "tabs", role: "tablist", "aria-label": t("tab.nav") });
   const ind = h("span", { class: "tab-ind", "aria-hidden": "true" });
   nav.append(ind);
   ROUTES.forEach((r, i) => {
     const a = h("a", {
       href: `#/${r}`, role: "tab", id: `tab-${r}`, "aria-controls": "content", "aria-keyshortcuts": String(i + 1),
-      title: `${TITLES[r]} (клавиша ${i + 1})`,
+      title: t("tab.key_title", { title: TITLES[r], n: i + 1 }),
     }, h("span", { text: TITLES[r] }), kbd(String(i + 1), true));
     a.addEventListener("click", (e) => { e.preventDefault(); setRoute(r); });
     links.set(r, a);
@@ -93,14 +95,15 @@ function shell() {
   const header = h("header", { class: "topbar" },
     h("div", { class: "brand" }, h("span", { class: "logo", "aria-hidden": "true" }, brandMark()), h("span", { class: "brand-name", text: "Tradebot" })),
     wrap, h("div", { class: "spacer" }),
-    h("div", { class: "topbar-end" }, pal.button, botStatusPill(), jobsIndicator(), sc.button, themeSwitch(), githubLink()));
-  app.replaceChildren(h("a", { class: "skip", href: "#content", text: "К содержимому" }), header, fresh, content);
+    h("div", { class: "topbar-end" }, pal.button, botStatusPill(), jobsIndicator(), sc.button, langSwitch(), themeSwitch(), githubLink()));
+  app.replaceChildren(h("a", { class: "skip", href: "#content", text: t("app.skip") }), header, fresh, content);
   return { links, content, fresh, layoutTabs };
 }
 
 async function boot() {
+  applyLangToDocument();
   const { links, content, fresh, layoutTabs } = shell();
-  content.append(h("div", { class: "inline-busy" }, h("div", { class: "spinner" }), h("span", { text: "Загрузка…" })), skeletonChart(220));
+  content.append(h("div", { class: "inline-busy" }, h("div", { class: "spinner" }), h("span", { text: t("app.loading") })), skeletonChart(220));
   let meta: Meta;
   try {
     meta = await api.meta();

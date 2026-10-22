@@ -10,7 +10,7 @@ import { cmpView, defText, heroKpis, miniKpis, type CmpView, type Kpi } from "./
 import { FUNDING_HINT, feeNote, RECON_REASON, warningChips, type WarnChip } from "./statsWarnings";
 import { moneyLine, openAccountPct, type MoneySummary } from "./statsMoney";
 import { rangeTitle } from "./statsRange";
-import { stamp, ymdRu } from "../ui/fmtTime";
+import { stamp, ymdLocal } from "../ui/fmtTime";
 import { trimMessage, unavailableCopy } from "./statsPage";
 
 // ---------------------------------------------------------------- мелкие элементы
@@ -92,7 +92,7 @@ export function windowLine(res: StatsResponse): HTMLElement | null {
   const len = days >= 1 ? `${num(days, days < 10 ? 1 : 0)} дн.` : `${num(w.length_s / 3600, 1)} ч`;
   const partial = res.equity?.starts_before_data || (w.effective_start - w.start) > 60;
   const parts: (string | HTMLElement)[] = [
-    h("span", { class: "st-win-main" }, icon("clock", 14), `${rangeTitle(res.range)}: `, h("b", { text: `${ymdRu(w.start_date)} – ${ymdRu(w.end_date)}` }), ` (UTC, ${len})`),
+    h("span", { class: "st-win-main" }, icon("clock", 14), `${rangeTitle(res.range)}: `, h("b", { text: `${ymdLocal(w.start_date)} – ${ymdLocal(w.end_date)}` }), ` (UTC, ${len})`),
   ];
   if (partial) {
     const eff = res.equity?.eq_start_ts ?? w.effective_start;

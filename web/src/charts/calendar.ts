@@ -5,7 +5,7 @@ import type { StatsCalendarCell } from "../types";
 import { h } from "../ui/dom";
 import { glyph } from "../ui/kit";
 import { susd, toneOf, usd } from "../ui/fmt";
-import { ymdRu } from "../ui/fmtTime";
+import { mdLocal, ymdLocal } from "../ui/fmtTime";
 import { calendarIsCompact, calendarList, calendarSections, calLevel } from "./calendarModel";
 import { chartTip } from "./tooltip";
 
@@ -25,7 +25,7 @@ export function calendarChart(startDate: string, endDate: string, cells: readonl
       const lvl = calLevel(d.net, maxAbs);
       const tone = toneOf(d.net, 0.005);
       return h("li", { class: `cal-row${d.trades ? "" : " idle"}` },
-        h("span", { class: "cal-row-d" }, h("b", { text: wdOf(d.date) }), ` ${ymdRu(d.date).slice(0, 5)}`),
+        h("span", { class: "cal-row-d" }, h("b", { text: wdOf(d.date) }), ` ${mdLocal(d.date)}`),
         d.trades ? h("span", { class: "cal-row-bar", "aria-hidden": "true" }, h("i", { class: tone, style: `width:${Math.max(6, Math.abs(lvl) * 100)}%` })) : h("span"),
         h("span", { class: `cal-row-n ${tone}`, text: d.trades ? `${glyph(tone)} ${susd(d.net)}`.trim() : "—" }),
         h("span", { class: "cal-row-t muted", text: d.trades ? `${d.trades} сд.` : "сделок нет" }));
@@ -54,7 +54,7 @@ export function calendarChart(startDate: string, endDate: string, cells: readonl
       const show = () => {
         const hr = wrap.getBoundingClientRect(), r = c.getBoundingClientRect();
         tip.show({
-          title: `${wdOf(d.date)} ${ymdRu(d.date)}`,
+          title: `${wdOf(d.date)} ${ymdLocal(d.date)}`,
           rows: d.trades
             ? [{ label: "Net", value: susd(d.net), color: getComputedStyle(c).backgroundColor, box: true, tone: toneOf(d.net, 0.005) }, { label: "Сделок", value: String(d.trades) }]
             : [{ label: "Сделок", value: "нет" }],
