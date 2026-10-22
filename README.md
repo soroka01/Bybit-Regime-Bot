@@ -1,103 +1,221 @@
-# tradebot
+# 📈 Bybit Regime Bot
 
-Бот автоматической торговли BTCUSDT (бессрочный контракт Bybit, изолированная маржа, односторонний режим) плюс локальный
-веб-дашборд с бэктестами и статистикой. Каждый час бот считает сигналы стратегий, определяет целевую позицию и приводит к ней
-позицию на бирже; на бирже всегда стоит защитный стоп. Управление - через Telegram (одно сообщение-панель), дашборд - только
-просмотр и исследования.
+> BTCUSDT perpetual trading bot for Bybit with a built-in strategy lab: Telegram control, web dashboard, exchange-side stop and kill-switch.
 
-> **Внимание: бот работает ТОЛЬКО на основной сети Bybit (mainnet) и торгует РЕАЛЬНЫМИ деньгами - всем балансом счёта.**
-> Тестовой сети и режима «без ордеров» (PAPER) нет. Стратегии не гарантируют прибыли, возможна потеря всего депозита. Код
-> предоставляется как есть; вы отвечаете за свои ключи, настройки плеча и риск-лимитов.
+🌐 **Язык / Language:** [Русский](README_RU.md) · [English](README.md)
 
-## Устройство репозитория
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
+![aiogram](https://img.shields.io/badge/aiogram-3.x-2CA5E0?logo=telegram&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-dashboard-009688?logo=fastapi&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-uPlot-3178C6?logo=typescript&logoColor=white)
+![Bybit](https://img.shields.io/badge/Exchange-Bybit-F7A600)
+![CI](https://github.com/soroka01/Bybit-Regime-Bot/actions/workflows/ci.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-| Путь | Что там |
-|---|---|
-| `src/tradebot/app.py`, `check.py` | точка входа бота (раннер + мониторинг + Telegram + веб в одном процессе) и проверка `--check` |
-| `src/tradebot/trading/` | биржа (`exchange.py`), исполнитель ордеров, раннер, состояние в SQLite (`state.py`), риск, PnL |
-| `src/tradebot/telegram/` | панель управления, уведомления, подтверждения опасных действий |
-| `src/tradebot/core/`, `market/`, `research/` | движок бэктеста, индикаторы, стратегии, загрузка свечей/OI/фандинга |
-| `src/tradebot/web/` | FastAPI-бэкенд дашборда (`/api/...`), отдаёт собранный фронтенд из `web/dist` |
-| `web/` | фронтенд (TypeScript + esbuild), `web/DESIGN.md` - дизайн-правила |
-| `tools/watchdog.py` | сторож: пишет в Telegram, если бот замолчал |
-| `tests/` | pytest-тесты (`tests/fakes/` - тестовый двойник биржи), `tests/snapshots/` - золотые ответы API |
-| `storage/` | состояние и данные (в git не попадает): `state/bot.db`, `market/`, `results/`, `logs/`, `backups/` |
-| `run.bat` | запуск бота с автоперезапуском |
+## 📌 Overview
 
-## Установка
+The project has two halves that share one code base:
 
-Нужен Python 3.12+ и Node.js (только для фронтенда).
+- **A trading bot** for the Bybit BTCUSDT perpetual (isolated margin, one-way mode, Unified Trading Account). Every hour it evaluates strategy signals on closed candles, derives a target position, and brings the exchange position to it. A protective stop always sits on the exchange. The bot is controlled from Telegram.
+- **A local lab and dashboard** to backtest 32 built-in strategies, combine them into a weighted portfolio ("legs"), check them walk-forward and out-of-sample, and watch the live bot and its statistics.
 
-```bat
-python -m venv .venv
-.venv\Scripts\activate
+The same strategy and engine code is used by the backtester and the live bot, and a parity test keeps them identical.
+
+> [!WARNING]
+> **The bot trades on Bybit mainnet with real money, using the whole account balance.** There is no testnet or paper mode. Strategies do not guarantee profit and you can lose the entire deposit. Backtests are hypothetical. This is not financial advice; the code is provided as is, and you are responsible for your keys, leverage and risk limits.
+
+> [!NOTE]
+> The Telegram panel and the dashboard are in Russian. Documentation is available in English and Russian.
+
+## ✨ Features
+
+- 🤖 **Hourly decision loop** on closed bars: signals → target exposure → sized order → exchange position. Signals only change when a strategy's own bar closes (for example every 6 hours), so no intrabar noise.
+- 🧩 **Portfolio of legs:** strategy × timeframe × weight, edited live from Telegram or pushed from the dashboard ("Send to bot") with a confirmation step.
+- 🛡️ **Protection:** exchange-side stop on every position, kill-switch on drawdown from peak and on daily loss, API-key preflight (trading is blocked if the key can withdraw or is read-only), single-instance lock, hard leverage cap of 3×.
+- 📟 **Telegram control panel:** one self-updating message (Home / Position / Signals), risk settings, leg editor, trade notifications with P/L in dollars and in percent of the account, daily summary. Owner-only.
+- 📊 **Web dashboard** (dark and light theme, `Ctrl+K` palette): Lab, Portfolio, Walk-forward, Best strategies, Live, Statistics.
+- 🧮 **Exact P/L:** closed trades are reconciled with Bybit `closed-pnl` (fees and funding included), so the dashboard and Telegram show the same dollars.
+- 🔬 **Honest research tools:** in-sample/out-of-sample split, walk-forward, verdicts that flag overfitting, fees at 0.1 % by default, slippage, funding, liquidation model, leverage up to 100×.
+- 💾 **Operations:** SQLite (WAL) state with schema migrations, daily backups, log rotation, restart wrapper, read-only `--check`, optional heartbeat watchdog.
+
+## 🏗️ How it works
+
+```mermaid
+flowchart TD
+    A["Bybit public API: candles, funding, OI"] --> B["Closed-bar signals per leg"]
+    B --> C["Portfolio: target exposure"]
+    C --> D["Executor: sizing, orders, exchange stop"]
+    D --> E["Bybit position"]
+    D --> F["SQLite state + exact closed P/L"]
+    F --> G["Telegram panel and notifications"]
+    F --> H["Web dashboard"]
+```
+
+Position size is recomputed only when the target exposure or leverage changes: `qty = round_down(|exposure| × balance × 0.97 × leverage / price, lot step)`, where `balance` is the smaller of the USDT wallet balance and equity.
+
+### Example strategy: Regime switch (CHOP)
+
+The Choppiness Index (CHOP) decides which behaviour is allowed on each bar:
+
+| CHOP | Regime | Position |
+| --- | --- | --- |
+| below 45 | trending | follow the sign of EMA(fast) − EMA(slow) |
+| above 55 | ranging | Bollinger(20, 2) mean reversion, hold until the middle band |
+| between | unclear | flat |
+
+Being flat for days is normal for this kind of strategy.
+
+### Built-in strategies (32)
+
+Trend (EMA/SMA cross, Supertrend, Donchian, Keltner, Ichimoku, Parabolic SAR, KAMA, MA ribbon), mean reversion (RSI, Bollinger, z-score, Connors RSI(2)), momentum (MACD, ROC, vol-targeted TSMOM), regime and volatility (CHOP switch, squeeze breakout, ADX filter), and derivative-based (funding, long/short ratio, open interest). Full list with parameters: the Lab tab.
+
+## 🖼️ Screenshots
+
+Backtests on public market data (no account data); they illustrate the UI and are not a performance claim.
+
+**Lab** — one backtest, parameters recompute the result live:
+
+![Lab tab](docs/img/dashboard-lab.png)
+
+**Portfolio** — legs with weights, combined backtest, "Take live bot legs" / "Send to bot":
+
+![Portfolio tab](docs/img/dashboard-portfolio.png)
+
+## 🚀 Quick start
+
+### Requirements
+
+- Python 3.12+ (developed on 3.14) and Node.js 22+ (only to build the dashboard)
+- A Telegram bot token from [@BotFather](https://t.me/BotFather) and your numeric Telegram user id
+- A Bybit API key (Unified Trading Account) with **Contract Orders + Positions** permissions and **without Withdraw**
+- Windows is the primary target (`run.bat`); the Python code and tests also run on Linux in CI
+
+### Installation
+
+```powershell
+git clone https://github.com/soroka01/Bybit-Regime-Bot.git
+cd Bybit-Regime-Bot
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -e .[dev]
-cd web && npm install
+cd web
+npm install
+npm run build
+cd ..
+Copy-Item .env.example .env
 ```
 
-## Настройка `.env`
+### Configuration
 
-Скопируйте `.env.example` в `.env` и заполните (файл `.env` в git не попадает, значения нигде не печатаются):
+Fill in `.env` (it is git-ignored and values are never printed):
 
-| Переменная | Назначение |
-|---|---|
-| `TELEGRAM_BOT_TOKEN` | токен бота от @BotFather (`<число>:<строка>`) |
-| `TELEGRAM_OWNER_ID` | числовой id владельца: только он управляет ботом |
-| `BYBIT_API_KEY`, `BYBIT_API_SECRET` | ключ Bybit, оба обязательны |
-| `TZ_NAME` | часовой пояс для времени в Telegram (по умолчанию `Europe/Moscow`) |
-
-Права ключа: **Contract Orders + Positions**, право **Withdraw не включать**. При старте бот проверяет ключ: «только чтение» или
-наличие Withdraw блокируют торговлю. Аккаунт - единый (UTA). Старые `PAPER=1` и `BYBIT_ENV=testnet` в `.env` останавливают запуск
-с ошибкой (код 4), `PAPER=0`, `BYBIT_ENV=mainnet` и `I_UNDERSTAND_MAINNET` игнорируются - их лучше удалить.
-
-## Запуск и остановка
-
-* Запуск: `run.bat` (окно консоли). Он перезапускает бота после падения с паузой 15 -> 60 -> 300 с и пишет коды выхода в
-  `storage\logs\run.log`. Коды 0 (штатная остановка), 3 (уже запущен другой экземпляр) и 4 (ошибка конфигурации) перезапуск
-  не вызывают.
-* Остановка: `Ctrl+C` в окне бота (бот дождётся идущей операции и закроет соединения). Закрытие окна крестиком обрывает процесс без
-  корректной остановки. Позиция при остановке остаётся на бирже под защитным стопом.
-* Перезапуск: остановить (`Ctrl+C`) и снова `run.bat`. Дашборд поднимается вместе с ботом на <http://127.0.0.1:8000>.
-* Проверка без запуска: `python -m tradebot.app --check` - читает `.env`, права ключа, настройки аккаунта, баланс и позицию
-  (только GET-запросы, без `bot.db`, `bot.lock`, Telegram и ордеров) и печатает отчёт без секретов. Код выхода 0 - всё в
-  порядке, 4 - проблема (конфиг, ключ, настройки аккаунта), 1 - биржа недоступна.
-
-## Эксплуатация
-
-* Состояние - `storage\state\bot.db` (SQLite, WAL). Раз в сутки бот делает копию в `storage\backups\db\bot_YYYYMMDD.db`
-  (хранятся последние 14), чистит старые журналы и усекает WAL. Перед первой миграцией схемы (`PRAGMA user_version`) старая БД
-  копируется в `storage\backups\db\bot_pre_v1.db` - эту копию вручную не удаляйте, пока всё не проверено.
-* Логи: `storage\logs\bot.log` (ротация 5 МБ x 5) и `storage\logs\run.log` (коды выхода `run.bat`).
-* Сторож `tools\watchdog.py` - отдельный процесс из Планировщика заданий (раз в 5 минут). Один раз выполните в обычной командной
-  строке (пути поправьте под свою машину):
-
-  ```bat
-  schtasks /Create /SC MINUTE /MO 5 /TN "tradebot-watchdog" /TR "\"D:\Program Files\Python314\pythonw.exe\" \"D:\Documents\Code\crypto\tools\watchdog.py\" --once" /F
-  ```
-
-  Проверить: `schtasks /Run /TN "tradebot-watchdog"`, удалить: `schtasks /Delete /TN "tradebot-watchdog" /F`.
-
-## Тесты
-
-```bat
-set PYTHONIOENCODING=utf-8
-python -m pytest -q tests          :: быстрый набор (без perf и realdata) - гонять после каждой правки
-python -m pytest -q tests -m ""    :: всё, включая тесты на время и на живых данных из storage/ (не в начале часа UTC)
-cd web && npm run typecheck && npm test
+```dotenv
+TELEGRAM_BOT_TOKEN=<number>:<string>
+TELEGRAM_OWNER_ID=123456789
+BYBIT_API_KEY=...
+BYBIT_API_SECRET=...
+TZ_NAME=Europe/Moscow
 ```
 
-Тесты не ходят в сеть (она заблокирована в `tests/conftest.py`) и используют только временные БД.
+### Verify, then run
 
-## Фронтенд
+```powershell
+python -m tradebot.app --check   # read-only: key permissions, account settings, balance, position
+run.bat                          # bot + Telegram + dashboard, restarts after crashes
+```
 
-`cd web && npm run build` собирает `web/dist`; дашборд отдаёт эту папку «вживую», перезапуск бота не нужен. `npm run build` пересоздаёт
-`web/dist`, поэтому на работающей машине запускайте его осознанно. Правки фронтенда проверяйте `npm run typecheck` и `npm test`.
+`--check` sends only GET requests (no orders, no Telegram, no database) and exits with `0` if everything is fine, `4` on a configuration/key/account problem, `1` if the exchange is unreachable.
 
-## Git и правила изменений
+Trading is **off** after the first start: open the Telegram panel, review the risk settings and legs, and enable it explicitly. The dashboard is served at <http://127.0.0.1:8000>.
 
-* Коммиты точечные: `git add <пути> && git commit -m "..." -- <пути>` (не `git add -A`), одно логическое изменение - один коммит,
-  сообщение на русском. `core.autocrlf=false`: у каждого файла сохраняйте его собственные переводы строк (в основном CRLF, часть
-  файлов LF). Тексты и комментарии - на русском.
-* Пока бот работает на реальные деньги: не запускайте второй экземпляр, не трогайте `storage/state/bot.db`, не подключайте
-  настоящие ключи в тестах; дерево должно импортироваться и проходить быстрый набор тестов в любой момент (`run.bat` поднимает бота из
-  файлов на диске после любого падения).
+### Dashboard only (no keys, no trading)
+
+```powershell
+python -m tradebot.web
+```
+
+On first launch the Lab offers to download candles from Bybit's public API.
+
+## ⚙️ Configuration
+
+| Variable | Required | Description |
+| --- | :---: | --- |
+| `TELEGRAM_BOT_TOKEN` | yes | Bot token from @BotFather |
+| `TELEGRAM_OWNER_ID` | yes | Numeric id of the only user who can control the bot |
+| `BYBIT_API_KEY`, `BYBIT_API_SECRET` | yes | Mainnet key; both are required |
+| `TZ_NAME` | no | Time zone for Telegram messages (default `Europe/Moscow`) |
+
+Runtime settings live in the bot database and are changed from Telegram (ranges are validated server-side):
+
+| Setting | Default | Range |
+| --- | ---: | --- |
+| Leverage | 1× | 1–3× (hard cap in code) |
+| Exchange stop | 8 % | 1–30 % |
+| Kill-switch: drawdown from peak | 25 % | 5–50 % |
+| Kill-switch: daily loss | 10 % | 2–30 % |
+
+The config is mainnet-only and fail-closed: `PAPER` or `BYBIT_ENV=testnet` in `.env` stop the start with exit code 4.
+
+## 🔒 Security & privacy
+
+- Only `TELEGRAM_OWNER_ID` can control the bot; other chats are ignored.
+- Use a key **without** the Withdraw permission. At start the bot inspects the key and blocks trading if it can withdraw or is read-only. IP binding is optional.
+- The dashboard listens on `127.0.0.1` only and checks `Sec-Fetch-Site`, content types and security headers.
+- `.env`, `storage/` (database, candles, logs, backups) and build output are git-ignored. The database contains your trading history: do not publish it.
+- Tests use fakes and a blocked network; no real keys are ever needed.
+
+## 🗂️ Project structure
+
+```text
+.
+├── src/tradebot/
+│   ├── core/         # backtest engine, indicators, strategies, portfolio (single source of target exposure)
+│   ├── market/       # candles, funding, OI, long/short ratio: download and parquet cache
+│   ├── research/     # sweeps and walk-forward
+│   ├── trading/      # exchange client, executor, runner, risk, SQLite state, P/L
+│   ├── telegram/     # aiogram panel, notifications, confirmations
+│   └── web/          # FastAPI backend of the dashboard
+├── web/              # dashboard frontend (TypeScript + esbuild + uPlot), design rules in DESIGN.md
+├── tools/watchdog.py # optional heartbeat watchdog that alerts via Telegram
+├── tests/            # pytest suite with an exchange fake in tests/fakes
+├── run.bat           # Windows launcher with restart backoff
+└── .env.example      # configuration template without secrets
+```
+
+## 🧰 Operations
+
+- **State:** `storage/state/bot.db` (SQLite, WAL). A daily copy goes to `storage/backups/db/bot_YYYYMMDD.db` (14 kept); old logs are pruned and the WAL is truncated.
+- **Logs:** `storage/logs/bot.log` (rotating) and `storage/logs/run.log` (exit codes of `run.bat`).
+- **Stop:** `Ctrl+C` in the bot window. The position stays on the exchange under its protective stop.
+- **Exit codes:** `0` clean stop, `3` another instance is running, `4` configuration error; `run.bat` does not restart on these.
+- **Watchdog:** `tools/watchdog.py --once` sends a Telegram alert if the bot goes silent or the exchange is unreachable. Schedule it every 5 minutes with Windows Task Scheduler; the exact `schtasks` command is in the file's docstring.
+
+## 🧪 Development
+
+```powershell
+python -m pytest -q tests          # fast default suite
+python -m pytest -q tests -m ""    # everything, including timing and real-data tests
+cd web; npm run typecheck; npm test
+```
+
+Tests never touch the network. Keep real keys out of tests; the tree must stay importable and pass the fast suite at any time.
+
+## ⚠️ Limitations
+
+- One symbol (BTCUSDT linear perpetual), one process, one Unified Account, isolated margin, one-way mode.
+- Market orders only, so taker fees apply; backtests assume 0.1 % per side plus slippage (change it in the Lab to match your fee tier).
+- Signals are defined on closed bars. Re-evaluating on a rolling bar looks attractive but loses to noise and fees in backtests.
+- The dashboard and Telegram interface are in Russian only.
+- Past performance, backtests and walk-forward results do not predict future returns.
+
+## 📄 License
+
+[MIT](LICENSE).
+
+## 💬 Support
+
+You can [fork the repository](https://github.com/soroka01/Bybit-Regime-Bot/fork) and adapt it. If it was useful, give it a [Star](https://github.com/soroka01/Bybit-Regime-Bot): it shows me the project helped someone.
+
+---
+
+with love ❤️
